@@ -67,3 +67,17 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Built binary at repo root
 /conexus
+
+# Debug and test output files
+test_debug*.go
+test_glob*.go
+test_json*.go
+test_locator*.go
+*_test_result*.txt
+*_results.txt
+integration_*.txt
+full_test*.txt
+*.sh.bak
+test_summary.sh
+create_phase*.sh
+fix_*.sh
