@@ -262,6 +262,186 @@ See **[API Reference](docs/api-reference.md)** for complete schema documentation
 
 ---
 
+## 🔄 Workflow Integration
+
+### Overview
+
+Conexus provides a powerful workflow integration system that combines validation, profiling, and quality gates into coordinated multi-agent workflows.
+
+### Basic Orchestrator Usage
+
+```go
+package main
+
+import (
+    "context"
+    "github.com/ferg-cod3s/conexus/internal/orchestrator"
+    "github.com/ferg-cod3s/conexus/internal/process"
+    "github.com/ferg-cod3s/conexus/internal/tool"
+    "github.com/ferg-cod3s/conexus/internal/validation/evidence"
+)
+
+func main() {
+    // Create orchestrator with default configuration
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(false), // false = non-strict mode
+        QualityGates:      orchestrator.DefaultQualityGates(),
+        EnableProfiling:   true,
+    }
+    orch := orchestrator.NewWithConfig(config)
+    
+    // Execute a workflow
+    ctx := context.Background()
+    result, err := orch.HandleRequest(ctx, "find all HTTP handlers", permissions)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Access results with profiling data
+    fmt.Printf("Completed in %v\n", result.Duration)
+    fmt.Printf("Evidence coverage: %.1f%%\n", result.Profile.EvidenceCoverage)
+}
+```
+
+### Quality Gate Presets
+
+Conexus provides three quality gate configurations:
+
+#### 1. Default Quality Gates (Balanced)
+```go
+config := orchestrator.OrchestratorConfig{
+    QualityGates: orchestrator.DefaultQualityGates(),
+}
+```
+- ✅ 100% evidence backing required
+- ✅ 5-minute max workflow time
+- ✅ 1-minute max agent execution time
+- ✅ Blocks on validation failures
+
+#### 2. Relaxed Quality Gates (Development)
+```go
+config := orchestrator.OrchestratorConfig{
+    QualityGates: orchestrator.RelaxedQualityGates(),
+}
+```
+- ⚠️ 80% evidence coverage minimum
+- ⚠️ 10-minute max workflow time
+- ⚠️ Allows up to 5 unbacked claims
+
+#### 3. Strict Quality Gates (Production)
+```go
+config := orchestrator.OrchestratorConfig{
+    QualityGates: orchestrator.StrictQualityGates(),
+}
+```
+- 🔒 100% evidence backing enforced
+- 🔒 2-minute max workflow time
+- 🔒 30-second max agent execution time
+- 🔒 Blocks on all failures (validation + performance)
+
+### Custom Quality Gates
+
+```go
+config := orchestrator.OrchestratorConfig{
+    QualityGates: &orchestrator.QualityGateConfig{
+        RequireEvidenceBacking:    true,
+        MinEvidenceCoverage:       95.0,
+        AllowUnbackedClaims:       2,
+        MaxExecutionTime:          3 * time.Minute,
+        MaxAgentExecutionTime:     30 * time.Second,
+        BlockOnValidationFailure:  true,
+        BlockOnPerformanceFailure: false,
+    },
+}
+```
+
+### Profiling Integration
+
+Enable automatic profiling to capture performance metrics:
+
+```go
+config := orchestrator.OrchestratorConfig{
+    EnableProfiling: true,
+}
+
+result, _ := orch.ExecuteWorkflow(ctx, workflow, permissions)
+
+// Access profiling data
+profile := result.Profile
+fmt.Printf("Total duration: %v\n", profile.TotalDuration)
+fmt.Printf("Agent time: %v\n", profile.AgentExecutionTime)
+fmt.Printf("Validation time: %v\n", profile.ValidationTime)
+fmt.Printf("Profiling overhead: %.2f%%\n", profile.ProfilingOverheadPercent)
+```
+
+### Validation Integration
+
+Evidence validation is automatically integrated:
+
+```go
+// Strict mode - requires 100% evidence backing
+validator := evidence.NewValidator(true)
+
+// Non-strict mode - allows partial evidence
+validator := evidence.NewValidator(false)
+
+config := orchestrator.OrchestratorConfig{
+    EvidenceValidator: validator,
+}
+```
+
+### Workflow Reports
+
+Generate comprehensive workflow reports:
+
+```go
+result, _ := orch.ExecuteWorkflow(ctx, workflow, permissions)
+
+// Generate workflow report
+report := orchestrator.GenerateWorkflowReport(result)
+
+fmt.Println(report.ExecutionSummary)
+fmt.Println(report.ValidationReport)
+fmt.Println(report.PerformanceReport)
+```
+
+**Example report output:**
+```
+=== Workflow Execution Report ===
+
+Execution Summary:
+  Duration: 127ms
+  Agents Executed: 2
+  Status: ✅ Success
+
+Validation Report:
+  Evidence Coverage: 100.0%
+  Backed Claims: 15
+  Unbacked Claims: 0
+  Status: ✅ Passed
+
+Performance Report:
+  Agent Execution: 85ms (66.9%)
+  Validation: 12ms (9.4%)
+  Profiling Overhead: 1.2%
+  Status: ✅ Within Limits
+```
+
+### Best Practices
+
+1. **Use Default Gates for Most Cases**: Balanced performance and quality
+2. **Enable Profiling in Development**: Identify bottlenecks early
+3. **Strict Mode for Production**: Maximum confidence in production workflows
+4. **Monitor Profiling Overhead**: Keep under 10% for production systems
+5. **Review Validation Reports**: Ensure evidence backing meets standards
+
+See **[Testing Strategy](docs/contributing/testing-strategy.md)** for workflow testing patterns.
+
+---
+
+
 ## 🏗️ Development Workflow
 
 ### Project Structure

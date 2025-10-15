@@ -1133,6 +1133,626 @@ validator.ValidateParallel(output, []string{
 })
 ```
 
+
+## Workflow Integration Architecture
+
+### Overview
+
+The workflow integration system provides a unified configuration layer that coordinates quality gates, evidence validation, profiling, and multi-agent execution. This architecture enables consistent quality assurance across all orchestration operations.
+
+### Component Relationships
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    OrchestratorConfig                            │
+│  ┌───────────────┐  ┌────────────────┐  ┌──────────────────┐   │
+│  │ ProcessManager│  │  ToolExecutor  │  │ EvidenceValidator│   │
+│  └───────┬───────┘  └────────┬───────┘  └────────┬─────────┘   │
+│          │                   │                    │             │
+│  ┌───────┴──────────────────┴────────────────────┴─────────┐   │
+│  │              Orchestrator Core Instance                  │   │
+│  └───────┬──────────────────────────────────────────────────┘   │
+│          │                                                       │
+│  ┌───────┴───────┐    ┌──────────────┐    ┌────────────────┐   │
+│  │ QualityGates  │    │EnableProfiling│    │ WorkflowEngine │   │
+│  └───────┬───────┘    └──────┬───────┘    └────────┬───────┘   │
+└──────────┼────────────────────┼─────────────────────┼───────────┘
+           │                    │                     │
+           ▼                    ▼                     ▼
+    ┌────────────┐      ┌────────────┐       ┌────────────┐
+    │Validation  │      │ Profiling  │       │  Workflow  │
+    │  Pipeline  │      │  Collector │       │  Executor  │
+    └────────────┘      └────────────┘       └────────────┘
+```
+
+### OrchestratorConfig Structure
+
+The `OrchestratorConfig` provides centralized control over all workflow integration components:
+
+```go
+type OrchestratorConfig struct {
+    // Core execution components
+    ProcessManager    *process.Manager      // Subprocess management
+    ToolExecutor      *tool.Executor        // Tool execution interface
+    
+    // Quality assurance
+    EvidenceValidator *evidence.Validator   // Evidence validation (strict/non-strict)
+    QualityGates      QualityGates          // Quality thresholds and requirements
+    
+    // Performance monitoring
+    EnableProfiling   bool                  // Enable/disable profiling
+    Profiler          *profiling.Profiler   // Custom profiler instance (optional)
+    
+    // Workflow control
+    MaxConcurrentSteps int                  // Parallel execution limit
+    TimeoutDuration    time.Duration        // Global timeout
+}
+
+type QualityGates struct {
+    MinEvidenceScore    float64        // Minimum evidence coverage (0.0-100.0)
+    MaxExecutionTime    time.Duration  // Maximum workflow execution time
+    RequireEvidence     bool           // Fail if no evidence provided
+    RequireProfiling    bool           // Fail if profiling data missing
+    AllowPartialSuccess bool           // Allow partial workflow completion
+}
+```
+
+### Integration Flow
+
+#### 1. Configuration Phase
+
+```
+User Configuration
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  Configure Individual Components       │
+│  • Create ProcessManager                │
+│  • Create ToolExecutor                  │
+│  • Create EvidenceValidator (mode)      │
+│  • Select QualityGates preset           │
+└─────────────┬───────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────┐
+│  Build OrchestratorConfig               │
+│  config := OrchestratorConfig{          │
+│      ProcessManager:    pm,             │
+│      ToolExecutor:      te,             │
+│      EvidenceValidator: ev,             │
+│      QualityGates:      gates,          │
+│      EnableProfiling:   true,           │
+│  }                                      │
+└─────────────┬───────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────┐
+│  Initialize Orchestrator                │
+│  orch := NewWithConfig(config)          │
+│  • Inject all components                │
+│  • Wire up integration points           │
+│  • Initialize workflow engine           │
+└─────────────────────────────────────────┘
+```
+
+#### 2. Execution Phase
+
+```
+Request Received
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  Pre-Execution Quality Gates            │
+│  • Validate request parameters          │
+│  • Check resource availability          │
+│  • Initialize profiling (if enabled)    │
+└─────────────┬───────────────────────────┘
+              │ PASS
+              ▼
+┌─────────────────────────────────────────┐
+│  Workflow Execution                     │
+│  • Create workflow steps                │
+│  • Execute agent(s) via ProcessManager  │
+│  • Collect execution metrics            │
+└─────────────┬───────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────┐
+│  Evidence Validation                    │
+│  • Validate output structure            │
+│  • Check evidence coverage              │
+│  • Calculate quality score              │
+└─────────────┬───────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────┐
+│  Post-Execution Quality Gates           │
+│  • Check MinEvidenceScore threshold     │
+│  • Verify MaxExecutionTime not exceeded │
+│  • Validate profiling data (if required)│
+└─────────────┬───────────────────────────┘
+              │
+              ├── PASS ────────────────┐
+              │                        │
+              └── FAIL ───┐            │
+                          │            │
+                          ▼            ▼
+                    ┌──────────┐  ┌──────────┐
+                    │  Reject  │  │  Accept  │
+                    │  Result  │  │  Result  │
+                    └──────────┘  └──────────┘
+```
+
+### Quality Gate Flow
+
+The quality gate system enforces consistent quality standards across all workflow executions:
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                   Quality Gate Pipeline                     │
+└────────────────────────────────────────────────────────────┘
+
+Input: AgentResponse + QualityGates configuration
+
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│  Gate 1: Evidence Coverage Check        │
+│  • Calculate coverage percentage        │
+│  • Compare to MinEvidenceScore          │
+│  • Verdict: PASS (≥) / FAIL (<)         │
+└─────────────┬───────────────────────────┘
+              │ PASS
+              ▼
+┌─────────────────────────────────────────┐
+│  Gate 2: Execution Time Check           │
+│  • Measure total execution duration     │
+│  • Compare to MaxExecutionTime          │
+│  • Verdict: PASS (≤) / FAIL (>)         │
+└─────────────┬───────────────────────────┘
+              │ PASS
+              ▼
+┌─────────────────────────────────────────┐
+│  Gate 3: Evidence Presence Check        │
+│  • Count evidence items                 │
+│  • If RequireEvidence && count == 0     │
+│  • Verdict: PASS (count > 0) / FAIL     │
+└─────────────┬───────────────────────────┘
+              │ PASS
+              ▼
+┌─────────────────────────────────────────┐
+│  Gate 4: Profiling Data Check           │
+│  • Verify profiling data exists         │
+│  • If RequireProfiling && data == nil   │
+│  • Verdict: PASS (exists) / FAIL        │
+└─────────────┬───────────────────────────┘
+              │ PASS
+              ▼
+┌─────────────────────────────────────────┐
+│  Gate 5: Partial Success Handling       │
+│  • If any previous gate FAILED          │
+│  • Check AllowPartialSuccess            │
+│  • Override: PASS if allowed            │
+└─────────────┬───────────────────────────┘
+              │
+              ▼
+        Final Verdict
+```
+
+### Quality Gate Presets
+
+Three predefined configurations for common scenarios:
+
+```go
+// DefaultQualityGates: Balanced approach
+func DefaultQualityGates() QualityGates {
+    return QualityGates{
+        MinEvidenceScore:    100.0,            // Perfect coverage
+        MaxExecutionTime:    5 * time.Minute,  // Reasonable timeout
+        RequireEvidence:     true,             // Evidence mandatory
+        RequireProfiling:    false,            // Profiling optional
+        AllowPartialSuccess: false,            // No partial results
+    }
+}
+
+// RelaxedQualityGates: For exploratory/rapid development
+func RelaxedQualityGates() QualityGates {
+    return QualityGates{
+        MinEvidenceScore:    80.0,             // 80% coverage OK
+        MaxExecutionTime:    10 * time.Minute, // Longer timeout
+        RequireEvidence:     true,             // Still need evidence
+        RequireProfiling:    false,            // No profiling required
+        AllowPartialSuccess: true,             // Accept partial results
+    }
+}
+
+// StrictQualityGates: For production/critical workflows
+func StrictQualityGates() QualityGates {
+    return QualityGates{
+        MinEvidenceScore:    100.0,            // Perfect coverage
+        MaxExecutionTime:    2 * time.Minute,  // Strict timeout
+        RequireEvidence:     true,             // Evidence mandatory
+        RequireProfiling:    true,             // Profiling mandatory
+        AllowPartialSuccess: false,            // No partial results
+    }
+}
+```
+
+### Evidence Validation Integration
+
+Evidence validation operates in two modes based on configuration:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              EvidenceValidator Configuration                  │
+└──────────────────────────────────────────────────────────────┘
+
+evidence.NewValidator(strictMode bool)
+
+    │
+    ├─── strictMode = true ─────┐
+    │                           │
+    │                           ▼
+    │              ┌────────────────────────────┐
+    │              │  Strict Validation Mode     │
+    │              │  • File existence checked   │
+    │              │  • Line numbers verified    │
+    │              │  • Snippets validated       │
+    │              │  • Missing = ERROR          │
+    │              └────────────────────────────┘
+    │
+    └─── strictMode = false ────┐
+                                │
+                                ▼
+                   ┌────────────────────────────┐
+                   │  Non-Strict Validation Mode │
+                   │  • File existence optional  │
+                   │  • Line numbers trusted     │
+                   │  • Snippets assumed valid   │
+                   │  • Missing = WARNING        │
+                   └────────────────────────────┘
+
+Usage Example:
+
+// Development: Non-strict (warnings only)
+validator := evidence.NewValidator(false)
+
+// Production: Strict (errors for missing evidence)
+validator := evidence.NewValidator(true)
+```
+
+### Profiling Integration
+
+Performance monitoring integration with conditional enablement:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                  Profiling Integration                        │
+└──────────────────────────────────────────────────────────────┘
+
+OrchestratorConfig.EnableProfiling = true
+           │
+           ▼
+    ┌──────────────────────────┐
+    │  Initialize Profiler     │
+    │  • Start global timer    │
+    │  • Prepare collectors    │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Execution Start         │
+    │  profiler.Start("phase") │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Agent Execution         │
+    │  • Record start time     │
+    │  • Execute agent         │
+    │  • Record end time       │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Execution Complete      │
+    │  profiler.Stop("phase")  │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Aggregate Metrics       │
+    │  • Total duration        │
+    │  • Phase breakdown       │
+    │  • Agent execution times │
+    │  • Tool execution times  │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Attach to Response      │
+    │  response.ProfilingData  │
+    └──────────────────────────┘
+
+If EnableProfiling = false:
+  → No profiler initialization
+  → No metrics collection
+  → ProfilingData = nil
+```
+
+### Report Generation Pipeline
+
+Comprehensive workflow reporting with integrated metrics:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                 Report Generation Flow                        │
+└──────────────────────────────────────────────────────────────┘
+
+orchestrator.GenerateReport(result)
+           │
+           ▼
+    ┌──────────────────────────┐
+    │  Extract Components      │
+    │  • Execution status      │
+    │  • Quality gate results  │
+    │  • Evidence summary      │
+    │  • Profiling data        │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Format Header           │
+    │  • Workflow ID           │
+    │  • Timestamp             │
+    │  • Success/Failure       │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Quality Gates Section   │
+    │  • Gate configurations   │
+    │  • Pass/Fail status      │
+    │  • Evidence score        │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Performance Metrics     │
+    │  • Total duration        │
+    │  • Agent execution time  │
+    │  • Phase breakdown       │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Evidence Summary        │
+    │  • Total items           │
+    │  • By type (file/line)   │
+    │  • Coverage percentage   │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Recommendations         │
+    │  • Quality improvements  │
+    │  • Performance tips      │
+    │  • Evidence suggestions  │
+    └──────────┬───────────────┘
+               │
+               ▼
+       Formatted Report String
+```
+
+### Multi-Agent Coordination Flow
+
+Workflow integration enables seamless multi-agent coordination:
+
+```
+Request: "Analyze orchestrator implementation"
+           │
+           ▼
+    ┌──────────────────────────┐
+    │  Workflow Planning       │
+    │  • Identify required     │
+    │    agents: locator,      │
+    │    analyzer              │
+    │  • Determine sequence    │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Phase 1: Locate         │
+    │  • Agent: locator        │
+    │  • Task: Find files      │
+    │  • Pattern: "orchestrator│
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Quality Gate: Phase 1   │
+    │  • Evidence coverage OK? │
+    │  • Execution time OK?    │
+    └──────────┬───────────────┘
+               │ PASS
+               ▼
+    ┌──────────────────────────┐
+    │  Phase 2: Analyze        │
+    │  • Agent: analyzer       │
+    │  • Task: Analyze files   │
+    │  • Input: Phase 1 output │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Quality Gate: Phase 2   │
+    │  • Evidence coverage OK? │
+    │  • Execution time OK?    │
+    └──────────┬───────────────┘
+               │ PASS
+               ▼
+    ┌──────────────────────────┐
+    │  Aggregate Results       │
+    │  • Combine outputs       │
+    │  • Merge evidence        │
+    │  • Total profiling data  │
+    └──────────┬───────────────┘
+               │
+               ▼
+    ┌──────────────────────────┐
+    │  Final Quality Gate      │
+    │  • Overall evidence      │
+    │    coverage: 95%         │
+    │  • Total time: 1.2s      │
+    │  • Verdict: PASS         │
+    └──────────┬───────────────┘
+               │
+               ▼
+         Final Response
+```
+
+### Configuration Best Practices
+
+#### Development Environment
+
+```go
+config := orchestrator.OrchestratorConfig{
+    ProcessManager:    process.NewManager(),
+    ToolExecutor:      tool.NewExecutor(),
+    EvidenceValidator: evidence.NewValidator(false), // Non-strict
+    QualityGates:      orchestrator.RelaxedQualityGates(),
+    EnableProfiling:   true, // Identify bottlenecks
+}
+```
+
+#### CI/CD Environment
+
+```go
+config := orchestrator.OrchestratorConfig{
+    ProcessManager:    process.NewManager(),
+    ToolExecutor:      tool.NewExecutor(),
+    EvidenceValidator: evidence.NewValidator(true), // Strict
+    QualityGates:      orchestrator.DefaultQualityGates(),
+    EnableProfiling:   false, // Reduce overhead
+}
+```
+
+#### Production Environment
+
+```go
+config := orchestrator.OrchestratorConfig{
+    ProcessManager:    process.NewManager(),
+    ToolExecutor:      tool.NewExecutor(),
+    EvidenceValidator: evidence.NewValidator(true), // Strict
+    QualityGates:      orchestrator.StrictQualityGates(),
+    EnableProfiling:   true, // Monitor performance
+    MaxConcurrentSteps: 10,  // Limit resource usage
+    TimeoutDuration:    30 * time.Second, // Fast fail
+}
+```
+
+### Integration Metrics
+
+Key metrics tracked across workflow integration:
+
+```go
+type WorkflowMetrics struct {
+    // Execution metrics
+    TotalDuration       time.Duration
+    AgentExecutionTime  time.Duration
+    ValidationTime      time.Duration
+    
+    // Quality metrics
+    EvidenceCoverage    float64  // 0.0-100.0
+    QualityGatesPassed  int
+    QualityGatesFailed  int
+    
+    // Evidence metrics
+    TotalEvidenceItems  int
+    FileEvidence        int
+    LineEvidence        int
+    
+    // Performance metrics
+    PhaseCount          int
+    PhaseBreakdown      []PhaseMetric
+}
+
+type PhaseMetric struct {
+    Name        string
+    Duration    time.Duration
+    AgentName   string
+    Success     bool
+}
+```
+
+### Example: Complete Workflow Integration
+
+```go
+func AnalyzeWithFullIntegration(ctx context.Context, pattern string) error {
+    // 1. Configure orchestrator
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(true),
+        QualityGates: orchestrator.QualityGates{
+            MinEvidenceScore:    90.0,
+            MaxExecutionTime:    3 * time.Minute,
+            RequireEvidence:     true,
+            RequireProfiling:    true,
+            AllowPartialSuccess: false,
+        },
+        EnableProfiling: true,
+    }
+    
+    // 2. Create orchestrator
+    orch := orchestrator.NewWithConfig(config)
+    
+    // 3. Execute workflow
+    result, err := orch.Execute(ctx, orchestrator.Request{
+        Objective: fmt.Sprintf("Analyze codebase for pattern: %s", pattern),
+        Context: map[string]interface{}{
+            "pattern": pattern,
+        },
+    })
+    if err != nil {
+        return fmt.Errorf("workflow execution failed: %w", err)
+    }
+    
+    // 4. Generate comprehensive report
+    report := orch.GenerateReport(result)
+    fmt.Println(report)
+    
+    // 5. Verify quality gates
+    if !result.Success {
+        return fmt.Errorf("quality gates not met: %s", result.Error)
+    }
+    
+    // 6. Extract and log metrics
+    if result.ProfilingData != nil {
+        fmt.Printf("Total Duration: %s\n", result.ProfilingData.TotalDuration)
+        fmt.Printf("Agent Execution: %s\n", result.ProfilingData.AgentExecutionTime)
+        fmt.Printf("Evidence Items: %d\n", len(result.Evidence))
+        fmt.Printf("Quality Score: %.1f%%\n", result.QualityScore)
+    }
+    
+    return nil
+}
+```
+
+### Summary
+
+The workflow integration architecture provides:
+
+✅ **Unified Configuration**: Single config point for all components  
+✅ **Quality Enforcement**: Consistent quality gates across workflows  
+✅ **Flexible Validation**: Strict and non-strict evidence validation modes  
+✅ **Performance Monitoring**: Integrated profiling with conditional enablement  
+✅ **Comprehensive Reporting**: Detailed workflow execution reports  
+✅ **Multi-Agent Coordination**: Seamless agent-to-agent integration  
+✅ **Environment Adaptation**: Presets for development, CI/CD, production
+
+This architecture ensures consistent, high-quality, and performant multi-agent workflows throughout the Conexus system.
+
 ## Future Integration Plans
 
 ### Phase 6 Enhancements

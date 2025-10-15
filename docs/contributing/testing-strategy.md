@@ -375,6 +375,390 @@ go test ./test/integration/... -v
 docker-compose -f docker-compose.test.yml down
 ```
 
+## Workflow Integration Testing
+
+### Overview
+
+Workflow integration testing validates the complete orchestrator pipeline including quality gates, evidence validation, profiling, and report generation. These tests ensure that multi-agent coordination works correctly end-to-end.
+
+### Basic Workflow Test Pattern
+
+```go
+func TestWorkflowIntegration(t *testing.T) {
+    // Arrange
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(false),
+        QualityGates:      orchestrator.DefaultQualityGates(),
+        EnableProfiling:   true,
+    }
+    orch := orchestrator.NewWithConfig(config)
+    
+    request := orchestrator.Request{
+        Objective: "Analyze codebase structure",
+        Context: map[string]interface{}{
+            "repository": "github.com/example/repo",
+        },
+    }
+    
+    // Act
+    result, err := orch.Execute(context.Background(), request)
+    
+    // Assert
+    require.NoError(t, err)
+    assert.NotNil(t, result)
+    assert.True(t, result.Success)
+    assert.NotEmpty(t, result.Evidence)
+}
+```
+
+### Testing Quality Gates
+
+Use table-driven tests to validate different quality gate configurations:
+
+```go
+func TestQualityGates(t *testing.T) {
+    tests := []struct {
+        name        string
+        gates       orchestrator.QualityGates
+        request     orchestrator.Request
+        expectPass  bool
+    }{
+        {
+            name:  "default gates with good evidence",
+            gates: orchestrator.DefaultQualityGates(),
+            request: orchestrator.Request{
+                Objective: "Simple analysis task",
+            },
+            expectPass: true,
+        },
+        {
+            name:  "strict gates with incomplete evidence",
+            gates: orchestrator.StrictQualityGates(),
+            request: orchestrator.Request{
+                Objective: "Complex task",
+            },
+            expectPass: false,
+        },
+        {
+            name:  "relaxed gates with partial evidence",
+            gates: orchestrator.RelaxedQualityGates(),
+            request: orchestrator.Request{
+                Objective: "Exploratory task",
+            },
+            expectPass: true,
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            config := orchestrator.OrchestratorConfig{
+                ProcessManager:    process.NewManager(),
+                ToolExecutor:      tool.NewExecutor(),
+                EvidenceValidator: evidence.NewValidator(false),
+                QualityGates:      tt.gates,
+            }
+            orch := orchestrator.NewWithConfig(config)
+            
+            result, err := orch.Execute(context.Background(), tt.request)
+            
+            if tt.expectPass {
+                assert.NoError(t, err)
+                assert.True(t, result.Success)
+            } else {
+                assert.Error(t, err)
+            }
+        })
+    }
+}
+```
+
+### Evidence Validation Integration
+
+Test evidence validator integration with workflow:
+
+```go
+func TestEvidenceValidationIntegration(t *testing.T) {
+    tests := []struct {
+        name         string
+        strictMode   bool
+        evidence     []schema.Evidence
+        shouldPass   bool
+    }{
+        {
+            name:       "strict mode with valid evidence",
+            strictMode: true,
+            evidence: []schema.Evidence{
+                {Type: "file", Path: "pkg/agent/agent.go", Snippet: "package agent"},
+                {Type: "line", Path: "pkg/agent/agent.go", Line: 10},
+            },
+            shouldPass: true,
+        },
+        {
+            name:       "strict mode with missing files",
+            strictMode: true,
+            evidence: []schema.Evidence{
+                {Type: "file", Path: "nonexistent.go"},
+            },
+            shouldPass: false,
+        },
+        {
+            name:       "non-strict mode with missing files",
+            strictMode: false,
+            evidence: []schema.Evidence{
+                {Type: "file", Path: "nonexistent.go"},
+            },
+            shouldPass: true, // Warnings only
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            validator := evidence.NewValidator(tt.strictMode)
+            config := orchestrator.OrchestratorConfig{
+                ProcessManager:    process.NewManager(),
+                ToolExecutor:      tool.NewExecutor(),
+                EvidenceValidator: validator,
+                QualityGates:      orchestrator.DefaultQualityGates(),
+            }
+            orch := orchestrator.NewWithConfig(config)
+            
+            result, err := orch.Execute(context.Background(), orchestrator.Request{
+                Objective: "Test evidence validation",
+            })
+            
+            if tt.shouldPass {
+                assert.NoError(t, err)
+            } else {
+                assert.Error(t, err)
+            }
+        })
+    }
+}
+```
+
+### Profiling Integration Tests
+
+Validate profiling data collection:
+
+```go
+func TestProfilingIntegration(t *testing.T) {
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(false),
+        QualityGates:      orchestrator.DefaultQualityGates(),
+        EnableProfiling:   true,
+    }
+    orch := orchestrator.NewWithConfig(config)
+    
+    request := orchestrator.Request{
+        Objective: "Analyze codebase",
+    }
+    
+    result, err := orch.Execute(context.Background(), request)
+    require.NoError(t, err)
+    
+    // Verify profiling data
+    assert.NotNil(t, result.ProfilingData)
+    assert.Greater(t, result.ProfilingData.TotalDuration, time.Duration(0))
+    assert.Greater(t, result.ProfilingData.AgentExecutionTime, time.Duration(0))
+    assert.NotEmpty(t, result.ProfilingData.PhaseBreakdown)
+}
+```
+
+### Workflow Report Generation Tests
+
+Test report generation and formatting:
+
+```go
+func TestWorkflowReportGeneration(t *testing.T) {
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(false),
+        QualityGates:      orchestrator.DefaultQualityGates(),
+        EnableProfiling:   true,
+    }
+    orch := orchestrator.NewWithConfig(config)
+    
+    result, err := orch.Execute(context.Background(), orchestrator.Request{
+        Objective: "Generate comprehensive report",
+    })
+    require.NoError(t, err)
+    
+    report := orch.GenerateReport(result)
+    
+    // Verify report structure
+    assert.Contains(t, report, "Workflow Execution Report")
+    assert.Contains(t, report, "Execution Status: SUCCESS")
+    assert.Contains(t, report, "Quality Gates")
+    assert.Contains(t, report, "Performance Metrics")
+    assert.Contains(t, report, "Evidence Summary")
+    
+    // Verify metrics present
+    assert.Contains(t, report, "Total Duration")
+    assert.Contains(t, report, "Agent Execution")
+    assert.Contains(t, report, "Evidence Items")
+}
+```
+
+### Multi-Agent Workflow Tests
+
+Test coordination across multiple agents:
+
+```go
+func TestMultiAgentWorkflow(t *testing.T) {
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(false),
+        QualityGates:      orchestrator.RelaxedQualityGates(),
+        EnableProfiling:   true,
+    }
+    orch := orchestrator.NewWithConfig(config)
+    
+    request := orchestrator.Request{
+        Objective: "Multi-phase analysis and implementation",
+        Phases: []string{
+            "locate-relevant-files",
+            "analyze-implementation",
+            "propose-changes",
+        },
+    }
+    
+    result, err := orch.Execute(context.Background(), request)
+    require.NoError(t, err)
+    
+    // Verify multi-phase execution
+    assert.NotNil(t, result.ProfilingData)
+    assert.Len(t, result.ProfilingData.PhaseBreakdown, 3)
+    
+    // Verify each phase completed
+    for _, phase := range result.ProfilingData.PhaseBreakdown {
+        assert.Greater(t, phase.Duration, time.Duration(0))
+        assert.NotEmpty(t, phase.Name)
+    }
+}
+```
+
+### Custom Quality Gates Testing
+
+Test custom quality gate configurations:
+
+```go
+func TestCustomQualityGates(t *testing.T) {
+    customGates := orchestrator.QualityGates{
+        MinEvidenceScore:   90.0,
+        MaxExecutionTime:   3 * time.Minute,
+        RequireEvidence:    true,
+        RequireProfiling:   true,
+        AllowPartialSuccess: false,
+    }
+    
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(true), // Strict
+        QualityGates:      customGates,
+        EnableProfiling:   true,
+    }
+    orch := orchestrator.NewWithConfig(config)
+    
+    result, err := orch.Execute(context.Background(), orchestrator.Request{
+        Objective: "High-quality analysis required",
+    })
+    
+    if err == nil {
+        // If passed, verify quality gates were met
+        assert.True(t, result.Success)
+        assert.GreaterOrEqual(t, result.QualityScore, 90.0)
+        assert.NotNil(t, result.ProfilingData)
+        assert.NotEmpty(t, result.Evidence)
+    }
+}
+```
+
+### Performance Threshold Testing
+
+Test execution stays within performance boundaries:
+
+```go
+func TestPerformanceThresholds(t *testing.T) {
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(false),
+        QualityGates: orchestrator.QualityGates{
+            MaxExecutionTime: 1 * time.Minute,
+        },
+        EnableProfiling: true,
+    }
+    orch := orchestrator.NewWithConfig(config)
+    
+    start := time.Now()
+    result, err := orch.Execute(context.Background(), orchestrator.Request{
+        Objective: "Quick analysis",
+    })
+    duration := time.Since(start)
+    
+    require.NoError(t, err)
+    assert.Less(t, duration, 1*time.Minute, "Execution exceeded time threshold")
+    assert.NotNil(t, result.ProfilingData)
+    assert.Less(t, result.ProfilingData.TotalDuration, 1*time.Minute)
+}
+```
+
+### Best Practices
+
+1. **Always use table-driven tests** for quality gate variations
+2. **Enable profiling in tests** to catch performance regressions
+3. **Test both strict and non-strict evidence validation** modes
+4. **Verify report generation** includes all expected sections
+5. **Use realistic request objectives** that match production usage
+6. **Test timeout scenarios** with appropriate context deadlines
+7. **Validate evidence structure** matches schema specifications
+
+### Running Workflow Integration Tests
+
+```bash
+# Run all workflow integration tests
+go test ./internal/orchestrator/... -v -run TestWorkflow
+
+# Run specific workflow test
+go test ./internal/orchestrator -v -run TestWorkflowIntegration
+
+# Run with profiling enabled
+go test ./internal/orchestrator/... -v -cpuprofile=cpu.prof -memprofile=mem.prof
+
+# Run workflow tests with coverage
+go test ./internal/orchestrator/... -v -cover -coverprofile=workflow.coverage
+```
+
+### Example Test Output
+
+```
+=== RUN   TestWorkflowIntegration
+=== RUN   TestWorkflowIntegration/default_gates_with_good_evidence
+=== RUN   TestWorkflowIntegration/strict_gates_with_incomplete_evidence
+=== RUN   TestWorkflowIntegration/relaxed_gates_with_partial_evidence
+--- PASS: TestWorkflowIntegration (0.45s)
+    --- PASS: TestWorkflowIntegration/default_gates_with_good_evidence (0.15s)
+    --- PASS: TestWorkflowIntegration/strict_gates_with_incomplete_evidence (0.15s)
+    --- PASS: TestWorkflowIntegration/relaxed_gates_with_partial_evidence (0.15s)
+
+=== RUN   TestProfilingIntegration
+--- PASS: TestProfilingIntegration (0.12s)
+
+=== RUN   TestWorkflowReportGeneration
+--- PASS: TestWorkflowReportGeneration (0.18s)
+
+PASS
+coverage: 94.2% of statements
+ok      github.com/ferg-cod3s/conexus/internal/orchestrator     0.753s
+```
+
 ---
 
 ## Performance Testing
