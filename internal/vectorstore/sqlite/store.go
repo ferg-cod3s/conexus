@@ -10,7 +10,6 @@ import (
 
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 
-	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 )
 
@@ -296,11 +295,6 @@ func (s *Store) Close() error {
 
 
 
-// SearchHybrid combines vector and BM25 search with fusion.
-// Note: This is a placeholder for MVP. Real implementation will combine fts5.go and vector.go.
-func (s *Store) SearchHybrid(ctx context.Context, query string, vector embedding.Vector, opts vectorstore.SearchOptions) ([]vectorstore.SearchResult, error) {
-	return nil, fmt.Errorf("SearchHybrid not yet implemented - depends on Tasks 6.4.2 and 6.4.3")
-}
 
 // Stats returns index statistics.
 func (s *Store) Stats(ctx context.Context) (*vectorstore.IndexStats, error) {

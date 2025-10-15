@@ -523,18 +523,6 @@ func TestStore_FTS5Integration(t *testing.T) {
 	})
 }
 
-func TestStore_SearchPlaceholders(t *testing.T) {
-	ctx := context.Background()
-	store := newTestStore(t)
-
-	// These are placeholders - will be implemented in Task 6.4.4
-
-	t.Run("SearchHybrid not implemented", func(t *testing.T) {
-		_, err := store.SearchHybrid(ctx, "test query", embedding.Vector{0.1, 0.2}, vectorstore.SearchOptions{})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not yet implemented")
-	})
-}
 
 func TestStore_Close(t *testing.T) {
 	store, err := NewStore(":memory:")
