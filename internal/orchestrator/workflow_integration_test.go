@@ -437,6 +437,9 @@ func TestWorkflowIntegration_ErrorHandling(t *testing.T) {
 	assert.Len(t, result.Responses, 1)
 	assert.Equal(t, schema.StatusError, result.Responses[0].Status)
 	assert.NotNil(t, result.Responses[0].Error)
+	// Profiling should still be collected on error paths
+	assert.NotNil(t, result.ProfilingReport, "Profiling report should be generated on error")
+
 }
 
 // TestWorkflowIntegration_QualityGateEvaluation tests different quality gate configurations
