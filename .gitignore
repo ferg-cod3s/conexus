@@ -1,0 +1,57 @@
+# Go build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# dependencies (bun/node - legacy)
+node_modules
+bun.lock
+package-lock.json
+
+# output
+out
+dist
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+coverage.txt
+*.cover
+
+# logs
+logs
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store
+
+# Temporary files
+*.tmp
+*.swp
+*~

@@ -1,0 +1,450 @@
+// Package profiling provides performance profiling and metrics collection for agent execution.
+//
+// The profiler tracks execution time, memory usage, and performance bottlenecks
+// across multi-agent workflows.
+package profiling
+
+import (
+	"context"
+	"fmt"
+	"runtime"
+	"sync"
+	"time"
+
+	"github.com/ferg-cod3s/conexus/pkg/schema"
+)
+
+// Profiler tracks performance metrics for agent executions
+type Profiler struct {
+	mu             sync.RWMutex
+	executions     map[string]*ExecutionProfile
+	aggregates     map[string]*AggregateMetrics
+	memoryBaseline uint64
+	enabled        bool
+}
+
+// NewProfiler creates a new performance profiler
+func NewProfiler(enabled bool) *Profiler {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	return &Profiler{
+		executions:     make(map[string]*ExecutionProfile),
+		aggregates:     make(map[string]*AggregateMetrics),
+		memoryBaseline: m.Alloc,
+		enabled:        enabled,
+	}
+}
+
+// ExecutionProfile contains metrics for a single agent execution
+type ExecutionProfile struct {
+	ID              string
+	Agent           string
+	Request         string
+	StartTime       time.Time
+	EndTime         time.Time
+	Duration        time.Duration
+	MemoryAllocated uint64
+	MemoryFreed     uint64
+	GoroutineCount  int
+	Success         bool
+	Error           error
+	Phases          []PhaseProfile
+}
+
+// PhaseProfile tracks metrics for a specific execution phase
+type PhaseProfile struct {
+	Name      string
+	StartTime time.Time
+	Duration  time.Duration
+	MemoryDelta int64
+}
+
+// AggregateMetrics contains aggregated performance statistics
+type AggregateMetrics struct {
+	Agent           string
+	TotalExecutions int
+	SuccessCount    int
+	FailureCount    int
+	TotalDuration   time.Duration
+	MinDuration     time.Duration
+	MaxDuration     time.Duration
+	AvgDuration     time.Duration
+	TotalMemory     uint64
+	AvgMemory       uint64
+	Percentiles     *Percentiles
+}
+
+// Percentiles contains duration percentile values
+type Percentiles struct {
+	P50 time.Duration
+	P90 time.Duration
+	P95 time.Duration
+	P99 time.Duration
+}
+
+// StartExecution begins profiling an agent execution
+func (p *Profiler) StartExecution(ctx context.Context, agent string, request string) *ExecutionContext {
+	if !p.enabled {
+		return &ExecutionContext{profiler: p, enabled: false}
+	}
+
+	id := fmt.Sprintf("%s-%d", agent, time.Now().UnixNano())
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	profile := &ExecutionProfile{
+		ID:             id,
+		Agent:          agent,
+		Request:        request,
+		StartTime:      time.Now(),
+		GoroutineCount: runtime.NumGoroutine(),
+		Phases:         make([]PhaseProfile, 0),
+	}
+
+	p.mu.Lock()
+	p.executions[id] = profile
+	p.mu.Unlock()
+
+	return &ExecutionContext{
+		profiler:      p,
+		executionID:   id,
+		enabled:       true,
+		startMemory:   m.Alloc,
+		currentPhase:  nil,
+	}
+}
+
+// ExecutionContext tracks the current execution being profiled
+type ExecutionContext struct {
+	profiler      *Profiler
+	executionID   string
+	enabled       bool
+	startMemory   uint64
+	currentPhase  *PhaseProfile
+	mu            sync.Mutex
+}
+
+// StartPhase begins profiling a specific execution phase
+func (ec *ExecutionContext) StartPhase(name string) {
+	if !ec.enabled {
+		return
+	}
+
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+
+	// End current phase if exists
+	if ec.currentPhase != nil {
+		ec.currentPhase.Duration = time.Since(ec.currentPhase.StartTime)
+		ec.addPhase(*ec.currentPhase)
+	}
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	ec.currentPhase = &PhaseProfile{
+		Name:      name,
+		StartTime: time.Now(),
+	}
+}
+
+// EndPhase ends the current execution phase
+func (ec *ExecutionContext) EndPhase() {
+	if !ec.enabled {
+		return
+	}
+
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+
+	if ec.currentPhase != nil {
+		ec.currentPhase.Duration = time.Since(ec.currentPhase.StartTime)
+
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+
+		ec.addPhase(*ec.currentPhase)
+		ec.currentPhase = nil
+	}
+}
+
+// addPhase adds a phase profile to the execution
+func (ec *ExecutionContext) addPhase(phase PhaseProfile) {
+	ec.profiler.mu.Lock()
+	defer ec.profiler.mu.Unlock()
+
+	if profile, ok := ec.profiler.executions[ec.executionID]; ok {
+		profile.Phases = append(profile.Phases, phase)
+	}
+}
+
+// End completes the execution profiling
+func (ec *ExecutionContext) End(output *schema.AgentOutputV1, err error) {
+	if !ec.enabled {
+		return
+	}
+
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+
+	// End current phase if exists
+	if ec.currentPhase != nil {
+		ec.currentPhase.Duration = time.Since(ec.currentPhase.StartTime)
+		ec.addPhase(*ec.currentPhase)
+		ec.currentPhase = nil
+	}
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	ec.profiler.mu.Lock()
+	defer ec.profiler.mu.Unlock()
+
+	if profile, ok := ec.profiler.executions[ec.executionID]; ok {
+		profile.EndTime = time.Now()
+		profile.Duration = profile.EndTime.Sub(profile.StartTime)
+		profile.MemoryAllocated = m.Alloc - ec.startMemory
+		profile.Success = err == nil
+		profile.Error = err
+
+		// Update aggregates
+		ec.profiler.updateAggregates(profile)
+	}
+}
+
+// updateAggregates updates aggregate statistics for an agent
+func (p *Profiler) updateAggregates(profile *ExecutionProfile) {
+	agg, exists := p.aggregates[profile.Agent]
+	if !exists {
+		agg = &AggregateMetrics{
+			Agent:       profile.Agent,
+			MinDuration: profile.Duration,
+			MaxDuration: profile.Duration,
+		}
+		p.aggregates[profile.Agent] = agg
+	}
+
+	agg.TotalExecutions++
+	if profile.Success {
+		agg.SuccessCount++
+	} else {
+		agg.FailureCount++
+	}
+
+	agg.TotalDuration += profile.Duration
+	agg.TotalMemory += profile.MemoryAllocated
+
+	if profile.Duration < agg.MinDuration {
+		agg.MinDuration = profile.Duration
+	}
+	if profile.Duration > agg.MaxDuration {
+		agg.MaxDuration = profile.Duration
+	}
+
+	agg.AvgDuration = agg.TotalDuration / time.Duration(agg.TotalExecutions)
+	agg.AvgMemory = agg.TotalMemory / uint64(agg.TotalExecutions)
+
+	// Update percentiles
+	p.calculatePercentiles(profile.Agent)
+}
+
+// calculatePercentiles calculates duration percentiles for an agent
+func (p *Profiler) calculatePercentiles(agent string) {
+	durations := make([]time.Duration, 0)
+	for _, exec := range p.executions {
+		if exec.Agent == agent && exec.Success {
+			durations = append(durations, exec.Duration)
+		}
+	}
+
+	if len(durations) == 0 {
+		return
+	}
+
+	// Simple sort (bubble sort for small datasets)
+	for i := 0; i < len(durations); i++ {
+		for j := i + 1; j < len(durations); j++ {
+			if durations[i] > durations[j] {
+				durations[i], durations[j] = durations[j], durations[i]
+			}
+		}
+	}
+
+	agg := p.aggregates[agent]
+	if agg.Percentiles == nil {
+		agg.Percentiles = &Percentiles{}
+	}
+
+	n := len(durations)
+	agg.Percentiles.P50 = durations[n*50/100]
+	agg.Percentiles.P90 = durations[n*90/100]
+	agg.Percentiles.P95 = durations[n*95/100]
+	agg.Percentiles.P99 = durations[n*99/100]
+}
+
+// GetExecution retrieves a specific execution profile
+func (p *Profiler) GetExecution(id string) (*ExecutionProfile, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	profile, ok := p.executions[id]
+	return profile, ok
+}
+
+// GetAgentMetrics retrieves aggregate metrics for an agent
+func (p *Profiler) GetAgentMetrics(agent string) (*AggregateMetrics, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	metrics, ok := p.aggregates[agent]
+	return metrics, ok
+}
+
+// GetAllMetrics retrieves all aggregate metrics
+func (p *Profiler) GetAllMetrics() map[string]*AggregateMetrics {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	result := make(map[string]*AggregateMetrics)
+	for agent, metrics := range p.aggregates {
+		result[agent] = metrics
+	}
+	return result
+}
+
+// GetBottlenecks identifies performance bottlenecks
+func (p *Profiler) GetBottlenecks(threshold time.Duration) []Bottleneck {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	bottlenecks := make([]Bottleneck, 0)
+
+	for agent, metrics := range p.aggregates {
+		if metrics.AvgDuration > threshold {
+			bottlenecks = append(bottlenecks, Bottleneck{
+				Agent:       agent,
+				Type:        "slow_execution",
+				AvgDuration: metrics.AvgDuration,
+				Threshold:   threshold,
+				Severity:    calculateSeverity(metrics.AvgDuration, threshold),
+			})
+		}
+
+		if metrics.Percentiles.P95 > threshold*2 {
+			bottlenecks = append(bottlenecks, Bottleneck{
+				Agent:       agent,
+				Type:        "high_variance",
+				AvgDuration: metrics.Percentiles.P95,
+				Threshold:   threshold * 2,
+				Severity:    calculateSeverity(metrics.Percentiles.P95, threshold*2),
+			})
+		}
+	}
+
+	return bottlenecks
+}
+
+// Bottleneck represents a performance bottleneck
+// Bottleneck represents a performance bottleneck
+type Bottleneck struct {
+	Agent       string        `json:"agent"`
+	Type        string        `json:"type"`
+	AvgDuration time.Duration `json:"avg_duration"`
+	Threshold   time.Duration `json:"threshold"`
+	Severity    string        `json:"severity"`
+}
+
+// calculateSeverity determines bottleneck severity
+func calculateSeverity(duration, threshold time.Duration) string {
+	ratio := float64(duration) / float64(threshold)
+	if ratio > 3.0 {
+		return "critical"
+	} else if ratio > 2.0 {
+		return "high"
+	} else if ratio > 1.5 {
+		return "medium"
+	}
+	return "low"
+}
+
+// GetReport generates a performance report
+func (p *Profiler) GetReport() *PerformanceReport {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	report := &PerformanceReport{
+		GeneratedAt:     time.Now(),
+		TotalExecutions: len(p.executions),
+		AgentMetrics:    make(map[string]*AggregateMetrics),
+		Bottlenecks:     p.GetBottlenecks(1 * time.Second),
+	}
+
+	for agent, metrics := range p.aggregates {
+		report.AgentMetrics[agent] = metrics
+	}
+
+	// Calculate overall statistics
+	var totalDuration time.Duration
+	var totalMemory uint64
+	successCount := 0
+
+	for _, exec := range p.executions {
+		totalDuration += exec.Duration
+		totalMemory += exec.MemoryAllocated
+		if exec.Success {
+			successCount++
+		}
+	}
+
+	if len(p.executions) > 0 {
+		report.OverallAvgDuration = totalDuration / time.Duration(len(p.executions))
+		report.OverallAvgMemory = totalMemory / uint64(len(p.executions))
+		report.OverallSuccessRate = float64(successCount) / float64(len(p.executions)) * 100
+	}
+
+	return report
+}
+
+// PerformanceReport contains comprehensive performance data
+// PerformanceReport contains comprehensive performance data
+type PerformanceReport struct {
+	GeneratedAt          time.Time                    `json:"generated_at"`
+	TotalExecutions      int                          `json:"total_executions"`
+	OverallAvgDuration   time.Duration                `json:"overall_avg_duration"`
+	OverallAvgMemory     uint64                       `json:"overall_avg_memory"`
+	OverallSuccessRate   float64                      `json:"overall_success_rate"`
+	AgentMetrics         map[string]*AggregateMetrics `json:"agent_metrics"`
+	Bottlenecks          []Bottleneck                 `json:"bottlenecks"`
+}
+
+// Clear clears all profiling data
+func (p *Profiler) Clear() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.executions = make(map[string]*ExecutionProfile)
+	p.aggregates = make(map[string]*AggregateMetrics)
+}
+
+// Enable enables profiling
+func (p *Profiler) Enable() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.enabled = true
+}
+
+// Disable disables profiling
+func (p *Profiler) Disable() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.enabled = false
+}
+
+// IsEnabled returns whether profiling is enabled
+func (p *Profiler) IsEnabled() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.enabled
+}

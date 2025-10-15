@@ -1,0 +1,377 @@
+// Package integration_test provides end-to-end integration tests for multi-agent workflows
+package integration_test
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ferg-cod3s/conexus/internal/orchestrator/workflow"
+	"github.com/ferg-cod3s/conexus/internal/testing/integration"
+	"github.com/ferg-cod3s/conexus/pkg/schema"
+)
+
+// MockAnalyzerAgent simulates the codebase-analyzer agent for testing
+type MockAnalyzerAgent struct{}
+
+// Execute implements workflow.Agent interface
+func (m *MockAnalyzerAgent) Execute(ctx context.Context, req schema.AgentRequest) (schema.AgentResponse, error) {
+	// Extract file path from the specific request (which is a JSON string)
+	var input map[string]interface{}
+	if err := json.Unmarshal([]byte(req.Task.SpecificRequest), &input); err != nil {
+		return schema.AgentResponse{
+			Status: schema.StatusError,
+			Error: &schema.AgentError{
+				Code:    "INVALID_INPUT",
+				Message: "Failed to parse input: " + err.Error(),
+			},
+		}, err
+	}
+
+	filePath, _ := input["file_path"].(string)
+
+	// Read the file content to generate realistic evidence
+	_, err := os.ReadFile(filePath)
+	if err != nil {
+		return schema.AgentResponse{
+			Status: schema.StatusError,
+			Error: &schema.AgentError{
+				Code:    "FILE_READ_ERROR",
+				Message: "Failed to read file: " + err.Error(),
+			},
+		}, err
+	}
+
+	// Create a realistic agent output with proper evidence matching the actual schema
+	output := &schema.AgentOutputV1{
+		Version:          "AGENT_OUTPUT_V1",
+		ComponentName:    "simple_function",
+		ScopeDescription: "Analysis of simple mathematical and greeting functions",
+		Overview:         "This module contains basic utility functions for arithmetic operations and greetings. The Add and Multiply functions provide pure mathematical operations, while Greet performs formatted output to stdout.",
+
+		// Entry points - using the actual schema fields
+		EntryPoints: []schema.EntryPoint{
+			{
+				File:   filePath,
+				Lines:  "6-8",
+				Symbol: "Add",
+				Role:   "utility",
+			},
+			{
+				File:   filePath,
+				Lines:  "11-13",
+				Symbol: "Greet",
+				Role:   "utility",
+			},
+			{
+				File:   filePath,
+				Lines:  "16-19",
+				Symbol: "Multiply",
+				Role:   "utility",
+			},
+		},
+
+		// Call graph showing function relationships
+		CallGraph: []schema.CallGraphEdge{
+			{
+				From:    filePath + ":Add",
+				To:      "builtin:+",
+				ViaLine: 7,
+			},
+			{
+				From:    filePath + ":Greet",
+				To:      "fmt.Printf",
+				ViaLine: 12,
+			},
+			{
+				From:    filePath + ":Multiply",
+				To:      "builtin:*",
+				ViaLine: 17,
+			},
+		},
+
+		// Data flow
+		DataFlow: schema.DataFlow{
+			Inputs: []schema.DataPoint{
+				{
+					Source:      filePath + ":6",
+					Name:        "a, b",
+					Type:        "int",
+					Description: "Integer operands for addition",
+				},
+				{
+					Source:      filePath + ":11",
+					Name:        "name",
+					Type:        "string",
+					Description: "Name for greeting",
+				},
+				{
+					Source:      filePath + ":16",
+					Name:        "x, y",
+					Type:        "int",
+					Description: "Integer operands for multiplication",
+				},
+			},
+			Transformations: []schema.Transformation{
+				{
+					File:        filePath,
+					Lines:       "7",
+					Operation:   "arithmetic",
+					Description: "Integer addition",
+				},
+				{
+					File:        filePath,
+					Lines:       "17",
+					Operation:   "arithmetic",
+					Description: "Integer multiplication",
+				},
+			},
+			Outputs: []schema.DataPoint{
+				{
+					Source:      filePath + ":7",
+					Name:        "result",
+					Type:        "int",
+					Description: "Sum of a and b",
+				},
+				{
+					Source:      filePath + ":18",
+					Name:        "result",
+					Type:        "int",
+					Description: "Product of x and y",
+				},
+			},
+		},
+
+		// State management (none for these pure functions)
+		StateManagement: []schema.StateOperation{},
+
+		// Side effects
+		SideEffects: []schema.SideEffect{
+			{
+				File:        filePath,
+				Line:        12,
+				Type:        "log",
+				Description: "Greet function writes to stdout via fmt.Printf",
+			},
+		},
+
+		// Error handling (none in this simple case)
+		ErrorHandling: []schema.ErrorHandler{},
+
+		// Configuration (none)
+		Configuration: []schema.ConfigInfluence{},
+
+		// Patterns detected
+		Patterns: []schema.Pattern{
+			{
+				Name:        "Pure Functions",
+				File:        filePath,
+				Lines:       "6-8,16-19",
+				Description: "Mathematical functions with no side effects",
+			},
+		},
+
+		// Concurrency (none)
+		Concurrency: []schema.ConcurrencyMechanism{},
+
+		// External dependencies
+		ExternalDependencies: []schema.ExternalDependency{
+			{
+				File:    filePath,
+				Line:    3,
+				Module:  "fmt",
+				Purpose: "Formatted I/O operations",
+			},
+		},
+
+		// Limitations and open questions
+		Limitations:   []string{"No error handling for edge cases"},
+		OpenQuestions: []string{},
+
+		// RAW EVIDENCE - Critical for validation!
+		RawEvidence: []schema.Evidence{
+			{
+				Claim: "Complete source code of simple_function.go",
+				File:  filePath,
+				Lines: "1-20",
+			},
+			{
+				Claim: "Add function performs integer addition",
+				File:  filePath,
+				Lines: "6-8",
+			},
+			{
+				Claim: "Greet function prints greeting using fmt.Printf",
+				File:  filePath,
+				Lines: "11-13",
+			},
+			{
+				Claim: "Multiply function performs integer multiplication",
+				File:  filePath,
+				Lines: "16-19",
+			},
+		},
+	}
+
+	return schema.AgentResponse{
+		RequestID: req.RequestID,
+		AgentID:   req.AgentID,
+		Status:    schema.StatusComplete,
+		Output:    output,
+		Duration:  100 * time.Millisecond,
+		Timestamp: time.Now(),
+	}, nil
+}
+
+// TestSimpleFunctionAnalysis tests the analyzer agent on simple_function.go
+func TestSimpleFunctionAnalysis(t *testing.T) {
+	// Setup test framework
+	framework := integration.NewTestFramework()
+
+	// Register mock analyzer agent
+	framework.RegisterAgent("codebase-analyzer", &MockAnalyzerAgent{})
+
+	// Get the fixture file path
+	fixtureDir, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures"))
+	require.NoError(t, err, "Should resolve absolute path for fixtures directory")
+	
+	fixturePath := filepath.Join(fixtureDir, "simple_function.go")
+	
+	// Ensure path is absolute
+	fixturePath, err = filepath.Abs(fixturePath)
+	require.NoError(t, err, "Should resolve absolute path for fixture file")
+
+	// Verify fixture exists
+	_, err = os.Stat(fixturePath)
+	require.NoError(t, err, "Test fixture should exist")
+
+	// Create input as JSON string (as expected by Step.Input)
+	inputData := map[string]interface{}{
+		"file_path": fixturePath,
+		"scope":     "function-level",
+	}
+	inputJSON, err := json.Marshal(inputData)
+	require.NoError(t, err, "Should marshal input")
+
+	// Create workflow using workflow.Builder
+	wf, err := workflow.NewBuilder("analyze-simple-function").
+		WithDescription("Analyze simple_function.go fixture").
+		AddSequentialStep(
+			"analyze",
+			"codebase-analyzer",
+			string(inputJSON),
+			schema.Permissions{
+				AllowedDirectories: []string{fixtureDir},
+				ReadOnly:           true,
+				MaxFileSize:        1024 * 1024, // 1MB
+				MaxExecutionTime:   10,          // 10 seconds
+			},
+		).
+		Build()
+	require.NoError(t, err, "Should build workflow")
+
+	// Define test case with comprehensive assertions
+	testCase := &integration.TestCase{
+		Name:        "Simple Function Analysis",
+		Description: "Test analyzer agent on simple_function.go with comprehensive validation",
+		Workflow:    wf,
+		Timeout:     10 * time.Second,
+		Assertions: []integration.Assertion{
+			// Workflow-level assertions
+			&integration.WorkflowSuccessAssertion{},
+			&integration.StepCountAssertion{ExpectedCount: 1},
+			&integration.AllStepsSuccessAssertion{},
+			&integration.MaxDurationAssertion{MaxDuration: 5 * time.Second},
+
+			// Output assertions
+			&integration.OutputNotNilAssertion{},
+
+			// Schema and evidence validation
+			&integration.SchemaValidAssertion{},
+			&integration.EvidenceValidAssertion{StrictMode: true},
+
+			// Field-specific assertions
+			&integration.OutputFieldNotEmptyAssertion{FieldName: "entry_points"},
+			&integration.OutputFieldNotEmptyAssertion{FieldName: "raw_evidence"},
+		},
+	}
+
+	// Execute test
+	result := framework.Run(context.Background(), testCase)
+
+	// Debug output BEFORE assertions
+	t.Logf("Test result - Passed: %v", result.Passed)
+	t.Logf("Test errors: %v", result.Errors)
+	t.Logf("Number of assertions: %d", len(result.Assertions))
+	
+	// Show all assertion results
+	for i, assertion := range result.Assertions {
+		t.Logf("Assertion %d: %s - Passed: %v", i+1, assertion.Description, assertion.Passed)
+		if !assertion.Passed {
+			t.Logf("  Error: %v", assertion.Error)
+		}
+	}
+	
+	// Show workflow result details
+	if result.WorkflowResult != nil {
+		t.Logf("Workflow status: %s", result.WorkflowResult.Status)
+		t.Logf("Number of step results: %d", len(result.WorkflowResult.StepResults))
+	} else {
+		t.Logf("WorkflowResult is NIL!")
+	}
+
+	// Assertions
+	require.True(t, result.Passed, "Test should pass")
+	require.Empty(t, result.Errors, "Should have no errors")
+	require.NotNil(t, result.WorkflowResult, "Should have workflow result")
+
+	// Verify all assertions passed
+	for _, assertion := range result.Assertions {
+		t.Logf("Assertion: %s - Passed: %v", assertion.Description, assertion.Passed)
+		if !assertion.Passed {
+			t.Logf("  Error: %v", assertion.Error)
+		}
+	}
+
+	// Additional verification of output structure
+	require.NotEmpty(t, result.WorkflowResult.StepResults, "Should have step results")
+	require.Len(t, result.WorkflowResult.StepResults, 1, "Should have 1 step result")
+	
+	stepResult := result.WorkflowResult.StepResults[0]
+	require.NotNil(t, stepResult.Output, "Step output should not be nil")
+
+	// Verify key fields in output
+	output := stepResult.Output
+	require.NotEmpty(t, output.ComponentName, "Component name should be set")
+	require.NotEmpty(t, output.EntryPoints, "Should have entry points")
+	require.NotEmpty(t, output.RawEvidence, "Should have raw evidence")
+
+	t.Logf("Test completed in %v", result.Duration)
+	t.Logf("Found %d entry points", len(output.EntryPoints))
+	t.Logf("Found %d evidence items", len(output.RawEvidence))
+}
+
+// TestMultipleFunctionsAnalysis tests the analyzer on a more complex fixture
+func TestMultipleFunctionsAnalysis(t *testing.T) {
+	t.Skip("TODO: Implement test for multiple_functions.go fixture")
+}
+
+// TestStructMethodsAnalysis tests the analyzer on struct methods
+func TestStructMethodsAnalysis(t *testing.T) {
+	t.Skip("TODO: Implement test for struct_methods.go fixture")
+}
+
+// TestErrorHandlingAnalysis tests the analyzer on error handling patterns
+func TestErrorHandlingAnalysis(t *testing.T) {
+	t.Skip("TODO: Implement test for error_handling.go fixture")
+}
+
+// TestSideEffectsAnalysis tests the analyzer on functions with side effects
+func TestSideEffectsAnalysis(t *testing.T) {
+	t.Skip("TODO: Implement test for side_effects.go fixture")
+}
