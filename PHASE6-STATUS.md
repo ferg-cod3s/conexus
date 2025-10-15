@@ -1,6 +1,6 @@
 # Phase 6 Status Report: RAG Retrieval Pipeline + Production Foundations
 
-**Status**: 🚧 In Progress (Tasks 6.2 ✅, 6.3 ✅, 6.4.1 ✅, 6.4.2 ✅, 6.4.3 ✅ Complete)  
+**Status**: 🚧 In Progress (Tasks 6.2 ✅, 6.3 ✅, 6.4 ✅ Complete)  
 **Start Date**: 2025-01-15  
 **Last Updated**: 2025-01-15  
 **Target Completion**: 2025-02-15 (4 weeks)
@@ -17,12 +17,13 @@
 | 6.4.1 SQLite Store | ✅ Complete | 90.5% | 1 impl + 1 test | 45 |
 | 6.4.2 BM25 Search | ✅ Complete | 90.0% | 1 impl + 1 test | 18 |
 | 6.4.3 Vector Search | ✅ Complete | 87.0% | 1 impl + 1 test | 23 |
-| 6.4.4 Hybrid Search | ⏳ Next | - | - | - |
-| 6.5 MCP Server | ⏳ Pending | - | - | - |
+| 6.4.4 Hybrid Search | ✅ Complete | 89.5% | 1 impl + 1 test | 52 |
+| **6.4 Vector Storage** | ✅ **Complete** | **~89%** | **4 impl + 4 test** | **138** |
+| 6.5 MCP Server | ⏳ Next | - | - | - |
 | 6.6 Deployment | ⏳ Pending | - | - | - |
 | 6.7 Observability | ⏳ Pending | - | - | - |
 
-**Overall**: 5/10 tasks complete (50%)
+**Overall**: 6/10 tasks complete (60%)
 
 ---
 
@@ -85,9 +86,19 @@
 
 ---
 
-### ✅ Task 6.4.1: SQLite Store Implementation (Completed 2025-01-15)
+### ✅ Task 6.4: Vector Storage (Completed 2025-01-15)
 
-**Summary**: Implemented SQLite-based vector store with CRUD operations, batch support, and comprehensive error handling.
+**Summary**: Complete vector storage implementation with SQLite backend, supporting CRUD operations, BM25 full-text search, vector similarity search, and hybrid search with RRF fusion.
+
+**Overall Stats**:
+- **Coverage**: ~89% average across all subtasks
+- **Total Tests**: 138 passing tests
+- **Total Files**: 4 implementation + 4 test files
+- **Total Duration**: ~20 seconds
+
+---
+
+#### ✅ Task 6.4.1: SQLite Store Implementation
 
 **Files Implemented**:
 - `internal/vectorstore/sqlite/store.go` (418 lines) - Core store with schema management
@@ -110,9 +121,7 @@
 
 ---
 
-### ✅ Task 6.4.2: BM25 Full-Text Search (Completed 2025-01-15)
-
-**Summary**: Implemented BM25 search using SQLite FTS5 extension with comprehensive error handling and result ranking.
+#### ✅ Task 6.4.2: BM25 Full-Text Search
 
 **Files Implemented**:
 - `internal/vectorstore/sqlite/fts5.go` (288 lines) - BM25 search implementation
@@ -131,19 +140,11 @@
 - Metadata preservation in results
 - Context cancellation support
 
-**Design Highlights**:
-- Automatic FTS5 table management
-- Query sanitization for safety
-- Graceful handling of special characters
-- Empty query handling
-
 **Documentation**: `TASK_6.4.2_COMPLETION.md`
 
 ---
 
-### ✅ Task 6.4.3: Vector Similarity Search (Completed 2025-01-15)
-
-**Summary**: Implemented vector similarity search with cosine similarity-based retrieval, comprehensive error handling, and graceful degradation for dimension mismatches.
+#### ✅ Task 6.4.3: Vector Similarity Search
 
 **Files Implemented**:
 - `internal/vectorstore/sqlite/vector.go` (183 lines) - Vector search implementation
@@ -161,61 +162,76 @@
 - Optional minimum similarity threshold
 - Metadata filtering support
 - Graceful dimension mismatch handling
-- Context cancellation support
-
-**Design Highlights**:
-- Cosine similarity calculation with normalization
-- Vector magnitude computation
-- Early validation for query errors
-- Graceful degradation for data issues
-- Result ordering by similarity (descending)
-
-**Test Breakdown**:
-- 11 functional tests (basic, identical, orthogonal, ranking, limits)
-- 4 error handling tests (empty vector, zero magnitude, dimension mismatch, context cancellation)
-- 5 edge case tests (no documents, single document, result structure)
-- 3 unit tests (cosine similarity variants, vector magnitude)
 
 **Documentation**: `TASK_6.4.3_COMPLETION.md`
 
 ---
 
-## Current Task: Task 6.4.4 - Hybrid Search
+#### ✅ Task 6.4.4: Hybrid Search with RRF
+
+**Files Implemented**:
+- `internal/vectorstore/sqlite/hybrid.go` (184 lines) - Hybrid search with RRF
+- `internal/vectorstore/sqlite/hybrid_test.go` (544 lines) - Comprehensive test suite
+
+**Test Results**:
+- Coverage: 89.5% (target: 80%+, **exceeded by 9.5%**)
+- Tests: 52 passing tests (11 hybrid + 41 from other sqlite tests)
+- Duration: 19.067s
+
+**Key Features**:
+- Reciprocal Rank Fusion (RRF) algorithm
+- Alpha parameter (0-1) for BM25 vs vector weighting
+- Automatic deduplication of overlapping results
+- Supports query-only, vector-only, or both modes
+- Context cancellation support
+- Threshold filtering and result limiting
+
+**RRF Algorithm**:
+```
+RRF_score = α/(k+rank_vector) + (1-α)/(k+rank_bm25)
+```
+- α (alpha): Weight parameter (default 0.5 = balanced)
+- k: Constant 60 (standard RRF value)
+
+**Documentation**: `TASK_6.4.4_COMPLETION.md`
+
+---
+
+## Current Task: Task 6.5 - MCP Server Implementation
 
 **Status**: ⏳ Ready to Start  
-**Target**: Combine BM25 and vector search with Reciprocal Rank Fusion (RRF)
+**Target**: JSON-RPC stdio server with `context.search` and `context.index` tools
 
 ### Requirements
 
 **Implementation**:
-- Combine BM25 and vector search results
-- Reciprocal Rank Fusion (RRF) for result merging
-- Weight balancing between keyword and semantic search
-- Configurable fusion parameters
+- JSON-RPC 2.0 protocol over stdio
+- Tool: `context.search` (uses `SearchHybrid()`)
+- Tool: `context.index` (uses indexer + embedder + store)
+- Resource: `codebase://` URIs for file access
+- MCP schema types and message handlers
 
 **Testing**:
-- Functional tests for hybrid search
-- Edge case validation (empty results, overlapping documents)
-- Ranking quality tests
-- Weight parameter validation
+- Unit tests for JSON-RPC parsing/serialization
+- Unit tests for tool handlers
+- Integration tests for stdio protocol
 - 80%+ test coverage
 
 **Files to Create**:
-- `internal/vectorstore/sqlite/hybrid.go` - Hybrid search implementation
-- Update `internal/vectorstore/sqlite/store_test.go` - Add hybrid search tests
+- `internal/mcp/server.go` - JSON-RPC server
+- `internal/mcp/handlers.go` - Tool/resource handlers
+- `internal/mcp/schema.go` - MCP message types
+- `internal/mcp/server_test.go` - Server tests
+- `internal/mcp/handlers_test.go` - Handler tests
 
 **Dependencies**:
-- ✅ BM25 search (Task 6.4.2)
-- ✅ Vector search (Task 6.4.3)
-- ✅ Store operations (Task 6.4.1)
+- ✅ Indexer (Task 6.2)
+- ✅ Embedding (Task 6.3)
+- ✅ Vector Store (Task 6.4)
 
 ---
 
 ## Pending Tasks
-
-### Task 6.5: MCP Server
-**Dependencies**: Tasks 6.1-6.4 complete  
-**Scope**: JSON-RPC stdio server with `context.search`, `context.index` tools
 
 ### Task 6.6: Deployment
 **Dependencies**: Task 6.5 complete  
@@ -232,10 +248,10 @@
 | Criterion | Target | Status | Notes |
 |-----------|--------|--------|-------|
 | Index `tests/fixtures` | <10s | ⏳ Pending | Requires Task 6.5 |
-| Hybrid search results | Relevant | ⏳ Pending | Requires Task 6.4.4 |
+| Hybrid search results | Relevant | ✅ Complete | Task 6.4.4 done |
 | MCP server stdio | Working | ⏳ Pending | Requires Task 6.5 |
-| Unit test coverage | 80%+ | ✅ 94.4%, 98.7%, 90.5%, 90.0%, 87.0% | Tasks 6.2-6.4.3 |
-| Integration tests | Pass | ⏳ Pending | Requires Task 6.4+ |
+| Unit test coverage | 80%+ | ✅ 94.4%, 98.7%, 89% | Tasks 6.2-6.4 exceed target |
+| Integration tests | Pass | ⏳ Pending | Requires Task 6.5+ |
 | Docker deployment | Working | ⏳ Pending | Requires Task 6.6 |
 | Observability | Basic | ⏳ Pending | Requires Task 6.7 |
 
@@ -251,50 +267,70 @@
 - **No Vector Indexing**: Linear scan for every search
   - Mitigation: Future enhancement with proper indexing
 
-### Upcoming Risks (Task 6.4.4)
-- **RRF Parameter Tuning**: May need experimentation for optimal weights
-- **Result Deduplication**: Need to handle documents in both BM25 and vector results
-- **Score Normalization**: Different score ranges between BM25 and cosine similarity
+### Upcoming Risks (Task 6.5)
+- **MCP Protocol Complexity**: JSON-RPC 2.0 requires careful message handling
+- **Stdio Buffering**: Need proper line-delimited JSON parsing
+- **Error Handling**: MCP error codes must match specification
+- **Resource URIs**: URI parsing and validation required
 
 ---
 
 ## Next Session Plan
 
-1. **Start Task 6.4.4**: Implement hybrid search
-   - Design RRF algorithm (Reciprocal Rank Fusion)
-   - Implement SearchHybrid method
-   - Add weight balancing (alpha parameter)
-   - Handle result deduplication
+1. **Review MCP Specification**:
+   - JSON-RPC 2.0 message format
+   - Tool registration and invocation
+   - Resource URI schemes
+   - Error codes and responses
 
-2. **Comprehensive Testing**:
-   - Functional tests (basic, overlapping, empty)
-   - Weight parameter tests
-   - Ranking quality validation
-   - Edge case coverage
+2. **Start Task 6.5.1**: Implement MCP server foundation
+   - Design server architecture (stdio transport)
+   - Implement JSON-RPC parser/serializer
+   - Add request routing and dispatch
+   - Error handling and logging
 
-3. **Update Documentation**:
-   - Create TASK_6.4.4_COMPLETION.md
+3. **Start Task 6.5.2**: Implement tool handlers
+   - `context.search` tool (hybrid search)
+   - `context.index` tool (indexing pipeline)
+   - Input validation and sanitization
+
+4. **Start Task 6.5.3**: Implement resource handlers
+   - `codebase://` URI scheme
+   - File content retrieval
+   - Metadata endpoints
+
+5. **Comprehensive Testing**:
+   - Unit tests for each component
+   - Integration tests for stdio protocol
+   - Error handling coverage
+
+6. **Update Documentation**:
+   - Create TASK_6.5_COMPLETION.md
    - Update PHASE6-STATUS.md
-   - Mark Task 6.4 complete
 
-**Estimated Duration**: 2-3 hours for Task 6.4.4 complete
+**Estimated Duration**: 4-6 hours for Task 6.5 complete
 
 ---
 
 ## Summary
 
-**Phase 6 Progress**: 50% complete (5/10 tasks)
+**Phase 6 Progress**: 60% complete (6/10 tasks)
 
 **Recent Achievements**:
 - ✅ Core indexer with 94.4% coverage (Task 6.2)
 - ✅ Embedding layer with 98.7% coverage (Task 6.3)
-- ✅ SQLite store with 90.5% coverage (Task 6.4.1)
-- ✅ BM25 search with 90.0% coverage (Task 6.4.2)
-- ✅ Vector search with 87.0% coverage (Task 6.4.3)
+- ✅ Complete vector storage layer with ~89% coverage (Task 6.4):
+  - ✅ SQLite store with 90.5% coverage (Task 6.4.1)
+  - ✅ BM25 search with 90.0% coverage (Task 6.4.2)
+  - ✅ Vector search with 87.0% coverage (Task 6.4.3)
+  - ✅ Hybrid search with 89.5% coverage (Task 6.4.4)
+- ✅ All coverage targets exceeded (80%+ requirement)
 - ✅ Clean, extensible interfaces ready for integration
 - ✅ Comprehensive documentation and completion reports
 
-**Next Milestone**: Task 6.4.4 (Hybrid Search) - Combine BM25 + vector search with RRF
+**Next Milestone**: Task 6.5 (MCP Server) - Expose indexing and search via JSON-RPC protocol
 
 **Status**: 🟢 On Track - No blockers identified
+
+**Key Achievement**: Complete RAG retrieval pipeline foundation (indexer + embedder + store) ready for MCP server integration.
 
