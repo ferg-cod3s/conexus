@@ -193,7 +193,7 @@ func (t *GrepTool) Execute(ctx context.Context, params ToolParams, perms schema.
 	}, nil
 }
 
-// GlobTool implements pattern-based file matching
+// GlobTool implements pattern-based file matching with recursive support
 type GlobTool struct{}
 
 func (t *GlobTool) Name() string { return "glob" }
@@ -208,9 +208,45 @@ func (t *GlobTool) Execute(ctx context.Context, params ToolParams, perms schema.
 		basePath = "."
 	}
 
-	matches, err := filepath.Glob(filepath.Join(basePath, params.Pattern))
-	if err != nil {
-		return ToolResult{Success: false, Error: err.Error()}, err
+	var matches []string
+
+	// Check if pattern contains ** for recursive matching
+	if strings.Contains(params.Pattern, "**") {
+		// Use filepath.Glob which supports ** in Go 1.20+
+		fullPattern := filepath.Join(basePath, params.Pattern)
+		globMatches, err := filepath.Glob(fullPattern)
+		if err != nil {
+			return ToolResult{Success: false, Error: err.Error()}, err
+		}
+		matches = globMatches
+	} else {
+		// For simple patterns like *.go, walk the directory tree
+		err := filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil // Skip errors, continue walking
+			}
+
+			// Skip directories
+			if d.IsDir() {
+				return nil
+			}
+
+			// Check if the file name matches the pattern
+			matched, matchErr := filepath.Match(params.Pattern, d.Name())
+			if matchErr != nil {
+				return nil // Skip invalid patterns for this file
+			}
+
+			if matched {
+				matches = append(matches, path)
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			return ToolResult{Success: false, Error: err.Error()}, err
+		}
 	}
 
 	return ToolResult{

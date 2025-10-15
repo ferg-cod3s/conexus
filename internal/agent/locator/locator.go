@@ -2,6 +2,7 @@ package locator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -63,10 +64,17 @@ func (a *LocatorAgent) Execute(ctx context.Context, req schema.AgentRequest) (sc
 
 // findFiles locates files matching patterns
 func (a *LocatorAgent) findFiles(ctx context.Context, req schema.AgentRequest) (*schema.AgentOutputV1, error) {
+	// Determine which directories to search: Task.AllowedDirectories takes precedence
+	searchDirs := req.Task.AllowedDirectories
+	if len(searchDirs) == 0 {
+		// Fall back to permissions if task does not specify
+		searchDirs = req.Permissions.AllowedDirectories
+	}
+
 	output := &schema.AgentOutputV1{
 		Version:          "AGENT_OUTPUT_V1",
 		ComponentName:    "File Discovery",
-		ScopeDescription: fmt.Sprintf("File search in directories: %v", req.Permissions.AllowedDirectories),
+		ScopeDescription: fmt.Sprintf("File search in directories: %v", searchDirs),
 		Overview:         "Locates files matching specified patterns using glob and list tools",
 	}
 
@@ -74,7 +82,7 @@ func (a *LocatorAgent) findFiles(ctx context.Context, req schema.AgentRequest) (
 	var evidence []schema.Evidence
 
 	// Search in each allowed directory
-	for _, dir := range req.Permissions.AllowedDirectories {
+	for _, dir := range searchDirs {
 		// Use glob tool to find matching files
 		pattern := extractPattern(req.Task.SpecificRequest)
 		if pattern == "" {
@@ -193,6 +201,17 @@ func determineSearchType(request string) string {
 }
 
 func extractPattern(request string) string {
+	// First, try to parse as JSON
+	if strings.Contains(request, "{") {
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(request), &parsed); err == nil {
+			if pattern, ok := parsed["pattern"].(string); ok && pattern != "" {
+				return pattern
+			}
+		}
+	}
+	
+	// Fall back to plain text pattern extraction
 	// Simple pattern extraction from request
 	// Example: "find all .go files" -> "*.go"
 	lower := strings.ToLower(request)
@@ -231,6 +250,5 @@ func extractSymbolName(request string) string {
 	if len(words) > 0 {
 		return words[len(words)-1]
 	}
-
-	return ".*" // Match all
+	return ""
 }

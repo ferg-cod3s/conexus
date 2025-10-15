@@ -9,10 +9,12 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/orchestrator/workflow"
+	"github.com/ferg-cod3s/conexus/pkg/schema"
 )
 
 // TestFramework coordinates integration testing
@@ -65,6 +67,16 @@ type AssertionResult struct {
 	Description string
 	Passed      bool
 	Error       error
+}
+
+// AssertMaxDuration checks if the test duration is within the specified maximum
+// Returns an error if duration exceeds the threshold
+func (r *TestResult) AssertMaxDuration(max time.Duration) error {
+	if r.Duration > max {
+		return fmt.Errorf("test duration %v exceeded maximum allowed %v (by %v)", 
+			r.Duration, max, r.Duration-max)
+	}
+	return nil
 }
 
 // RegisterAgent registers an agent for testing
@@ -337,8 +349,20 @@ func (a *EvidenceValidAssertion) Assert(result *workflow.ExecutionResult) error 
 
 		if !report.EvidenceValid {
 			if report.EvidenceResult != nil {
-				return fmt.Errorf("step %d (%s): evidence validation failed: %d unbacked claims, %d invalid evidence", 
+				// Build detailed error message with unbacked claims
+				errMsg := fmt.Sprintf("step %d (%s): evidence validation failed: %d unbacked claims, %d invalid evidence",
 					i, step.StepID, len(report.EvidenceResult.UnbackedClaims), len(report.EvidenceResult.InvalidEvidence))
+				
+				// Add details about unbacked claims for debugging
+				if len(report.EvidenceResult.UnbackedClaims) > 0 {
+					errMsg += "\n  Unbacked claims:"
+					for _, claim := range report.EvidenceResult.UnbackedClaims {
+						errMsg += fmt.Sprintf("\n    - Section: %s, Index: %d, Description: %s",
+							claim.Section, claim.Index, claim.Description)
+					}
+				}
+				
+				return fmt.Errorf("%s", errMsg)
 			}
 			return fmt.Errorf("step %d (%s): evidence validation failed", i, step.StepID)
 		}
@@ -443,13 +467,237 @@ func (a *OutputFieldNotEmptyAssertion) Assert(result *workflow.ExecutionResult) 
 			if len(output.ErrorHandling) == 0 {
 				return fmt.Errorf("step %d (%s): error_handling is empty", i, step.StepID)
 			}
+		case "patterns":
+			if len(output.Patterns) == 0 {
+				return fmt.Errorf("step %d (%s): patterns is empty", i, step.StepID)
+			}
+		case "external_dependencies":
+			if len(output.ExternalDependencies) == 0 {
+				return fmt.Errorf("step %d (%s): external_dependencies is empty", i, step.StepID)
+			}
+		case "data_flow":
+			if len(output.DataFlow.Inputs) == 0 && len(output.DataFlow.Transformations) == 0 && len(output.DataFlow.Outputs) == 0 {
+				return fmt.Errorf("step %d (%s): data_flow is empty", i, step.StepID)
+			}
+		case "configuration":
+			if len(output.Configuration) == 0 {
+				return fmt.Errorf("step %d (%s): configuration is empty", i, step.StepID)
+			}
+		case "concurrency":
+			if len(output.Concurrency) == 0 {
+				return fmt.Errorf("step %d (%s): concurrency is empty", i, step.StepID)
+			}
+		case "limitations":
+			if len(output.Limitations) == 0 {
+				return fmt.Errorf("step %d (%s): limitations is empty", i, step.StepID)
+			}
 		default:
-			return fmt.Errorf("unknown field name: %s (valid: component_name, scope_description, overview, entry_points, call_graph, raw_evidence, state_management, side_effects, error_handling)", a.FieldName)
-		}
+			return fmt.Errorf("unknown field name: %s (valid: component_name, scope_description, overview, entry_points, call_graph, data_flow, raw_evidence, state_management, side_effects, error_handling, patterns, external_dependencies, configuration, concurrency, limitations)", a.FieldName)
+
+				}
 	}
 	return nil
 }
 
 func (a *OutputFieldNotEmptyAssertion) Description() string {
 	return fmt.Sprintf("Field '%s' is not empty in all outputs", a.FieldName)
+}
+
+// --- Workflow Helpers (5.1.1) ---
+
+// WorkflowConfig simplifies workflow creation for testing
+type WorkflowConfig struct {
+	ID          string
+	Description string
+	Agent       string
+	Input       map[string]interface{}
+	Timeout     time.Duration
+	Permissions schema.Permissions
+}
+
+// RunWorkflow is a simplified helper to build and execute a single-step workflow
+// Returns the execution result and any error encountered
+func (f *TestFramework) RunWorkflow(ctx context.Context, config WorkflowConfig) (*workflow.ExecutionResult, error) {
+	// Marshal input
+	inputJSON, err := json.Marshal(config.Input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %w", err)
+	}
+
+	// Build workflow
+	wf, err := workflow.NewBuilder(config.ID).
+		WithDescription(config.Description).
+		AddSequentialStep(
+			"step1",
+			config.Agent,
+			string(inputJSON),
+			config.Permissions,
+		).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build workflow: %w", err)
+	}
+
+	// Apply timeout
+	timeout := config.Timeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
+	workflowCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Execute workflow
+	result, err := f.engine.Execute(workflowCtx, wf)
+	if err != nil {
+		return nil, fmt.Errorf("workflow execution failed: %w", err)
+	}
+
+	return result, nil
+}
+// WorkflowStep simplifies step creation for multi-step workflow testing
+type WorkflowStep struct {
+	ID          string
+	Agent       string
+	Input       map[string]interface{}
+	Permissions schema.Permissions
+	Condition   workflow.Condition
+}
+
+// MultiStepWorkflowConfig configures multi-step workflow execution
+type MultiStepWorkflowConfig struct {
+	ID          string
+	Description string
+	Steps       []WorkflowStep
+	Mode        workflow.ExecutionMode
+	Timeout     time.Duration
+}
+
+// RunMultiStepWorkflow orchestrates execution of a multi-step workflow
+// This helper simplifies E2E testing by:
+// - Building workflows from simplified step configs
+// - Managing timeouts and context cancellation
+// - Consolidating results into TestResult
+// - Handling step failures with proper error propagation
+func (f *TestFramework) RunMultiStepWorkflow(ctx context.Context, config MultiStepWorkflowConfig) (*TestResult, error) {
+	if len(config.Steps) == 0 {
+		return nil, fmt.Errorf("workflow must have at least one step")
+	}
+
+	result := &TestResult{
+		TestName:   config.ID,
+		Errors:     make([]error, 0),
+		Warnings:   make([]string, 0),
+		Assertions: make([]AssertionResult, 0),
+	}
+
+	// Apply timeout
+	timeout := config.Timeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
+	workflowCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Build workflow
+	builder := workflow.NewBuilder(config.ID).
+		WithDescription(config.Description)
+
+	// Default to sequential mode if not specified
+	mode := config.Mode
+	if mode == "" {
+		mode = workflow.SequentialMode
+	}
+	builder = builder.WithMode(mode)
+
+	// Add steps to workflow
+	for i, stepConfig := range config.Steps {
+		// Marshal input
+		inputJSON, err := json.Marshal(stepConfig.Input)
+		if err != nil {
+			result.Passed = false
+			result.Errors = append(result.Errors, fmt.Errorf("step %d: failed to marshal input: %w", i, err))
+			return result, err
+		}
+
+		// Generate step ID if not provided
+		stepID := stepConfig.ID
+		if stepID == "" {
+			stepID = fmt.Sprintf("step%d", i+1)
+		}
+
+		// Add step based on mode and configuration
+		if stepConfig.Condition != nil {
+			builder = builder.AddConditionalStep(
+				stepID,
+				stepConfig.Agent,
+				string(inputJSON),
+				stepConfig.Permissions,
+				stepConfig.Condition,
+			)
+		} else {
+			builder = builder.AddSequentialStep(
+				stepID,
+				stepConfig.Agent,
+				string(inputJSON),
+				stepConfig.Permissions,
+			)
+		}
+	}
+
+	wf, err := builder.Build()
+	if err != nil {
+		result.Passed = false
+		result.Errors = append(result.Errors, fmt.Errorf("failed to build workflow: %w", err))
+		return result, err
+	}
+
+	// Execute workflow
+	startTime := time.Now()
+	workflowResult, err := f.engine.Execute(workflowCtx, wf)
+	result.Duration = time.Since(startTime)
+
+	// Check for context cancellation
+	select {
+	case <-workflowCtx.Done():
+		if workflowCtx.Err() == context.DeadlineExceeded {
+			result.Passed = false
+			result.Errors = append(result.Errors, fmt.Errorf("workflow timeout exceeded: %v", timeout))
+			return result, workflowCtx.Err()
+		}
+		if workflowCtx.Err() == context.Canceled {
+			result.Passed = false
+			result.Errors = append(result.Errors, fmt.Errorf("workflow cancelled"))
+			return result, workflowCtx.Err()
+		}
+	default:
+	}
+
+	if err != nil {
+		result.Passed = false
+		result.Errors = append(result.Errors, fmt.Errorf("workflow execution failed: %w", err))
+		return result, err
+	}
+
+	result.WorkflowResult = workflowResult
+
+	// Check if all steps completed successfully
+	allStepsSucceeded := true
+	for i, stepResult := range workflowResult.StepResults {
+		if stepResult.Status == workflow.StepStatusFailed {
+			allStepsSucceeded = false
+			result.Warnings = append(result.Warnings, 
+				fmt.Sprintf("step %d (%s) failed: %s", i, stepResult.StepID, stepResult.Error))
+		} else if stepResult.Status == workflow.StepStatusEscalated {
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("step %d (%s) escalated to %s: %s", 
+					i, stepResult.StepID, stepResult.EscalationTarget, stepResult.EscalationReason))
+		}
+	}
+
+	result.Passed = allStepsSucceeded && len(result.Errors) == 0
+
+	f.results = append(f.results, result)
+	return result, nil
 }

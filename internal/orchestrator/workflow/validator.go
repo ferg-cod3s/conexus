@@ -65,10 +65,6 @@ func (v *Validator) validateStep(step *Step, index int) error {
 		return fmt.Errorf("step %d (%s): agent is required", index, step.ID)
 	}
 
-	if step.Input == "" {
-		return fmt.Errorf("step %d (%s): input is required", index, step.ID)
-	}
-
 	return nil
 }
 

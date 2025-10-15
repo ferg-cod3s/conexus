@@ -17,12 +17,77 @@ type Request struct {
 	ID      interface{}     `json:"id"`
 }
 
+// UnmarshalJSON implements custom unmarshaling to normalize ID types
+func (r *Request) UnmarshalJSON(data []byte) error {
+	type Alias Request
+	aux := &struct {
+		ID json.RawMessage `json:"id"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	// Normalize the ID type
+	r.ID = normalizeID(aux.ID)
+	return nil
+}
+
 // Response represents a JSON-RPC 2.0 response
 type Response struct {
 	JSONRPC string          `json:"jsonrpc"`
 	Result  json.RawMessage `json:"result,omitempty"`
 	Error   *Error          `json:"error,omitempty"`
 	ID      interface{}     `json:"id"`
+}
+
+// UnmarshalJSON implements custom unmarshaling to normalize ID types
+func (r *Response) UnmarshalJSON(data []byte) error {
+	type Alias Response
+	aux := &struct {
+		ID json.RawMessage `json:"id"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	// Normalize the ID type
+	r.ID = normalizeID(aux.ID)
+	return nil
+}
+
+// normalizeID converts JSON number IDs to int to ensure type consistency
+func normalizeID(raw json.RawMessage) interface{} {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+
+	// Try to parse as string (quoted)
+	var str string
+	if err := json.Unmarshal(raw, &str); err == nil {
+		return str
+	}
+
+	// Try to parse as number
+	var num float64
+	if err := json.Unmarshal(raw, &num); err == nil {
+		// Convert to int if it's a whole number
+		if num == float64(int(num)) {
+			return int(num)
+		}
+		// Keep as float64 for non-integer numbers (rare but spec-compliant)
+		return num
+	}
+
+	// Fallback: return as-is (shouldn't happen with valid JSON-RPC)
+	return raw
 }
 
 // Error represents a JSON-RPC 2.0 error
@@ -77,8 +142,8 @@ func (s *Server) Serve() error {
 			if err == io.EOF {
 				return nil
 			}
-			s.sendError(nil, ParseError, fmt.Sprintf("parse error: %v", err), nil)
-			continue
+			// After a parse error, we cannot reliably continue reading from the stream
+			return s.sendError(nil, ParseError, fmt.Sprintf("parse error: %v", err), nil)
 		}
 
 		// Validate request

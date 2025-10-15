@@ -3,6 +3,7 @@ package analyzer
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -61,18 +62,31 @@ func (a *AnalyzerAgent) analyzeFiles(ctx context.Context, req schema.AgentReques
 	}
 
 	var allEvidence []schema.Evidence
+	var fileErrors []string
 
 	// Analyze each file
 	for _, file := range req.Task.Files {
+		// Validate file exists
+		if _, err := os.Stat(file); err != nil {
+			if os.IsNotExist(err) {
+				fileErrors = append(fileErrors, fmt.Sprintf("%s: file not found", file))
+			} else {
+				fileErrors = append(fileErrors, fmt.Sprintf("%s: %v", file, err))
+			}
+			continue
+		}
+
 		// Read file content
 		params := tool.ToolParams{Path: file}
 		result, err := a.executor.Execute(ctx, "read", params, req.Permissions)
 		if err != nil {
+			fileErrors = append(fileErrors, fmt.Sprintf("%s: %v", file, err))
 			continue
 		}
 
 		content, ok := result.Output.(string)
 		if !ok {
+			fileErrors = append(fileErrors, fmt.Sprintf("%s: failed to read content", file))
 			continue
 		}
 
@@ -91,6 +105,11 @@ func (a *AnalyzerAgent) analyzeFiles(ctx context.Context, req schema.AgentReques
 		output.Patterns = append(output.Patterns, fileAnalysis.Patterns...)
 		output.Concurrency = append(output.Concurrency, fileAnalysis.Concurrency...)
 		allEvidence = append(allEvidence, fileAnalysis.RawEvidence...)
+	}
+
+	// If all files had errors, return an error
+	if len(fileErrors) > 0 && len(allEvidence) == 0 {
+		return nil, fmt.Errorf("failed to analyze files: %s", strings.Join(fileErrors, "; "))
 	}
 
 	// Generate overview

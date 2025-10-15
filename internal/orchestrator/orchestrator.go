@@ -8,6 +8,8 @@ import (
 
 	"github.com/ferg-cod3s/conexus/internal/process"
 	"github.com/ferg-cod3s/conexus/internal/tool"
+	"github.com/ferg-cod3s/conexus/internal/validation/evidence"
+	"github.com/ferg-cod3s/conexus/internal/profiling"
 	"github.com/ferg-cod3s/conexus/pkg/schema"
 )
 
@@ -21,19 +23,45 @@ type Agent interface {
 
 // Orchestrator coordinates agent execution and workflow management
 type Orchestrator struct {
-	processManager *process.Manager
-	toolExecutor   *tool.Executor
-	agentRegistry  map[string]AgentFactory
-	router         *Router
+	processManager    *process.Manager
+	toolExecutor      *tool.Executor
+	agentRegistry     map[string]AgentFactory
+	router            *Router
+	evidenceValidator *evidence.Validator
+	qualityGates      *QualityGateConfig
+	enableProfiling   bool
 }
 
-// New creates a new Orchestrator
+// OrchestratorConfig contains configuration for the orchestrator
+type OrchestratorConfig struct {
+	ProcessManager    *process.Manager
+	ToolExecutor      *tool.Executor
+	EvidenceValidator *evidence.Validator
+	QualityGates      *QualityGateConfig
+	EnableProfiling   bool
+}
+
+// New creates a new Orchestrator with basic dependencies
 func New(pm *process.Manager, te *tool.Executor) *Orchestrator {
+	return NewWithConfig(OrchestratorConfig{
+		ProcessManager:    pm,
+		ToolExecutor:      te,
+		EvidenceValidator: evidence.NewValidator(true), // strict mode by default
+		QualityGates:      DefaultQualityGates(),
+		EnableProfiling:   true,
+	})
+}
+
+// NewWithConfig creates a new Orchestrator with custom configuration
+func NewWithConfig(config OrchestratorConfig) *Orchestrator {
 	return &Orchestrator{
-		processManager: pm,
-		toolExecutor:   te,
-		agentRegistry:  make(map[string]AgentFactory),
-		router:         NewRouter(),
+		processManager:    config.ProcessManager,
+		toolExecutor:      config.ToolExecutor,
+		agentRegistry:     make(map[string]AgentFactory),
+		router:            NewRouter(),
+		evidenceValidator: config.EvidenceValidator,
+		qualityGates:      config.QualityGates,
+		enableProfiling:   config.EnableProfiling,
 	}
 }
 
@@ -72,21 +100,46 @@ func (o *Orchestrator) HandleRequest(ctx context.Context, userRequest string, pe
 	return result, nil
 }
 
-// ExecuteWorkflow executes a series of agent invocations
+// ExecuteWorkflow executes a series of agent invocations with validation and profiling
 func (o *Orchestrator) ExecuteWorkflow(ctx context.Context, workflow *Workflow, permissions schema.Permissions) (*Result, error) {
+	workflowID := generateWorkflowID()
+	startTime := time.Now()
+
 	result := &Result{
 		Success:   true,
 		Responses: []schema.AgentResponse{},
 	}
 
+	// Initialize profiling if enabled
+	var profiler *WorkflowProfiler
+	if o.enableProfiling {
+		profiler = NewWorkflowProfiler(workflowID, true)
+	}
+
+	// Initialize validation tracking
+	validationResults := make([]AgentValidationResult, 0)
+
 	accumulatedContext := make(map[string]interface{})
 	previousAgents := []string{}
 
 	// Execute each step sequentially
-	// Use index-based loop so we can dynamically add steps during escalation
 	for i := 0; i < len(workflow.Steps); i++ {
 		step := workflow.Steps[i]
+
+		// Start profiling for this agent
+		var execCtx *profiling.ExecutionContext
+		if profiler != nil {
+			execCtx = profiler.StartAgentExecution(ctx, step.AgentID, step.Request)
+		}
+
+		// Execute the agent
 		agentResponse, err := o.invokeAgent(ctx, step, permissions, accumulatedContext, previousAgents)
+		
+		// Finalize profiling (always) so aggregates are updated
+		if execCtx != nil {
+			execCtx.End(agentResponse.Output, err)
+		}
+
 		if err != nil {
 			result.Success = false
 			result.Error = err.Error()
@@ -96,7 +149,26 @@ func (o *Orchestrator) ExecuteWorkflow(ctx context.Context, workflow *Workflow, 
 		result.Responses = append(result.Responses, agentResponse)
 		previousAgents = append(previousAgents, agentResponse.AgentID)
 
-		// Handle errors first
+		// Validate the response if it contains AGENT_OUTPUT_V1
+		if o.evidenceValidator != nil && agentResponse.Output != nil {
+			validationResult := o.validateAgentResponse(agentResponse)
+			validationResults = append(validationResults, validationResult)
+
+			// Block on validation failure if configured
+			if o.qualityGates.BlockOnValidationFailure && !validationResult.Valid {
+				result.Success = false
+				result.Error = fmt.Sprintf("Agent %s validation failed: %d unbacked claims, %d invalid evidence",
+					agentResponse.AgentID,
+					len(validationResult.UnbackedClaims),
+					len(validationResult.InvalidEvidence))
+				
+				// Generate reports before returning
+				o.generateReports(result, workflowID, startTime, validationResults, profiler)
+				return result, fmt.Errorf(result.Error)
+			}
+		}
+
+		// Handle errors
 		if agentResponse.Status == schema.StatusError {
 			result.Success = false
 			if agentResponse.Error != nil {
@@ -116,7 +188,89 @@ func (o *Orchestrator) ExecuteWorkflow(ctx context.Context, workflow *Workflow, 
 		}
 	}
 
+	// Generate comprehensive reports
+	o.generateReports(result, workflowID, startTime, validationResults, profiler)
+
+	// Check quality gates
+	if result.ValidationReport != nil || result.ProfilingReport != nil {
+		qualityGateResult := o.qualityGates.CheckQualityGates(
+			result.ValidationReport,
+			result.ProfilingReport,
+		)
+		result.QualityGateResult = qualityGateResult
+
+		// Block on quality gate failure if configured
+		if !qualityGateResult.Passed {
+			if o.qualityGates.BlockOnValidationFailure && !qualityGateResult.ValidationPassed {
+				result.Success = false
+				result.Error = "Quality gate validation check failed"
+				return result, fmt.Errorf(result.Error)
+			}
+			if o.qualityGates.BlockOnPerformanceFailure && !qualityGateResult.PerformancePassed {
+				result.Success = false
+				result.Error = "Quality gate performance check failed"
+				return result, fmt.Errorf(result.Error)
+			}
+		}
+	}
+
 	return result, nil
+}
+
+// validateAgentResponse validates an agent response using the evidence validator
+func (o *Orchestrator) validateAgentResponse(response schema.AgentResponse) AgentValidationResult {
+	result := AgentValidationResult{
+		AgentID:   response.AgentID,
+		RequestID: response.RequestID,
+		Valid:     true,
+	}
+
+	if response.Output == nil {
+		return result
+	}
+
+	// Validate evidence backing
+	validationResult, err := o.evidenceValidator.Validate(response.Output)
+	if err != nil {
+		result.Valid = false
+		return result
+	}
+
+	result.Valid = validationResult.Valid
+	result.EvidenceCoverage = validationResult.CoveragePercentage
+	result.UnbackedClaims = validationResult.UnbackedClaims
+	result.InvalidEvidence = validationResult.InvalidEvidence
+
+	return result
+}
+
+// generateReports creates validation and profiling reports
+func (o *Orchestrator) generateReports(
+	result *Result,
+	workflowID string,
+	startTime time.Time,
+	validationResults []AgentValidationResult,
+	profiler *WorkflowProfiler,
+) {
+	// Generate validation report
+	if len(validationResults) > 0 {
+		result.ValidationReport = CreateValidationReportFromResults(workflowID, validationResults)
+	}
+
+	// Generate profiling report
+	if profiler != nil {
+		result.ProfilingReport = profiler.GenerateReport()
+	}
+
+	// Generate combined workflow report
+	if result.ValidationReport != nil || result.ProfilingReport != nil {
+		result.WorkflowReport = GenerateReport(
+			workflowID,
+			result.ValidationReport,
+			result.ProfilingReport,
+			result.QualityGateResult,
+		)
+	}
 }
 
 // invokeAgent invokes a single agent
@@ -181,9 +335,9 @@ type Router struct {
 
 // RoutingRule maps patterns to agents
 type RoutingRule struct {
-	Keywords     []string
-	AgentID      string
-	Priority     int
+	Keywords []string
+	AgentID  string
+	Priority int
 }
 
 // NewRouter creates a new Router with default rules
@@ -266,16 +420,24 @@ type WorkflowStep struct {
 
 // Result contains the outcome of orchestration
 type Result struct {
-	Success   bool
-	Responses []schema.AgentResponse
-	Error     string
-	Duration  time.Duration
+	Success            bool
+	Responses          []schema.AgentResponse
+	Error              string
+	Duration           time.Duration
+	ValidationReport   *ValidationReport
+	ProfilingReport    *ProfilingReport
+	QualityGateResult  *QualityGateResult
+	WorkflowReport     *WorkflowReport
 }
 
 // Helper functions
 
 func generateRequestID() string {
 	return fmt.Sprintf("req-%d", time.Now().UnixNano())
+}
+
+func generateWorkflowID() string {
+	return fmt.Sprintf("workflow-%d", time.Now().UnixNano())
 }
 
 func extractParameters(request string) map[string]interface{} {

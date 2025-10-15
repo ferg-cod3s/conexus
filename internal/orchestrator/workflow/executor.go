@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"time"
 
 	"github.com/ferg-cod3s/conexus/pkg/schema"
 )
@@ -14,7 +15,8 @@ type Executor interface {
 
 // AgentExecutor executes workflow steps using registered agents
 type AgentExecutor struct {
-	agents map[string]Agent
+	agents     map[string]Agent
+	maxRetries int
 }
 
 // Agent defines the interface for agents that can be used in workflows
@@ -26,7 +28,8 @@ type Agent interface {
 // NewAgentExecutor creates a new agent-based executor
 func NewAgentExecutor() *AgentExecutor {
 	return &AgentExecutor{
-		agents: make(map[string]Agent),
+		agents:     make(map[string]Agent),
+		maxRetries: 3, // Default to 3 retry attempts
 	}
 }
 
@@ -60,8 +63,51 @@ func (e *AgentExecutor) ExecuteStep(ctx context.Context, step *Step, currentResu
 		},
 	}
 
-	// Execute agent
-	resp, err := agent.Execute(ctx, req)
+	// Execute agent with retry logic
+	var resp schema.AgentResponse
+	var err error
+
+	for attempt := 1; attempt <= e.maxRetries; attempt++ {
+		resp, err = agent.Execute(ctx, req)
+		
+		// Success - no error
+		if err == nil {
+			break
+		}
+		
+		// Check if error is recoverable
+		recoverable := false
+		if resp.Error != nil && resp.Error.Recoverable {
+			recoverable = true
+		}
+		
+		// If not recoverable or max attempts reached, fail
+		if !recoverable || attempt >= e.maxRetries {
+			return &StepResult{
+				StepID: step.ID,
+				Agent:  step.Agent,
+				Status: StepStatusFailed,
+				Error:  err.Error(),
+			}, err
+		}
+		
+		// Exponential backoff before retry
+		backoff := time.Duration(10*attempt*attempt) * time.Millisecond
+		
+		select {
+		case <-ctx.Done():
+			return &StepResult{
+				StepID: step.ID,
+				Agent:  step.Agent,
+				Status: StepStatusFailed,
+				Error:  "context cancelled during retry",
+			}, ctx.Err()
+		case <-time.After(backoff):
+			// Continue to next retry attempt
+		}
+	}
+	
+	// Check for final error after all retries
 	if err != nil {
 		return &StepResult{
 			StepID: step.ID,
