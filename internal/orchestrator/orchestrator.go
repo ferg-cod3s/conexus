@@ -164,7 +164,7 @@ func (o *Orchestrator) ExecuteWorkflow(ctx context.Context, workflow *Workflow, 
 				
 				// Generate reports before returning
 				o.generateReports(result, workflowID, startTime, validationResults, profiler)
-				return result, fmt.Errorf(result.Error)
+				return result, fmt.Errorf("%s", result.Error)
 			}
 		}
 
@@ -204,12 +204,12 @@ func (o *Orchestrator) ExecuteWorkflow(ctx context.Context, workflow *Workflow, 
 			if o.qualityGates.BlockOnValidationFailure && !qualityGateResult.ValidationPassed {
 				result.Success = false
 				result.Error = "Quality gate validation check failed"
-				return result, fmt.Errorf(result.Error)
+				return result, fmt.Errorf("%s", result.Error)
 			}
 			if o.qualityGates.BlockOnPerformanceFailure && !qualityGateResult.PerformancePassed {
 				result.Success = false
 				result.Error = "Quality gate performance check failed"
-				return result, fmt.Errorf(result.Error)
+				return result, fmt.Errorf("%s", result.Error)
 			}
 		}
 	}

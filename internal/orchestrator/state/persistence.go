@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/ferg-cod3s/conexus/internal/security"
+	"github.com/ferg-cod3s/conexus/internal/validation"
 )
 
 // Persistence handles state persistence to disk
@@ -17,7 +20,7 @@ type Persistence struct {
 // NewPersistence creates a new persistence handler
 func NewPersistence(baseDir string) (*Persistence, error) {
 	// Create base directory if it doesn't exist
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+	if err := os.MkdirAll(baseDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create base directory: %w", err)
 	}
 
@@ -38,7 +41,7 @@ func (p *Persistence) SaveSession(session *Session) error {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
 
-	if err := os.WriteFile(sessionPath, data, 0644); err != nil {
+	if err := os.WriteFile(sessionPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write session file: %w", err)
 	}
 
@@ -52,6 +55,12 @@ func (p *Persistence) LoadSession(sessionID string) (*Session, error) {
 
 	sessionPath := filepath.Join(p.baseDir, fmt.Sprintf("session-%s.json", sessionID))
 
+	// G304: Validate path to prevent directory traversal
+	if _, err := security.ValidatePathWithinBase(sessionPath, p.baseDir); err != nil {
+		return nil, fmt.Errorf("invalid session path: %w", err)
+	}
+
+	// #nosec G304 - Path validated at line 59 with ValidatePathWithinBase
 	data, err := os.ReadFile(sessionPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read session file: %w", err)
@@ -96,6 +105,11 @@ func (p *Persistence) ListSessions() ([]string, error) {
 		}
 
 		name := entry.Name()
+		// Validate filename to prevent path traversal
+		if err := validation.IsPathSafe(name); err != nil {
+			continue // Skip invalid filenames
+		}
+
 		if len(name) > 13 && name[:8] == "session-" && name[len(name)-5:] == ".json" {
 			sessionID := name[8 : len(name)-5]
 			sessionIDs = append(sessionIDs, sessionID)
@@ -120,7 +134,7 @@ func (p *Persistence) SaveCache(cache *Cache) error {
 		return fmt.Errorf("failed to marshal cache: %w", err)
 	}
 
-	if err := os.WriteFile(cachePath, data, 0644); err != nil {
+	if err := os.WriteFile(cachePath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write cache file: %w", err)
 	}
 
@@ -134,6 +148,12 @@ func (p *Persistence) LoadCache(cache *Cache) error {
 
 	cachePath := filepath.Join(p.baseDir, "cache.json")
 
+	// G304: Validate path to prevent directory traversal
+	if _, err := security.ValidatePathWithinBase(cachePath, p.baseDir); err != nil {
+		return fmt.Errorf("invalid cache path: %w", err)
+	}
+
+	// #nosec G304 - Path validated at line 151 with ValidatePathWithinBase
 	data, err := os.ReadFile(cachePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -165,6 +185,11 @@ func (p *Persistence) ClearAll() error {
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
+		}
+
+		// Validate filename to prevent path traversal
+		if err := validation.IsPathSafe(entry.Name()); err != nil {
+			continue // Skip invalid filenames
 		}
 
 		path := filepath.Join(p.baseDir, entry.Name())

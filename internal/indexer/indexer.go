@@ -6,6 +6,9 @@ import (
 	"context"
 	"io/fs"
 	"time"
+	
+	"github.com/ferg-cod3s/conexus/internal/embedding"
+	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 )
 
 // Chunk represents a unit of indexed content with metadata.
@@ -38,12 +41,14 @@ const (
 
 // IndexOptions configures indexing behavior.
 type IndexOptions struct {
-	RootPath      string   // Root directory to index
-	IgnorePatterns []string // .gitignore-style patterns to exclude
-	MaxFileSize   int64    // Skip files larger than this (bytes)
-	IncludeGitInfo bool    // Extract git metadata (commit hash, author)
-	ChunkSize     int      // Target chunk size in tokens (for sliding window)
-	ChunkOverlap  int      // Overlap between chunks (tokens)
+	RootPath       string                   // Root directory to index
+	IgnorePatterns []string                 // .gitignore-style patterns to exclude
+	MaxFileSize    int64                    // Skip files larger than this (bytes)
+	IncludeGitInfo bool                     // Extract git metadata (commit hash, author)
+	ChunkSize      int                      // Target chunk size in tokens (for sliding window)
+	ChunkOverlap   int                      // Overlap between chunks (tokens)
+	Embedder       embedding.Embedder       // Optional: Embedder for generating vectors
+	VectorStore    vectorstore.VectorStore  // Optional: VectorStore for storing vectors
 }
 
 // Indexer walks a file system and produces chunks with metadata.

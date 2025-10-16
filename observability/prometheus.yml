@@ -1,0 +1,25 @@
+# Prometheus configuration for Conexus
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'conexus'
+    environment: 'dev'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Conexus MCP server metrics
+  - job_name: 'conexus'
+    static_configs:
+      - targets: ['conexus:9091']
+    scrape_interval: 10s
+    metrics_path: /metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'conexus-mcp-server'

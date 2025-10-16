@@ -6,7 +6,6 @@ import (
 	"time"
 	
 	"github.com/ferg-cod3s/conexus/internal/embedding"
-	"github.com/ferg-cod3s/conexus/internal/indexer"
 )
 
 // Document represents a stored chunk with its vector embedding.
@@ -77,23 +76,4 @@ type IndexStats struct {
 type StatsProvider interface {
 	// Stats returns current index statistics.
 	Stats(ctx context.Context) (*IndexStats, error)
-}
-
-// ChunkToDocument converts an indexer.Chunk to a vectorstore.Document.
-func ChunkToDocument(chunk indexer.Chunk, vector embedding.Vector) Document {
-	return Document{
-		ID:      chunk.ID,
-		Content: chunk.Content,
-		Vector:  vector,
-		Metadata: map[string]interface{}{
-			"file_path":  chunk.FilePath,
-			"language":   chunk.Language,
-			"type":       string(chunk.Type),
-			"start_line": chunk.StartLine,
-			"end_line":   chunk.EndLine,
-			"hash":       chunk.Hash,
-		},
-		CreatedAt: chunk.IndexedAt,
-		UpdatedAt: chunk.IndexedAt,
-	}
 }

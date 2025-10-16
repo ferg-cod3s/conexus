@@ -243,8 +243,15 @@ func (p *Profiler) updateAggregates(profile *ExecutionProfile) {
 		agg.MaxDuration = profile.Duration
 	}
 
-	agg.AvgDuration = agg.TotalDuration / time.Duration(agg.TotalExecutions)
-	agg.AvgMemory = agg.TotalMemory / uint64(agg.TotalExecutions)
+	// Guard against division by zero and integer overflow (G115)
+	// TotalExecutions is int, converting to uint64 could overflow on negative values
+	if agg.TotalExecutions <= 0 {
+		agg.AvgDuration = 0
+		agg.AvgMemory = 0
+	} else {
+		agg.AvgDuration = agg.TotalDuration / time.Duration(agg.TotalExecutions)
+		agg.AvgMemory = agg.TotalMemory / uint64(agg.TotalExecutions)
+	}
 
 	// Update percentiles
 	p.calculatePercentiles(profile.Agent)

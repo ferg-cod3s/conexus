@@ -35,6 +35,7 @@ func NewStore(path string) (*Store, error) {
 
 	// Initialize schema
 	if err := store.initSchema(); err != nil {
+		// #nosec G104 - Best-effort cleanup in error path, primary error (schema init) already captured
 		db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}

@@ -1,0 +1,68 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+!README.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Test files
+*_test.go
+testdata/
+tests/fixtures/
+coverage.out
+*.prof
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Config
+config.yml
+config.yaml
+config.json
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (if any)
+node_modules/
+package.json
+package-lock.json
+
+# Temp
+tmp/
+temp/
+*.tmp
+
+# Phase status docs
+PHASE*.md
+TASK*.md
+SESSION*.md
+TODO.md
+CHANGES*.md
+POC*.md

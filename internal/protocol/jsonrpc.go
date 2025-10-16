@@ -148,12 +148,14 @@ func (s *Server) Serve() error {
 
 		// Validate request
 		if req.JSONRPC != JSONRPCVersion {
+			// #nosec G104 - Best-effort error reporting in validation, already in error handler
 			s.sendError(req.ID, InvalidRequest, "invalid jsonrpc version", nil)
 			continue
 		}
 
 		if req.Method == "" {
 			s.sendError(req.ID, InvalidRequest, "method required", nil)
+			// #nosec G104 - Best-effort error reporting in validation, already in error handler
 			continue
 		}
 
@@ -161,6 +163,7 @@ func (s *Server) Serve() error {
 		result, err := s.handler.Handle(req.Method, req.Params)
 		if err != nil {
 			s.sendError(req.ID, InternalError, err.Error(), nil)
+			// #nosec G104 - Best-effort error reporting in request handler, already in error handler
 			continue
 		}
 
