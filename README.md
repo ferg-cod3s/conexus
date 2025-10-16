@@ -17,6 +17,7 @@ Conexus is an **agentic context engine** that transforms Large Language Models (
 ### Key Features
 
 - 🤖 **Multi-Agent Architecture**: Specialized agents for locating and analyzing code
+- 🔌 **MCP Integration**: First-class Model Context Protocol support for AI assistants
 - ✅ **Evidence-Backed Validation**: 100% evidence traceability for all agent outputs
 - 📊 **Performance Profiling**: Real-time metrics and bottleneck detection
 - 🔄 **Workflow Orchestration**: Complex multi-agent workflows with state management
@@ -64,6 +65,107 @@ go test ./...
 ```
 
 ---
+
+---
+
+## 🔌 MCP Integration
+
+Conexus provides first-class support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io), enabling seamless integration with AI assistants like Claude Desktop and Cursor.
+
+### Why Use Conexus with AI Assistants?
+
+- 🔍 **Intelligent Context Retrieval**: Search your codebase using natural language
+- 🎯 **Precise Results**: Vector similarity search + filtering for relevant findings
+- 🔄 **Real-time Indexing**: Keep your code context fresh and up-to-date
+- 🛠️ **Built-in Tools**: 4 powerful MCP tools for code understanding
+
+### Quick MCP Setup (<5 minutes)
+
+**1. Install and start Conexus MCP server:**
+
+```bash
+# Install Conexus
+go install github.com/ferg-cod3s/conexus/cmd/conexus@latest
+
+# Start the MCP server (will auto-index current directory)
+conexus mcp --host localhost --port 3000
+```
+
+**2. Configure Claude Desktop:**
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "conexus": {
+      "command": "conexus",
+      "args": ["mcp", "--root", "/path/to/your/codebase"],
+      "env": {
+        "CONEXUS_LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+**3. Restart Claude Desktop and test:**
+
+```
+You: "Search for HTTP handler functions in this codebase"
+
+Claude: [Uses context.search tool]
+Found 5 HTTP handlers:
+- HandleRequest in internal/server/handler.go:42-68
+- HandleHealth in internal/server/health.go:15-22
+...
+```
+
+### Available MCP Tools
+
+| Tool | Status | Description |
+|------|--------|-------------|
+| `context.search` | ✅ Fully Implemented | Search code with filters (type, language, file patterns) |
+| `context.get_related_info` | ✅ Fully Implemented | Get related files, functions, and context |
+| `context.index_control` | ⏳ Partial | Indexing operations (status available, reindex planned) |
+| `context.connector_management` | ⏳ Partial | Data source management (list available, CRUD planned) |
+
+### Example Queries
+
+**Code Understanding:**
+```
+"Show me all database query functions"
+"Find the authentication middleware implementation"
+"What functions handle user registration?"
+```
+
+**Bug Investigation:**
+```
+"Search for error handling in the payment module"
+"Find all functions that access the user database"
+"Show panic or fatal calls in the codebase"
+```
+
+**Feature Development:**
+```
+"Locate API endpoint handlers"
+"Find all struct definitions related to orders"
+"Search for configuration loading functions"
+```
+
+### Advanced Configuration
+
+For production deployments, custom embedding providers, and advanced search optimization, see the **[MCP Integration Guide](docs/getting-started/mcp-integration-guide.md)**.
+
+**Topics covered:**
+- Custom embedding providers (OpenAI, Anthropic, Ollama, Cohere)
+- Vector store backends (SQLite, PostgreSQL, memory)
+- Search optimization strategies
+- Security configuration (RBAC, API keys, audit logging)
+- Troubleshooting common issues
+- Multiple instance support (monorepos)
+
+
 
 ## 📚 Architecture
 
