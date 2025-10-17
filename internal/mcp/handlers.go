@@ -454,36 +454,71 @@ func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoReque
 }
 
 
-// handleTicketIDFlow implements ticket ID-based relationship discovery
+// validateTicketID checks if a ticket ID is safe to use
+func validateTicketID(ticketID string) error {
+	// Check for empty
+	if ticketID == "" {
+		return &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "ticket ID cannot be empty",
+		}
+	}
+
+	// Check length (prevent extremely long inputs)
+	if len(ticketID) > 100 {
+		return &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "ticket ID too long (max 100 characters)",
+		}
+	}
+
+	// Check for path traversal attempts
+	if strings.Contains(ticketID, "..") || strings.Contains(ticketID, "/") || strings.Contains(ticketID, "\\") {
+		return &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "ticket ID contains invalid path characters",
+		}
+	}
+
+	// Check for command injection attempts
+	dangerousChars := []string{";", "|", "`", "$", "\n", "\r", "&", ">", "<"}
+	for _, char := range dangerousChars {
+		if strings.Contains(ticketID, char) {
+			return &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: "ticket ID contains invalid characters",
+			}
+		}
+	}
+
+	return nil
+}
+
+// handleTicketIDFlow implements ticket ID-based relationship discovery with semantic fallback
 func (s *Server) handleTicketIDFlow(ctx context.Context, req GetRelatedInfoRequest) (*GetRelatedInfoResponse, error) {
+	// Step 0: Validate ticket ID for security
+	if err := validateTicketID(req.TicketID); err != nil {
+		return nil, err
+	}
+
 	// Step 1: Get repository root
 	repoRoot, err := getRepoRoot(req.FilePath)
 	if err != nil {
-		// If not in a git repo, fall back to error
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: fmt.Sprintf("not in a git repository: %v", err),
-		}
+		// Not in a git repo - fall back to semantic search
+		return s.fallbackToSemanticSearch(ctx, req.TicketID, "Git history search unavailable (not in repository)")
 	}
 
 	// Step 2: Find ticket in git history
 	gitInfo, err := s.findTicketInGit(ctx, req.TicketID, repoRoot)
 	if err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("failed to search git history: %v", err),
-		}
+		// Git search failed - fall back to semantic search
+		return s.fallbackToSemanticSearch(ctx, req.TicketID, fmt.Sprintf("Git history search failed: %v", err))
 	}
 
-	// Step 3: Check if we found any matches
+	// Step 3: Check if we found any matches in git
 	if len(gitInfo.Branches) == 0 && len(gitInfo.Commits) == 0 {
-		return &GetRelatedInfoResponse{
-			Summary:       fmt.Sprintf("No git history found for ticket %s", req.TicketID),
-			RelatedPRs:    []string{},
-			RelatedIssues: []string{},
-			Discussions:   []DiscussionSummary{},
-			RelatedItems:  []RelatedItem{},
-		}, nil
+		// No git matches - fall back to semantic search
+		return s.fallbackToSemanticSearch(ctx, req.TicketID, "No git history found")
 	}
 
 	// Step 4: Query vector store for each modified file to get context
@@ -611,7 +646,91 @@ func (s *Server) handleTicketIDFlow(ctx context.Context, req GetRelatedInfoReque
 	}, nil
 }
 
-// getRelationshipScore returns a score for a relationship type
+// fallbackToSemanticSearch performs semantic search when git history is unavailable
+func (s *Server) fallbackToSemanticSearch(ctx context.Context, ticketID, reason string) (*GetRelatedInfoResponse, error) {
+	// Perform semantic search on ticket ID
+	queryVec, err := s.embedder.Embed(ctx, ticketID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to embed ticket ID: %v", err),
+		}
+	}
+
+	opts := vectorstore.SearchOptions{
+		Limit: 20,
+	}
+
+	results, err := s.vectorStore.SearchHybrid(ctx, ticketID, queryVec.Vector, opts)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("semantic search failed: %v", err),
+		}
+	}
+
+	// Process results
+	relatedItems := make([]RelatedItem, 0, len(results))
+	var relatedPRs, relatedIssues []string
+	var discussions []DiscussionSummary
+
+	for _, r := range results {
+		sourceType, _ := r.Document.Metadata["source_type"].(string)
+		filePath, _ := r.Document.Metadata["file_path"].(string)
+		startLine, _ := s.extractLineNumber(r.Document.Metadata, "start_line")
+		endLine, _ := s.extractLineNumber(r.Document.Metadata, "end_line")
+
+		relatedItems = append(relatedItems, RelatedItem{
+			ID:         r.Document.ID,
+			Content:    r.Document.Content,
+			Score:      r.Score,
+			SourceType: sourceType,
+			FilePath:   filePath,
+			StartLine:  startLine,
+			EndLine:    endLine,
+			Metadata:   r.Document.Metadata,
+		})
+
+		// Extract PR/issue/discussion metadata
+		switch sourceType {
+		case "github_pr":
+			if prNum, ok := r.Document.Metadata["pr_number"].(string); ok {
+				relatedPRs = append(relatedPRs, prNum)
+			}
+		case "github_issue", "jira":
+			if issueID, ok := r.Document.Metadata["issue_id"].(string); ok {
+				relatedIssues = append(relatedIssues, issueID)
+			}
+		case "slack":
+			channel, _ := r.Document.Metadata["channel"].(string)
+			timestamp, _ := r.Document.Metadata["timestamp"].(string)
+			discussions = append(discussions, DiscussionSummary{
+				Channel:   channel,
+				Timestamp: timestamp,
+				Summary:   r.Document.Content[:min(200, len(r.Document.Content))],
+			})
+		}
+	}
+
+	summary := fmt.Sprintf(
+		"%s - performed semantic search for ticket %s: found %d related items (%d PRs, %d issues, %d discussions)",
+		reason,
+		ticketID,
+		len(relatedItems),
+		len(relatedPRs),
+		len(relatedIssues),
+		len(discussions),
+	)
+
+	return &GetRelatedInfoResponse{
+		Summary:       summary,
+		RelatedPRs:    relatedPRs,
+		RelatedIssues: relatedIssues,
+		Discussions:   discussions,
+		RelatedItems:  relatedItems,
+	}, nil
+}
+
 func (s *Server) getRelationshipScore(relationType string) float32 {
 	switch relationType {
 	case RelationTypeTestFile:

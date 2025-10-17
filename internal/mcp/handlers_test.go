@@ -253,7 +253,7 @@ func TestHandleGetRelatedInfo_WithFilePath(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	resp, ok := result.(GetRelatedInfoResponse)
+	resp, ok := result.(*GetRelatedInfoResponse)
 	require.True(t, ok)
 
 	assert.NotEmpty(t, resp.Summary)
@@ -286,7 +286,7 @@ func TestHandleGetRelatedInfo_WithTicketID(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	resp, ok := result.(GetRelatedInfoResponse)
+	resp, ok := result.(*GetRelatedInfoResponse)
 	require.True(t, ok)
 
 	assert.NotEmpty(t, resp.Summary)
@@ -1469,8 +1469,8 @@ func TestHandleTicketIDFlow_TicketNotFound(t *testing.T) {
 	assert.NoError(t, err)
 	require.NotNil(t, resp)
 	
-	// Should return empty response with message
-	assert.Contains(t, resp.Summary, "No git history found")
+	// Should return semantic search fallback with no results
+	assert.Contains(t, resp.Summary, "found 0 related items")
 	assert.Contains(t, resp.Summary, "NONEXISTENT-TICKET-999999")
 	assert.Empty(t, resp.RelatedPRs)
 	assert.Empty(t, resp.RelatedIssues)
@@ -1495,12 +1495,12 @@ func TestHandleTicketIDFlow_NotInGitRepo(t *testing.T) {
 	// Act
 	resp, err := server.handleTicketIDFlow(ctx, req)
 
-	// Assert
-	assert.Error(t, err)
-	assert.Nil(t, resp)
+	// Assert - should fall back to semantic search
+	assert.NoError(t, err)
+	require.NotNil(t, resp)
 	
-	// Error should indicate not in git repo
-	assert.Contains(t, err.Error(), "not in a git repository")
+	// Should indicate git was unavailable but semantic search was used
+	assert.Contains(t, resp.Summary, "Git history search unavailable")
 }
 
 func TestHandleTicketIDFlow_InvalidTicketID(t *testing.T) {
@@ -1536,7 +1536,7 @@ func TestHandleTicketIDFlow_InvalidTicketID(t *testing.T) {
 			// Assert
 			assert.Error(t, err, "Should reject invalid ticket ID: %s", ticketID)
 			assert.Nil(t, resp)
-			assert.Contains(t, err.Error(), "invalid ticket ID format")
+			assert.Contains(t, err.Error(), "invalid", "Error should mention invalid ticket ID")
 		})
 	}
 }
