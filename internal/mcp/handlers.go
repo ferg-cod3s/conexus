@@ -300,6 +300,12 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 		query = fmt.Sprintf("ticket:%s", req.TicketID)
 	}
 
+	// Create relationship detector if we have a file path
+	var detector *RelationshipDetector
+	if req.FilePath != "" {
+		detector = NewRelationshipDetector(req.FilePath)
+	}
+
 	// Search for related documents
 	queryVec, err := s.embedder.Embed(ctx, query)
 	if err != nil {
@@ -366,15 +372,23 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 			}
 		}
 
+		// Detect relationship type if we have a detector
+		var relationType string
+		if detector != nil {
+			chunkType, _ := r.Document.Metadata["type"].(string)
+			relationType = detector.DetectRelationType(filePath, chunkType, r.Document.Metadata)
+		}
+
 		relatedItems = append(relatedItems, RelatedItem{
-			ID:         r.Document.ID,
-			Content:    r.Document.Content,
-			Score:      r.Score,
-			SourceType: sourceType,
-			FilePath:   filePath,
-			StartLine:  startLine,
-			EndLine:    endLine,
-			Metadata:   r.Document.Metadata,
+			ID:           r.Document.ID,
+			Content:      r.Document.Content,
+			Score:        r.Score,
+			SourceType:   sourceType,
+			FilePath:     filePath,
+			RelationType: relationType,
+			StartLine:    startLine,
+			EndLine:      endLine,
+			Metadata:     r.Document.Metadata,
 		})
 	}
 
