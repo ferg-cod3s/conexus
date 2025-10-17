@@ -18,7 +18,7 @@ func TestHandleContextSearch_Success(t *testing.T) {
 	connectorStore := newMockConnectorStore()
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
-	server := NewServer(nil, nil, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(nil, nil, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	// Add test documents
 	ctx := context.Background()
@@ -74,7 +74,7 @@ func TestHandleContextSearch_Success(t *testing.T) {
 func TestHandleContextSearch_WithFilters(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -109,7 +109,7 @@ func TestHandleContextSearch_WithFilters(t *testing.T) {
 func TestHandleContextSearch_InvalidJSON(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 	invalidJSON := json.RawMessage(`{"invalid": "json"`)
@@ -125,7 +125,7 @@ func TestHandleContextSearch_InvalidJSON(t *testing.T) {
 func TestHandleContextSearch_MissingQuery(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 	req := SearchRequest{
@@ -148,7 +148,7 @@ func TestHandleContextSearch_MissingQuery(t *testing.T) {
 func TestHandleContextSearch_TopKDefaults(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -187,7 +187,7 @@ func TestHandleContextSearch_TopKDefaults(t *testing.T) {
 func TestHandleGetRelatedInfo_WithFilePath(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -264,7 +264,7 @@ func TestHandleGetRelatedInfo_WithFilePath(t *testing.T) {
 func TestHandleGetRelatedInfo_WithTicketID(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -293,7 +293,7 @@ func TestHandleGetRelatedInfo_WithTicketID(t *testing.T) {
 func TestHandleGetRelatedInfo_MissingBothIdentifiers(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -317,7 +317,7 @@ func TestHandleGetRelatedInfo_MissingBothIdentifiers(t *testing.T) {
 func TestHandleGetRelatedInfo_InvalidJSON(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 	invalidJSON := json.RawMessage(`{invalid}`)
@@ -333,7 +333,7 @@ func TestHandleGetRelatedInfo_InvalidJSON(t *testing.T) {
 func TestHandleIndexControl_Status(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -380,7 +380,7 @@ func TestHandleIndexControl_Status(t *testing.T) {
 func TestHandleIndexControl_OtherActions(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -418,7 +418,7 @@ func TestHandleIndexControl_OtherActions(t *testing.T) {
 func TestHandleIndexControl_ReindexPaths(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -445,7 +445,7 @@ func TestHandleIndexControl_ReindexPaths(t *testing.T) {
 func TestHandleIndexControl_InvalidAction(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -468,7 +468,7 @@ func TestHandleIndexControl_InvalidAction(t *testing.T) {
 func TestHandleIndexControl_InvalidJSON(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 	invalidJSON := json.RawMessage(`{"action":`)
@@ -484,7 +484,7 @@ func TestHandleIndexControl_InvalidJSON(t *testing.T) {
 func TestHandleConnectorManagement_List(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -510,7 +510,7 @@ func TestHandleConnectorManagement_List(t *testing.T) {
 func TestHandleConnectorManagement_Add(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -541,7 +541,7 @@ func TestHandleConnectorManagement_Add(t *testing.T) {
 func TestHandleConnectorManagement_Update(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -587,7 +587,7 @@ func TestHandleConnectorManagement_Update(t *testing.T) {
 func TestHandleConnectorManagement_Remove(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -630,7 +630,7 @@ func TestHandleConnectorManagement_Remove(t *testing.T) {
 func TestHandleConnectorManagement_MissingConnectorID(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -661,7 +661,7 @@ func TestHandleConnectorManagement_MissingConnectorID(t *testing.T) {
 func TestHandleConnectorManagement_InvalidAction(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 
@@ -684,7 +684,7 @@ func TestHandleConnectorManagement_InvalidAction(t *testing.T) {
 func TestHandleConnectorManagement_InvalidJSON(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}
-	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
 	invalidJSON := json.RawMessage(`{"action":`)

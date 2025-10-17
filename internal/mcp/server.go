@@ -22,6 +22,7 @@ import (
 // Server implements the MCP protocol server
 type Server struct {
 	vectorStore    vectorstore.VectorStore
+	rootPath       string
 	connectorStore connectors.ConnectorStore
 	embedder       embedding.Embedder
 	searchCache    *search.SearchCache
@@ -35,6 +36,7 @@ type Server struct {
 func NewServer(
 	reader io.Reader,
 	writer io.Writer,
+	rootPath string,
 	vectorStore vectorstore.VectorStore,
 	connectorStore connectors.ConnectorStore,
 	embedder embedding.Embedder,
@@ -47,6 +49,7 @@ func NewServer(
 
 	s := &Server{
 		vectorStore:    vectorStore,
+		rootPath:       rootPath,
 		connectorStore: connectorStore,
 		embedder:       embedder,
 		searchCache:    searchCache,

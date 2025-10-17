@@ -131,7 +131,7 @@ func main() {
 	} else {
 		// Run in stdio mode (default MCP behavior)
 		logger.Info("Running in stdio mode (MCP over stdin/stdout)")
-		mcpServer := mcp.NewServer(os.Stdin, os.Stdout, vectorStore, connectorStore, embedder, metrics, errorHandler, idx)
+		mcpServer := mcp.NewServer(os.Stdin, os.Stdout, cfg.Indexer.RootPath, vectorStore, connectorStore, embedder, metrics, errorHandler, idx)
 		if err := mcpServer.Serve(); err != nil {
 			logger.Error("Server failed", "error", err)
 			os.Exit(1)

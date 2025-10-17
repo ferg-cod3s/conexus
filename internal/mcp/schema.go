@@ -86,6 +86,7 @@ type RelatedItem struct {
 	Score      float32                `json:"score"`
 	SourceType string                 `json:"source_type"`
 	FilePath   string                 `json:"file_path,omitempty"`
+	RelationType string                 `json:"relation_type,omitempty"`
 	StartLine  int                    `json:"start_line,omitempty"`
 	EndLine    int                    `json:"end_line,omitempty"`
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`

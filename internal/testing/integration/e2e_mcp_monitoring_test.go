@@ -50,7 +50,7 @@ func TestEndToEndMCPWithMonitoring(t *testing.T) {
 
 	// Create MCP server
 	reader, writer := io.Pipe()
-	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, idx)
+	server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, idx)
 
 	// Start server in goroutine
 	done := make(chan error, 1)
@@ -185,7 +185,7 @@ func TestMCPErrorHandlingWithMonitoring(t *testing.T) {
 	errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 	reader, writer := io.Pipe()
-	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, idx)
+	server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, idx)
 
 	done := make(chan error, 1)
 	go func() {
@@ -261,7 +261,7 @@ func TestMCPConcurrentRequestsWithMonitoring(t *testing.T) {
 	// For concurrent testing, we'd need a more sophisticated setup
 	// This is a placeholder for the concurrent test structure
 	reader, writer := io.Pipe()
-	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, idx)
+	server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, idx)
 
 	done := make(chan error, 1)
 	go func() {
@@ -354,7 +354,7 @@ func TestMCPHealthCheck(t *testing.T) {
 	errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 	reader, writer := io.Pipe()
-	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, idx)
+	server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, idx)
 
 	// Test health check method (if implemented)
 	// Note: This would test a health endpoint if the MCP server exposed one

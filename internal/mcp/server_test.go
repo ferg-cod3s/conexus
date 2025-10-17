@@ -167,7 +167,7 @@ func TestNewServer(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	assert.NotNil(t, server)
 	assert.NotNil(t, server.vectorStore)
@@ -184,7 +184,7 @@ func TestServer_Close(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 	err := server.Close()
 	assert.NoError(t, err)
 }
@@ -197,7 +197,7 @@ func TestServer_Handle_ToolsList(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	result, err := server.Handle("tools/list", nil)
 	require.NoError(t, err)
@@ -254,7 +254,7 @@ func TestServer_Handle_ContextSearch(t *testing.T) {
 	err := store.Upsert(ctx, doc)
 	require.NoError(t, err)
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	req := SearchRequest{
 		Query: "test query",
@@ -282,7 +282,7 @@ func TestServer_Handle_UnknownMethod(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	_, err := server.Handle("unknown/method", nil)
 	assert.Error(t, err)

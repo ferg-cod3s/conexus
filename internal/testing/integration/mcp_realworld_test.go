@@ -130,7 +130,7 @@ func callMCPTool(t *testing.T, toolName string, args map[string]interface{}) (ma
 	
 	reader := bytes.NewReader(requestJSON)
 	writer := &bytes.Buffer{}
-	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+	server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 	
 	// Run server
 	done := make(chan error, 1)
@@ -218,7 +218,7 @@ func TestMCPRealWorldDataValidation(t *testing.T) {
 		
 		reader := bytes.NewReader(requestJSON)
 		writer := &bytes.Buffer{}
-		server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+		server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 		
 		done := make(chan error, 1)
 		go func() {
@@ -298,7 +298,7 @@ func TestMCPRealWorldDataValidation(t *testing.T) {
 		tempDir := t.TempDir()
 		idx := indexer.NewIndexer(filepath.Join(tempDir, "test-state.json"))
 		
-		server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, idx)
+		server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, idx)
 		
 		done := make(chan error, 1)
 		go func() {
@@ -366,7 +366,7 @@ func TestMCPRealWorldDataValidation(t *testing.T) {
 		
 		reader := bytes.NewReader(requestJSON)
 		writer := &bytes.Buffer{}
-		server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+		server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 		
 		done := make(chan error, 1)
 		go func() {
@@ -457,7 +457,7 @@ func TestMCPEdgeCases(t *testing.T) {
 		
 		reader := bytes.NewReader(requestJSON)
 		writer := &bytes.Buffer{}
-		server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+		server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 		
 		done := make(chan error, 1)
 		go func() {
@@ -519,7 +519,7 @@ func TestMCPEdgeCases(t *testing.T) {
 		
 		reader := bytes.NewReader(requestJSON)
 		writer := &bytes.Buffer{}
-		server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+		server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 		
 		done := make(chan error, 1)
 		go func() {
@@ -585,7 +585,7 @@ func TestMCPEdgeCases(t *testing.T) {
 		
 		reader := bytes.NewReader(requestJSON)
 		writer := &bytes.Buffer{}
-		server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+		server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 		
 		done := make(chan error, 1)
 		go func() {

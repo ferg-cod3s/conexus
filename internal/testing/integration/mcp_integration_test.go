@@ -69,7 +69,7 @@ func TestMCPServerConnection(t *testing.T) {
 			metrics := observability.NewMetricsCollector("test-mcp")
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 
 			if !tt.expectedError {
 				assert.NotNil(t, server, tt.description)
@@ -110,7 +110,7 @@ func TestMCPToolDiscovery(t *testing.T) {
 	metrics := observability.NewMetricsCollector("test-tools")
 	errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
-	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+	server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 	require.NotNil(t, server)
 
 	// Run server in goroutine (it will process one request and EOF)
@@ -401,7 +401,7 @@ func TestMCPToolExecution(t *testing.T) {
 			// Setup server
 			reader := bytes.NewReader(requestJSON)
 			writer := &bytes.Buffer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 
 			// Run server
 			done := make(chan error, 1)
@@ -559,7 +559,7 @@ func TestMCPErrorHandling(t *testing.T) {
 
 			reader := bytes.NewReader(requestJSON)
 			writer := &bytes.Buffer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 
 			done := make(chan error, 1)
 			go func() {
@@ -653,7 +653,7 @@ func TestMCPProtocolCompliance(t *testing.T) {
 			requestData := []byte(tt.request + "\n")
 			reader := bytes.NewReader(requestData)
 			writer := &bytes.Buffer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, nil)
 
 			done := make(chan error, 1)
 			go func() {

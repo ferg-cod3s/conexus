@@ -14,6 +14,7 @@ import (
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
+	"github.com/ferg-cod3s/conexus/internal/security"
 )
 
 // handleContextSearch implements the context.search tool
@@ -277,6 +278,18 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 			Code:    protocol.InvalidParams,
 			Message: "either file_path or ticket_id must be provided",
 		}
+	}
+
+	// Validate file path for security if provided
+	if req.FilePath != "" {
+		safePath, err := security.ValidatePath(req.FilePath, s.rootPath)
+		if err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: fmt.Sprintf("invalid file path: %v", err),
+			}
+		}
+		req.FilePath = safePath
 	}
 
 	// Build search query based on provided identifiers
