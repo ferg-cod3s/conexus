@@ -41,7 +41,7 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 	}
 
 	// Validate required fields
-	if req.Query == "" {
+	if req.Query == "" || strings.TrimSpace(req.Query) == "" {
 		return nil, &protocol.Error{
 			Code:    protocol.InvalidParams,
 			Message: "query is required",
@@ -68,6 +68,9 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 
 	if s.searchCache != nil {
 		filters := make(map[string]interface{})
+		// Include pagination parameters in cache key
+		filters["offset"] = offset
+		filters["limit"] = topK
 		if req.Filters != nil {
 			if len(req.Filters.SourceTypes) > 0 {
 				filters["source_types"] = req.Filters.SourceTypes
@@ -117,7 +120,7 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 
 		// Prepare search options
 		opts := vectorstore.SearchOptions{
-			Limit:   topK,
+			Limit:   topK + 1, // Request one extra to detect HasMore
 			Offset:  offset,
 			Filters: make(map[string]interface{}),
 		}
@@ -161,7 +164,8 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		}
 
 		// Perform hybrid search (combines vector + BM25)
-		results, searchErr := s.vectorStore.SearchHybrid(ctx, req.Query, queryVec.Vector, opts)
+		var searchErr error
+		results, searchErr = s.vectorStore.SearchHybrid(ctx, req.Query, queryVec.Vector, opts)
 		if searchErr != nil {
 			errorCtx := observability.ExtractErrorContext(ctx, "context.search")
 			errorCtx.ErrorType = "search_error"
@@ -183,6 +187,9 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		// Cache results
 		if s.searchCache != nil {
 			filters := make(map[string]interface{})
+			// Include pagination parameters in cache key
+			filters["offset"] = offset
+			filters["limit"] = topK
 			if req.Filters != nil {
 				if len(req.Filters.SourceTypes) > 0 {
 					filters["source_types"] = req.Filters.SourceTypes
@@ -208,22 +215,6 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		results = s.applyWorkContextBoosting(results, req.Filters.WorkContext)
 	}
 
-	// Get total count for pagination
-	totalCount, countErr := s.vectorStore.Count(ctx)
-	if countErr != nil {
-		countErrorCtx := observability.ExtractErrorContext(ctx, "context.search")
-		countErrorCtx.ErrorType = "count_error"
-		countErrorCtx.ErrorCode = protocol.InternalError
-		countErrorCtx.Duration = time.Since(startTime)
-
-		if s.errorHandler != nil {
-			s.errorHandler.GracefulDegradation(ctx, "vector_store_count", countErr)
-		}
-
-		// Log error but don't fail the request
-		totalCount = int64(len(results))
-	}
-
 	// Log successful search operation
 	if s.errorHandler != nil {
 		successCtx := observability.ExtractErrorContext(ctx, "context.search")
@@ -233,6 +224,15 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 
 		// Log success (no error to report)
 		s.errorHandler.HandleError(ctx, nil, successCtx)
+	}
+
+
+	// Determine if there are more results (we requested topK + 1)
+	hasMore := len(results) > topK
+	
+	// Trim to requested limit if we got extra
+	if hasMore {
+		results = results[:topK]
 	}
 
 	// Convert results to response format
@@ -253,13 +253,14 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		})
 	}
 
+
 	return SearchResponse{
 		Results:    searchResults,
 		TotalCount: len(searchResults),
 		QueryTime:  queryTime,
 		Offset:     offset,
 		Limit:      topK,
-		HasMore:    int64(offset+len(results)) < totalCount,
+		HasMore:    hasMore,
 	}, nil
 }
 

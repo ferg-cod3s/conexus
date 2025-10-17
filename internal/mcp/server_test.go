@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -33,9 +34,36 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) (*embedding.Embed
 	if dims == 0 {
 		dims = 384
 	}
+	
+	// Generate meaningful non-zero vectors based on text content
+	// This simulates real embeddings where similar text gets similar vectors
+	vector := make(embedding.Vector, dims)
+	if text != "" {
+		// Use a simple hash-based approach to generate consistent vectors
+		// Characters influence different dimensions
+		for i := 0; i < len(text) && i < dims; i++ {
+			vector[i] = float32(text[i]) / 255.0
+		}
+		// Fill remaining dimensions with a pattern based on text length
+		for i := len(text); i < dims; i++ {
+			vector[i] = float32((len(text)*i)%100) / 100.0
+		}
+		// Normalize the vector (make it unit length)
+		var sum float32
+		for _, v := range vector {
+			sum += v * v
+		}
+		if sum > 0 {
+			norm := float32(1.0 / math.Sqrt(float64(sum)))
+			for i := range vector {
+				vector[i] *= norm
+			}
+		}
+	}
+	
 	return &embedding.Embedding{
 		Text:   text,
-		Vector: make(embedding.Vector, dims),
+		Vector: vector,
 		Model:  m.model,
 	}, nil
 }

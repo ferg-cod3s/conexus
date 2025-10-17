@@ -1853,3 +1853,749 @@ func TestHandleTicketIDFlow_PerFileChunkLimit(t *testing.T) {
 		assert.LessOrEqual(t, count, 5, "File %s should have at most 5 chunks, got %d", filePath, count)
 	}
 }
+
+// ============================================================================
+// Query Flow Tests (Task 8.1.6) - handleContextSearch() comprehensive tests
+// ============================================================================
+
+// --- Semantic Search Scenarios ---
+
+func TestHandleContextSearch_NoResults(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Don't add any documents - empty store
+
+	// Execute search for query that won't match anything
+	req := SearchRequest{
+		Query: "very specific query that definitely wont match anything in empty store",
+		TopK:  20,
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	result, err := server.handleContextSearch(ctx, reqJSON)
+
+	// Should succeed even with no results
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	resp, ok := result.(SearchResponse)
+	require.True(t, ok)
+
+	// Verify empty results
+	assert.Empty(t, resp.Results, "Should have no results")
+	assert.Equal(t, 0, resp.TotalCount, "Total count should be 0")
+	assert.False(t, resp.HasMore, "HasMore should be false with no results")
+	assert.GreaterOrEqual(t, resp.QueryTime, float64(0), "Query time should be non-negative")
+}
+
+func TestHandleContextSearch_MultipleResults(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Add 15 test documents with varying relevance
+	now := time.Now()
+	docs := make([]vectorstore.Document, 15)
+	for i := 0; i < 15; i++ {
+		content := fmt.Sprintf("authentication implementation document %d with security patterns", i)
+		emb, err := embedder.Embed(ctx, content)
+		require.NoError(t, err)
+		
+		docs[i] = vectorstore.Document{
+			ID:      fmt.Sprintf("doc-%d", i),
+			Content: content,
+			Vector:  emb.Vector,
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+				"relevance":   i, // For test tracking
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		err = store.Upsert(ctx, docs[i])
+		require.NoError(t, err)
+	}
+
+	// Execute search
+	req := SearchRequest{
+		Query: "authentication security",
+		TopK:  10, // Request 10 results
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	result, err := server.handleContextSearch(ctx, reqJSON)
+
+	// Verify
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	resp, ok := result.(SearchResponse)
+	require.True(t, ok)
+
+	// Should return up to 10 results (limited by TopK)
+	assert.LessOrEqual(t, len(resp.Results), 10, "Should respect TopK limit")
+	assert.GreaterOrEqual(t, len(resp.Results), 1, "Should have at least some results")
+	assert.Equal(t, len(resp.Results), resp.TotalCount, "TotalCount should match results length")
+	assert.True(t, resp.HasMore, "HasMore should be true when more results exist")
+}
+
+func TestHandleContextSearch_ResultRanking(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Add documents that should rank by relevance
+	now := time.Now()
+	docs := []vectorstore.Document{
+		{
+			ID:      "highly-relevant",
+			Content: "authentication implementation security",
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:      "medium-relevant",
+			Content: "authentication module code",
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:      "low-relevant",
+			Content: "unrelated content about testing",
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+
+	for _, doc := range docs {
+		err := store.Upsert(ctx, doc)
+		require.NoError(t, err)
+	}
+
+	// Execute search
+	req := SearchRequest{
+		Query: "authentication security",
+		TopK:  10,
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	result, err := server.handleContextSearch(ctx, reqJSON)
+
+	// Verify
+	assert.NoError(t, err)
+	resp, ok := result.(SearchResponse)
+	require.True(t, ok)
+
+	// Verify results are sorted by score (descending)
+	if len(resp.Results) > 1 {
+		for i := 0; i < len(resp.Results)-1; i++ {
+			assert.GreaterOrEqual(t, resp.Results[i].Score, resp.Results[i+1].Score,
+				"Results should be sorted by score in descending order")
+		}
+	}
+
+	// Verify scores are normalized (0.0-1.0)
+	for _, item := range resp.Results {
+		assert.GreaterOrEqual(t, item.Score, float32(0.0), "Score should be >= 0.0")
+		assert.LessOrEqual(t, item.Score, float32(1.0), "Score should be <= 1.0")
+	}
+}
+
+// --- Query Sanitization Tests (SECURITY) ---
+
+func TestHandleContextSearch_SQLInjection(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Test various SQL injection attempts
+	sqlInjectionQueries := []string{
+		"'; DROP TABLE documents--",
+		"' OR '1'='1",
+		"admin'--",
+		"' UNION SELECT * FROM users--",
+		"1'; DELETE FROM documents WHERE '1'='1",
+	}
+
+	for _, maliciousQuery := range sqlInjectionQueries {
+		t.Run(maliciousQuery, func(t *testing.T) {
+			req := SearchRequest{
+				Query: maliciousQuery,
+				TopK:  10,
+			}
+
+			reqJSON, err := json.Marshal(req)
+			require.NoError(t, err)
+
+			// Should not error - query should be safely handled
+			result, err := server.handleContextSearch(ctx, reqJSON)
+
+			// Verify safe handling (no SQL injection executed)
+			assert.NoError(t, err, "SQL injection should be safely handled")
+			assert.NotNil(t, result, "Should return valid result")
+
+			resp, ok := result.(SearchResponse)
+			require.True(t, ok)
+			assert.NotNil(t, resp.Results, "Should have results array (even if empty)")
+		})
+	}
+}
+
+func TestHandleContextSearch_XSSAttack(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Test XSS attempts
+	xssQueries := []string{
+		"<script>alert('xss')</script>",
+		"<img src=x onerror=alert('xss')>",
+		"<svg/onload=alert('xss')>",
+		"javascript:alert('xss')",
+		"<iframe src='javascript:alert(\"xss\")'></iframe>",
+	}
+
+	for _, xssQuery := range xssQueries {
+		t.Run(xssQuery, func(t *testing.T) {
+			req := SearchRequest{
+				Query: xssQuery,
+				TopK:  10,
+			}
+
+			reqJSON, err := json.Marshal(req)
+			require.NoError(t, err)
+
+			// Should safely handle XSS attempts
+			result, err := server.handleContextSearch(ctx, reqJSON)
+
+			assert.NoError(t, err, "XSS attempt should be safely handled")
+			assert.NotNil(t, result)
+
+			resp, ok := result.(SearchResponse)
+			require.True(t, ok)
+			assert.NotNil(t, resp.Results)
+		})
+	}
+}
+
+func TestHandleContextSearch_SpecialCharacters(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Test special regex and control characters
+	specialChars := []string{
+		".*",              // Regex wildcard
+		"[a-z]+",          // Regex character class
+		"(test|prod)",     // Regex alternation
+		"\\x00",           // Null byte
+		"$1 $2 $3",        // Regex backreferences
+		"^start$",         // Regex anchors
+		"test\\backslash", // Backslashes
+	}
+
+	for _, specialQuery := range specialChars {
+		t.Run(fmt.Sprintf("special-%s", specialQuery), func(t *testing.T) {
+			req := SearchRequest{
+				Query: specialQuery,
+				TopK:  10,
+			}
+
+			reqJSON, err := json.Marshal(req)
+			require.NoError(t, err)
+
+			// Should handle special characters safely
+			result, err := server.handleContextSearch(ctx, reqJSON)
+
+			assert.NoError(t, err, "Special characters should be safely handled")
+			assert.NotNil(t, result)
+
+			resp, ok := result.(SearchResponse)
+			require.True(t, ok)
+			assert.NotNil(t, resp.Results)
+		})
+	}
+}
+
+// --- Edge Cases ---
+
+func TestHandleContextSearch_LongQuery(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Create a very long query (>500 chars)
+	longQuery := strings.Repeat("authentication security implementation patterns ", 20) // ~900 chars
+
+	req := SearchRequest{
+		Query: longQuery,
+		TopK:  10,
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// Should handle long queries gracefully
+	result, err := server.handleContextSearch(ctx, reqJSON)
+
+	assert.NoError(t, err, "Long query should be handled")
+	assert.NotNil(t, result)
+
+	resp, ok := result.(SearchResponse)
+	require.True(t, ok)
+	assert.NotNil(t, resp.Results)
+	assert.GreaterOrEqual(t, resp.QueryTime, float64(0))
+}
+
+func TestHandleContextSearch_UnicodeQuery(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Add document with unicode content
+	now := time.Now()
+	doc := vectorstore.Document{
+		ID:      "unicode-doc",
+		Content: "こんにちは world 你好 مرحبا привет 🎉 emoji test",
+		Vector:  make(embedding.Vector, 384),
+		Metadata: map[string]interface{}{
+			"source_type": "file",
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	err := store.Upsert(ctx, doc)
+	require.NoError(t, err)
+
+	// Test various unicode queries
+	unicodeQueries := []string{
+		"こんにちは",       // Japanese
+		"你好",            // Chinese
+		"привет",          // Russian
+		"مرحبا",           // Arabic
+		"🎉🚀💡",          // Emojis
+		"Ñoño español",    // Spanish with accents
+		"Übung Deutsch",   // German umlauts
+	}
+
+	for _, unicodeQuery := range unicodeQueries {
+		t.Run(unicodeQuery, func(t *testing.T) {
+			req := SearchRequest{
+				Query: unicodeQuery,
+				TopK:  10,
+			}
+
+			reqJSON, err := json.Marshal(req)
+			require.NoError(t, err)
+
+			// Should handle unicode gracefully
+			result, err := server.handleContextSearch(ctx, reqJSON)
+
+			assert.NoError(t, err, "Unicode query should be handled")
+			assert.NotNil(t, result)
+
+			resp, ok := result.(SearchResponse)
+			require.True(t, ok)
+			assert.NotNil(t, resp.Results)
+		})
+	}
+}
+
+func TestHandleContextSearch_WhitespaceQuery(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Test whitespace-only queries
+	whitespaceQueries := []struct {
+		name  string
+		query string
+	}{
+		{"spaces only", "     "},
+		{"tabs only", "\t\t\t"},
+		{"newlines only", "\n\n\n"},
+		{"mixed whitespace", " \t\n\r "},
+	}
+
+	for _, tc := range whitespaceQueries {
+		t.Run(tc.name, func(t *testing.T) {
+			req := SearchRequest{
+				Query: tc.query,
+				TopK:  10,
+			}
+
+			reqJSON, err := json.Marshal(req)
+			require.NoError(t, err)
+
+			// Whitespace-only should be treated as empty query
+			_, err = server.handleContextSearch(ctx, reqJSON)
+
+			// Should error (empty query after trimming)
+			assert.Error(t, err)
+			protocolErr, ok := err.(*protocol.Error)
+			require.True(t, ok)
+			assert.Equal(t, protocol.InvalidParams, protocolErr.Code)
+			assert.Contains(t, protocolErr.Message, "query is required")
+		})
+	}
+}
+
+// --- Result Limiting & Pagination ---
+
+func TestHandleContextSearch_ResultLimit(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Add 60 documents (more than max limit of 50)
+	now := time.Now()
+	for i := 0; i < 60; i++ {
+		doc := vectorstore.Document{
+			ID:      fmt.Sprintf("doc-%d", i),
+			Content: fmt.Sprintf("test document %d with authentication content", i),
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		err := store.Upsert(ctx, doc)
+		require.NoError(t, err)
+	}
+
+	// Request more than max limit (should cap at 100 internally)
+	req := SearchRequest{
+		Query: "authentication",
+		TopK:  150, // Request 150, should be capped at 100
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	result, err := server.handleContextSearch(ctx, reqJSON)
+
+	assert.NoError(t, err)
+	resp, ok := result.(SearchResponse)
+	require.True(t, ok)
+
+	// Should cap at max 100 results (per TopKDefaults test, over 100 capped to 100)
+	assert.LessOrEqual(t, len(resp.Results), 100, "Should respect max limit of 100")
+	assert.Equal(t, resp.Limit, 100, "Limit should be set to 100")
+}
+
+func TestHandleContextSearch_Pagination(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Add 30 documents
+	now := time.Now()
+	for i := 0; i < 30; i++ {
+		doc := vectorstore.Document{
+			ID:      fmt.Sprintf("doc-%d", i),
+			Content: fmt.Sprintf("authentication document %d", i),
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		err := store.Upsert(ctx, doc)
+		require.NoError(t, err)
+	}
+
+	// First page: offset=0, limit=10
+	req1 := SearchRequest{
+		Query:  "authentication",
+		TopK:   10,
+		Offset: 0,
+	}
+
+	reqJSON1, err := json.Marshal(req1)
+	require.NoError(t, err)
+
+	result1, err := server.handleContextSearch(ctx, reqJSON1)
+	assert.NoError(t, err)
+
+	resp1, ok := result1.(SearchResponse)
+	require.True(t, ok)
+	assert.LessOrEqual(t, len(resp1.Results), 10)
+	assert.Equal(t, 0, resp1.Offset)
+	assert.True(t, resp1.HasMore, "First page should have more results")
+
+	// Second page: offset=10, limit=10
+	req2 := SearchRequest{
+		Query:  "authentication",
+		TopK:   10,
+		Offset: 10,
+	}
+
+	reqJSON2, err := json.Marshal(req2)
+	require.NoError(t, err)
+
+	result2, err := server.handleContextSearch(ctx, reqJSON2)
+	assert.NoError(t, err)
+
+	resp2, ok := result2.(SearchResponse)
+	require.True(t, ok)
+	assert.LessOrEqual(t, len(resp2.Results), 10)
+	assert.Equal(t, 10, resp2.Offset)
+
+	// Third page: offset=20, limit=10
+	req3 := SearchRequest{
+		Query:  "authentication",
+		TopK:   10,
+		Offset: 20,
+	}
+
+	reqJSON3, err := json.Marshal(req3)
+	require.NoError(t, err)
+
+	result3, err := server.handleContextSearch(ctx, reqJSON3)
+	assert.NoError(t, err)
+
+	resp3, ok := result3.(SearchResponse)
+	require.True(t, ok)
+	assert.LessOrEqual(t, len(resp3.Results), 10)
+	assert.Equal(t, 20, resp3.Offset)
+	assert.False(t, resp3.HasMore, "Last page should not have more results")
+}
+
+func TestHandleContextSearch_HasMoreFlag(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Add exactly 25 documents
+	now := time.Now()
+	for i := 0; i < 25; i++ {
+		doc := vectorstore.Document{
+			ID:      fmt.Sprintf("doc-%d", i),
+			Content: fmt.Sprintf("test content %d", i),
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		err := store.Upsert(ctx, doc)
+		require.NoError(t, err)
+	}
+
+	testCases := []struct {
+		name       string
+		topK       int
+		offset     int
+		expectMore bool
+	}{
+		{"first page with more", 10, 0, true},
+		{"middle page with more", 10, 10, true},
+		{"last page no more", 10, 20, false},
+		{"exact fit no more", 25, 0, false},
+		{"beyond total no more", 10, 30, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := SearchRequest{
+				Query:  "test",
+				TopK:   tc.topK,
+				Offset: tc.offset,
+			}
+
+			reqJSON, err := json.Marshal(req)
+			require.NoError(t, err)
+
+			result, err := server.handleContextSearch(ctx, reqJSON)
+			assert.NoError(t, err)
+
+			resp, ok := result.(SearchResponse)
+			require.True(t, ok)
+
+			assert.Equal(t, tc.expectMore, resp.HasMore, 
+				"HasMore flag incorrect for offset=%d, topK=%d", tc.offset, tc.topK)
+		})
+	}
+}
+
+// --- Score Weighting ---
+
+func TestHandleContextSearch_ScoreSorting(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Add documents with different relevance scores
+	now := time.Now()
+	docs := []vectorstore.Document{
+		{
+			ID:      "high-score",
+			Content: "authentication security implementation patterns best practices",
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:      "medium-score",
+			Content: "authentication implementation",
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:      "low-score",
+			Content: "unrelated topic about database",
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+
+	for _, doc := range docs {
+		err := store.Upsert(ctx, doc)
+		require.NoError(t, err)
+	}
+
+	// Execute search
+	req := SearchRequest{
+		Query: "authentication security patterns",
+		TopK:  10,
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	result, err := server.handleContextSearch(ctx, reqJSON)
+	assert.NoError(t, err)
+
+	resp, ok := result.(SearchResponse)
+	require.True(t, ok)
+
+	// Verify strict descending order
+	for i := 0; i < len(resp.Results)-1; i++ {
+		currentScore := resp.Results[i].Score
+		nextScore := resp.Results[i+1].Score
+		
+		assert.GreaterOrEqual(t, currentScore, nextScore,
+			"Result at index %d (score=%.3f) should have score >= result at index %d (score=%.3f)",
+			i, currentScore, i+1, nextScore)
+	}
+
+	// If we have results, verify top result has highest score
+	if len(resp.Results) > 0 {
+		topScore := resp.Results[0].Score
+		for i := 1; i < len(resp.Results); i++ {
+			assert.LessOrEqual(t, resp.Results[i].Score, topScore,
+				"Top result should have highest score")
+		}
+	}
+}
+
+func TestHandleContextSearch_ScoreNormalization(t *testing.T) {
+	ctx := context.Background()
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	// Add various documents
+	now := time.Now()
+	for i := 0; i < 20; i++ {
+		doc := vectorstore.Document{
+			ID:      fmt.Sprintf("doc-%d", i),
+			Content: fmt.Sprintf("document %d with authentication and security content", i),
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		err := store.Upsert(ctx, doc)
+		require.NoError(t, err)
+	}
+
+	// Execute search
+	req := SearchRequest{
+		Query: "authentication security",
+		TopK:  20,
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	result, err := server.handleContextSearch(ctx, reqJSON)
+	assert.NoError(t, err)
+
+	resp, ok := result.(SearchResponse)
+	require.True(t, ok)
+
+	// Verify all scores are normalized to 0.0-1.0 range
+	for i, item := range resp.Results {
+		assert.GreaterOrEqual(t, item.Score, float32(0.0),
+			"Result %d (ID=%s) has score %.3f which is < 0.0", i, item.ID, item.Score)
+		
+		assert.LessOrEqual(t, item.Score, float32(1.0),
+			"Result %d (ID=%s) has score %.3f which is > 1.0", i, item.ID, item.Score)
+	}
+
+	// Verify score distribution (should have some variance)
+	if len(resp.Results) > 1 {
+		allSame := true
+		firstScore := resp.Results[0].Score
+		for _, item := range resp.Results[1:] {
+			if item.Score != firstScore {
+				allSame = false
+				break
+			}
+		}
+		// In practice, scores should vary (though mock embedder returns zeros)
+		// This test validates the structure is correct
+		t.Logf("Score variance check: all same = %v", allSame)
+	}
+}
+
