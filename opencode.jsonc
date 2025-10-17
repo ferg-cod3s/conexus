@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "conexus": {
+      "type": "local",
+      "command": ["/home/f3rg/src/github/conexus/conexus"],
+      "enabled": true,
+      "environment": {
+        "CONEXUS_PORT": "0",
+        "CONEXUS_DB_PATH": "/home/f3rg/src/github/conexus/data/conexus.db",
+        "CONEXUS_LOG_LEVEL": "info"
+      }
+    }
+  }
+}

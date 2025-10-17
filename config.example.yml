@@ -1,0 +1,35 @@
+# Conexus Configuration Example
+# Copy this to config.yml and customize as needed
+# Environment variables take precedence over file config
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+database:
+  path: "./data/conexus.db"
+
+indexer:
+  root_path: "."
+  chunk_size: 512
+  chunk_overlap: 50
+
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json" # json, text
+
+observability:
+  metrics:
+    enabled: false
+    port: 9091
+    path: "/metrics"
+  tracing:
+    enabled: false
+    endpoint: "http://localhost:4318"
+    sample_rate: 0.1
+  sentry:
+    enabled: false
+    dsn: ""  # Set your Sentry DSN here
+    environment: "development"
+    sample_rate: 1.0
+    release: "0.1.0-alpha"

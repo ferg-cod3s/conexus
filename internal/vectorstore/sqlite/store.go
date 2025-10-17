@@ -35,6 +35,7 @@ func NewStore(path string) (*Store, error) {
 
 	// Initialize schema
 	if err := store.initSchema(); err != nil {
+		// #nosec G104 - Best-effort cleanup in error path, primary error (schema init) already captured
 		db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
@@ -288,13 +289,81 @@ func (s *Store) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
+// ListIndexedFiles returns a list of all unique file paths that have been indexed.
+func (s *Store) ListIndexedFiles(ctx context.Context) ([]string, error) {
+	query := `
+		SELECT DISTINCT json_extract(metadata, '$.file_path') as file_path
+		FROM documents
+		WHERE metadata IS NOT NULL AND json_extract(metadata, '$.file_path') IS NOT NULL
+		ORDER BY file_path
+	`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query indexed files: %w", err)
+	}
+	defer rows.Close()
+
+	var files []string
+	for rows.Next() {
+		var filePath string
+		if err := rows.Scan(&filePath); err != nil {
+			return nil, fmt.Errorf("scan file path: %w", err)
+		}
+		files = append(files, filePath)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate rows: %w", err)
+	}
+
+	return files, nil
+}
+
+// GetFileChunks returns all chunks for a specific file path, sorted by start_line.
+func (s *Store) GetFileChunks(ctx context.Context, filePath string) ([]vectorstore.Document, error) {
+	query := `
+		SELECT id, content, vector, metadata, created_at, updated_at
+		FROM documents
+		WHERE metadata IS NOT NULL AND json_extract(metadata, '$.file_path') = ?
+		ORDER BY json_extract(metadata, '$.start_line')
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("query file chunks: %w", err)
+	}
+	defer rows.Close()
+
+	var docs []vectorstore.Document
+	for rows.Next() {
+		var doc vectorstore.Document
+		var vectorJSON, metadataJSON []byte
+		var createdAt, updatedAt int64
+
+		err := rows.Scan(&doc.ID, &doc.Content, &vectorJSON, &metadataJSON, &createdAt, &updatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("scan document: %w", err)
+		}
+
+		if err := deserializeDocument(&doc, vectorJSON, metadataJSON, createdAt, updatedAt); err != nil {
+			return nil, fmt.Errorf("deserialize document %s: %w", doc.ID, err)
+		}
+
+		docs = append(docs, doc)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate rows: %w", err)
+	}
+
+	return docs, nil
+}
+
 // Close releases database resources.
 func (s *Store) Close() error {
 	return s.db.Close()
 }
-
-
-
 
 // Stats returns index statistics.
 func (s *Store) Stats(ctx context.Context) (*vectorstore.IndexStats, error) {

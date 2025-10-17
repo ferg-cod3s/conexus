@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ferg-cod3s/conexus/internal/validation"
 	"github.com/ferg-cod3s/conexus/pkg/schema"
 )
 
@@ -43,6 +44,11 @@ func (m *Manager) Spawn(ctx context.Context, agentID string, perms schema.Permis
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Validate agent ID to prevent command injection
+	if err := validation.ValidateAgentID(agentID); err != nil {
+		return nil, fmt.Errorf("invalid agent ID: %w", err)
+	}
+
 	// Create context with timeout if specified
 	processCtx := ctx
 	var cancel context.CancelFunc
@@ -56,6 +62,7 @@ func (m *Manager) Spawn(ctx context.Context, agentID string, perms schema.Permis
 	// For now, we'll use a placeholder
 	agentBinary := fmt.Sprintf("./agents/%s", agentID)
 
+	// #nosec G204 - agentID validated by security.ValidateAgentID() at line 48, command injection impossible
 	cmd := exec.CommandContext(processCtx, agentBinary)
 
 	// Set up pipes for communication

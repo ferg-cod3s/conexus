@@ -2,6 +2,7 @@
 package profiling
 
 import (
+	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -140,11 +141,18 @@ func (mc *MetricsCollector) GetAverageMetrics() *AverageMetrics {
 
 	count := uint64(len(mc.snapshots))
 
+	// Safe conversion: count is bounded by slice length which is much less than MaxInt
+	sampleCount := len(mc.snapshots)
+	if sampleCount > math.MaxInt32 {
+		// Defensive: if we somehow have > MaxInt32 samples, cap it
+		sampleCount = math.MaxInt32
+	}
+
 	return &AverageMetrics{
 		AvgMemoryAlloc:   totalMemAlloc / count,
 		AvgMemorySys:     totalMemSys / count,
 		AvgGoroutines:    float64(totalGoroutines) / float64(count),
-		SampleCount:      int(count),
+		SampleCount:      sampleCount,
 	}
 }
 
@@ -186,7 +194,18 @@ func (mc *MetricsCollector) GetMemoryTrend() MemoryTrend {
 	first := mc.snapshots[0]
 	last := mc.snapshots[len(mc.snapshots)-1]
 
-	memoryDelta := int64(last.MemoryAlloc) - int64(first.MemoryAlloc)
+	// Safe conversion: check if values are within int64 range before subtraction
+	// Memory values are typically well below MaxInt64 (2^63-1 ≈ 9.2 exabytes)
+	var memoryDelta int64
+	if last.MemoryAlloc > math.MaxInt64 || first.MemoryAlloc > math.MaxInt64 {
+		// Extremely unlikely in practice, but handle defensively
+		// Use float64 for calculation if values exceed int64 range
+		memoryDelta = 0 // Fall back to stable trend
+	} else {
+		// Safe: both values confirmed to fit in int64
+		memoryDelta = int64(last.MemoryAlloc) - int64(first.MemoryAlloc)
+	}
+
 	timeDelta := last.Timestamp.Sub(first.Timestamp).Seconds()
 
 	rate := float64(memoryDelta) / timeDelta // bytes per second

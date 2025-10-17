@@ -1,0 +1,33 @@
+goos: linux
+goarch: amd64
+pkg: github.com/ferg-cod3s/conexus/internal/orchestrator
+cpu: AMD FX(tm)-9590 Eight-Core Processor           
+BenchmarkRequestRouting_Simple-8                	    1155	  10352630 ns/op	    3758 B/op	      54 allocs/op
+BenchmarkRequestRouting_Complex-8               	    1159	  10354983 ns/op	    3757 B/op	      54 allocs/op
+BenchmarkRequestRouting_NoMatch-8               	    1158	  10356043 ns/op	    3710 B/op	      53 allocs/op
+BenchmarkAgentInvocation_Fast-8                 	  156382	     67014 ns/op	    1793 B/op	      25 allocs/op
+BenchmarkAgentInvocation_Slow-8                 	  181305	     67581 ns/op	    1793 B/op	      25 allocs/op
+BenchmarkWorkflowExecution_2Steps-8             	    1158	  10350991 ns/op	    3497 B/op	      50 allocs/op
+BenchmarkWorkflowExecution_5Steps-8             	    1158	  10347044 ns/op	    3497 B/op	      50 allocs/op
+BenchmarkWorkflowExecution_10Steps-8            	    1161	  10344301 ns/op	    3498 B/op	      50 allocs/op
+BenchmarkWorkflowExecution_20Steps-8            	    1159	  10345124 ns/op	    3497 B/op	      50 allocs/op
+BenchmarkQualityGates_Default-8                 	13476169	       920.9 ns/op	     192 B/op	       7 allocs/op
+BenchmarkQualityGates_Strict-8                  	13576794	       914.0 ns/op	     192 B/op	       7 allocs/op
+BenchmarkQualityGates_Relaxed-8                 	228512293	        53.24 ns/op	      32 B/op	       1 allocs/op
+BenchmarkConcurrentRequests_10-8                	    3794	   3039095 ns/op	    3764 B/op	      54 allocs/op
+BenchmarkConcurrentRequests_50-8                	    3860	   3041328 ns/op	    3762 B/op	      54 allocs/op
+BenchmarkConcurrentRequests_100-8               	    3825	   3051417 ns/op	    3765 B/op	      54 allocs/op
+BenchmarkConcurrentRequests_200-8               	    3854	   3052892 ns/op	    3762 B/op	      54 allocs/op
+BenchmarkProfilingOverhead_WithProfiling-8      	  179241	     69118 ns/op	    1793 B/op	      25 allocs/op
+BenchmarkProfilingOverhead_WithoutProfiling-8   	 6339934	      1898 ns/op	     472 B/op	      11 allocs/op
+BenchmarkMemoryAllocation_SimpleRequest-8       	    1158	  10356344 ns/op	    3755 B/op	      54 allocs/op
+BenchmarkMemoryAllocation_ComplexWorkflow-8     	    1161	  10350924 ns/op	    3497 B/op	      50 allocs/op
+BenchmarkAgentRegistry_Lookup-8                 	587956360	        20.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAgentRegistry_Register-8               	10281607	      1172 ns/op	     240 B/op	       2 allocs/op
+BenchmarkRouter_RouteDecision-8                 	193399177	        61.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStateManagement_SmallWorkflow-8        	    1164	  10355707 ns/op	    3501 B/op	      50 allocs/op
+BenchmarkStateManagement_LargeWorkflow-8        	    1156	  10344746 ns/op	    3500 B/op	      50 allocs/op
+BenchmarkErrorHandling_AgentFailure-8           	  171448	     69072 ns/op	    1793 B/op	      25 allocs/op
+BenchmarkThroughput_Sustained-8                 	   72885	    170764 ns/op	      8051 avg_latency_ms	    4471 B/op	      58 allocs/op
+PASS
+ok  	github.com/ferg-cod3s/conexus/internal/orchestrator	875.299s

@@ -17,6 +17,7 @@ Conexus is an **agentic context engine** that transforms Large Language Models (
 ### Key Features
 
 - 🤖 **Multi-Agent Architecture**: Specialized agents for locating and analyzing code
+- 🔌 **MCP Integration**: First-class Model Context Protocol support for AI assistants
 - ✅ **Evidence-Backed Validation**: 100% evidence traceability for all agent outputs
 - 📊 **Performance Profiling**: Real-time metrics and bottleneck detection
 - 🔄 **Workflow Orchestration**: Complex multi-agent workflows with state management
@@ -64,6 +65,107 @@ go test ./...
 ```
 
 ---
+
+---
+
+## 🔌 MCP Integration
+
+Conexus provides first-class support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io), enabling seamless integration with AI assistants like Claude Desktop and Cursor.
+
+### Why Use Conexus with AI Assistants?
+
+- 🔍 **Intelligent Context Retrieval**: Search your codebase using natural language
+- 🎯 **Precise Results**: Vector similarity search + filtering for relevant findings
+- 🔄 **Real-time Indexing**: Keep your code context fresh and up-to-date
+- 🛠️ **Built-in Tools**: 4 powerful MCP tools for code understanding
+
+### Quick MCP Setup (<5 minutes)
+
+**1. Install and start Conexus MCP server:**
+
+```bash
+# Install Conexus
+go install github.com/ferg-cod3s/conexus/cmd/conexus@latest
+
+# Start the MCP server (will auto-index current directory)
+conexus mcp --host localhost --port 3000
+```
+
+**2. Configure Claude Desktop:**
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "conexus": {
+      "command": "conexus",
+      "args": ["mcp", "--root", "/path/to/your/codebase"],
+      "env": {
+        "CONEXUS_LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+**3. Restart Claude Desktop and test:**
+
+```
+You: "Search for HTTP handler functions in this codebase"
+
+Claude: [Uses context.search tool]
+Found 5 HTTP handlers:
+- HandleRequest in internal/server/handler.go:42-68
+- HandleHealth in internal/server/health.go:15-22
+...
+```
+
+### Available MCP Tools
+
+| Tool | Status | Description |
+|------|--------|-------------|
+| `context.search` | ✅ Fully Implemented | Search code with filters (type, language, file patterns) |
+| `context.get_related_info` | ✅ Fully Implemented | Get related files, functions, and context |
+| `context.index_control` | ⏳ Partial | Indexing operations (status available, reindex planned) |
+| `context.connector_management` | ⏳ Partial | Data source management (list available, CRUD planned) |
+
+### Example Queries
+
+**Code Understanding:**
+```
+"Show me all database query functions"
+"Find the authentication middleware implementation"
+"What functions handle user registration?"
+```
+
+**Bug Investigation:**
+```
+"Search for error handling in the payment module"
+"Find all functions that access the user database"
+"Show panic or fatal calls in the codebase"
+```
+
+**Feature Development:**
+```
+"Locate API endpoint handlers"
+"Find all struct definitions related to orders"
+"Search for configuration loading functions"
+```
+
+### Advanced Configuration
+
+For production deployments, custom embedding providers, and advanced search optimization, see the **[MCP Integration Guide](docs/getting-started/mcp-integration-guide.md)**.
+
+**Topics covered:**
+- Custom embedding providers (OpenAI, Anthropic, Ollama, Cohere)
+- Vector store backends (SQLite, PostgreSQL, memory)
+- Search optimization strategies
+- Security configuration (RBAC, API keys, audit logging)
+- Troubleshooting common issues
+- Multiple instance support (monorepos)
+
+
 
 ## 📚 Architecture
 
@@ -441,6 +543,231 @@ See **[Testing Strategy](docs/contributing/testing-strategy.md)** for workflow t
 
 ---
 
+## 🐳 Docker Deployment
+
+### Quick Start with Docker
+
+```bash
+# Pull and run the latest image (when available)
+docker pull conexus:latest
+docker run -d -p 8080:8080 --name conexus conexus:latest
+
+# Or build locally
+docker build -t conexus:latest .
+docker run -d -p 8080:8080 --name conexus conexus:latest
+
+# Test the service
+curl http://localhost:8080/health
+```
+
+### Docker Compose (Recommended)
+
+**Production deployment:**
+
+```bash
+# Start the service
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop the service
+docker compose down
+
+# Rebuild after code changes
+docker compose up -d --build
+```
+
+**Development deployment:**
+
+```bash
+# Use development configuration with debug logging
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# View debug logs
+docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
+```
+
+### Configuration
+
+**Environment Variables:**
+
+```bash
+# Server configuration
+CONEXUS_HOST=0.0.0.0              # Server bind address
+CONEXUS_PORT=8080                  # Server port
+
+# Database configuration
+CONEXUS_DB_PATH=/data/conexus.db   # SQLite database path
+
+# Codebase configuration
+CONEXUS_ROOT_PATH=/data/codebase   # Path to codebase to index
+
+# Logging configuration
+CONEXUS_LOG_LEVEL=info             # Log level (debug|info|warn|error)
+CONEXUS_LOG_FORMAT=json            # Log format (json|text)
+
+# Embedding configuration (optional)
+CONEXUS_EMBEDDING_PROVIDER=openai  # Embedding provider (mock|openai)
+CONEXUS_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_API_KEY=sk-...              # OpenAI API key
+```
+
+**Volume Mounts:**
+
+```yaml
+volumes:
+  # Persistent database storage
+  - ./data:/data
+  
+  # Optional: Mount your codebase for indexing
+  - /path/to/your/code:/data/codebase:ro
+  
+  # Optional: Mount config file
+  - ./config.yml:/app/config.yml:ro
+```
+
+### Docker Image Details
+
+**Multi-stage build:**
+- **Builder**: `golang:1.24-alpine` (CGO enabled for SQLite)
+- **Runtime**: `alpine:3.19` (minimal base, ca-certificates + sqlite-libs)
+
+**Image specifications:**
+- **Size**: ~19.5MB (optimized with multi-stage build)
+- **User**: Non-root `conexus:1000`
+- **Port**: 8080 (HTTP + MCP over JSON-RPC 2.0)
+- **Health Check**: `GET /health` every 30s
+
+**Security features:**
+- Non-root execution (UID 1000)
+- Static binary (no dynamic linking)
+- Minimal attack surface (Alpine base)
+- Read-only config option
+- Health check monitoring
+
+### MCP Server Endpoints
+
+Once running, the service exposes:
+
+**HTTP Endpoints:**
+```bash
+# Health check
+curl http://localhost:8080/health
+# Response: {"status":"healthy","version":"0.1.0-alpha"}
+
+# Service info
+curl http://localhost:8080/
+# Response: Service info with MCP endpoint
+
+# MCP JSON-RPC endpoint
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+**MCP Tools:**
+1. `context.search` - Comprehensive search with filters
+2. `context.get_related_info` - File/ticket context retrieval
+3. `context.index_control` - Indexing operations
+4. `context.connector_management` - Data source management
+
+### Production Deployment
+
+**With Docker Compose:**
+
+```yaml
+# docker-compose.prod.yml
+services:
+  conexus:
+    image: conexus:latest
+    restart: always
+    environment:
+      - CONEXUS_LOG_LEVEL=info
+      - CONEXUS_LOG_FORMAT=json
+    volumes:
+      - conexus-data:/data
+      - /mnt/codebase:/data/codebase:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  conexus-data:
+    driver: local
+```
+
+**Deploy:**
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### Monitoring
+
+**Check health:**
+```bash
+# Container status
+docker compose ps
+
+# Health check status
+docker inspect conexus | jq '.[0].State.Health'
+
+# View logs
+docker compose logs -f
+
+# Check metrics
+curl http://localhost:8080/health
+```
+
+**Troubleshooting:**
+```bash
+# View container logs
+docker compose logs --tail=100
+
+# Execute commands in container
+docker compose exec conexus sh
+
+# Check database
+docker compose exec conexus ls -la /data/
+
+# Restart service
+docker compose restart
+```
+
+### Building from Source
+
+```bash
+# Build Docker image
+docker build -t conexus:custom .
+
+# Build with specific Go version
+docker build --build-arg GO_VERSION=1.24 -t conexus:custom .
+
+# Build and tag
+docker build -t conexus:v0.1.0 -t conexus:latest .
+
+# Push to registry (configure your registry)
+docker tag conexus:latest registry.example.com/conexus:latest
+docker push registry.example.com/conexus:latest
+```
+
+### Docker Best Practices
+
+1. **Use Docker Compose** for orchestration
+2. **Mount volumes** for data persistence
+3. **Configure environment variables** for secrets
+4. **Enable health checks** for monitoring
+5. **Use named volumes** in production
+6. **Check logs regularly** with `docker compose logs`
+7. **Backup database** in `/data` directory regularly
+8. **Limit resources** with Docker resource constraints if needed
+
+---
 
 ## 🏗️ Development Workflow
 

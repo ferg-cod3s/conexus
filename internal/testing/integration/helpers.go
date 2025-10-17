@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ferg-cod3s/conexus/internal/security"
 	"github.com/ferg-cod3s/conexus/internal/validation/evidence"
 	schemaval "github.com/ferg-cod3s/conexus/internal/validation/schema"
 	"github.com/ferg-cod3s/conexus/pkg/schema"
@@ -160,8 +161,15 @@ func LoadTestFixture(name string) (*TestCodebase, error) {
 			continue
 		}
 
+		// Construct full path and validate to prevent directory traversal (G304)
+		fullPath := filepath.Join(fixturesDir, filename)
+		if _, err := security.ValidatePathWithinBase(fullPath, fixturesDir); err != nil {
+			return nil, fmt.Errorf("invalid fixture path %s: %w", filename, err)
+		}
+
+		// #nosec G304 -- Path validated at line 166 with ValidatePathWithinBase
 		// Read file content
-		content, err := os.ReadFile(filepath.Join(fixturesDir, filename))
+		content, err := os.ReadFile(fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read fixture file %s: %w", filename, err)
 		}
@@ -187,13 +195,15 @@ func CreateTempCodebase(files map[string]string) (string, error) {
 		fullPath := filepath.Join(tmpDir, filename)
 		
 		// Create parent directories if needed
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0700); err != nil {
+			// #nosec G104 - Best-effort cleanup in error path, primary error already captured
 			os.RemoveAll(tmpDir)
 			return "", fmt.Errorf("failed to create directory for %s: %w", filename, err)
 		}
 
 		// Write file
-		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(content), 0600); err != nil {
+			// #nosec G104 - Best-effort cleanup in error path, primary error already captured
 			os.RemoveAll(tmpDir)
 			return "", fmt.Errorf("failed to write file %s: %w", filename, err)
 		}

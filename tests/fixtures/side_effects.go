@@ -17,7 +17,7 @@ func LogOperation(name string, value int) int {
 // WriteToFile writes data to a file
 func WriteToFile(filename string, data []byte) error {
 	log.Printf("Writing %d bytes to file: %s", len(data), filename)
-	err := os.WriteFile(filename, data, 0644)
+	err := os.WriteFile(filename, data, 0600)
 	if err != nil {
 		log.Printf("Error writing to file: %v", err)
 		return err
@@ -29,6 +29,7 @@ func WriteToFile(filename string, data []byte) error {
 // ReadFromFile reads data from a file
 func ReadFromFile(filename string) ([]byte, error) {
 	log.Printf("Reading from file: %s", filename)
+	// #nosec G304 - This is a test fixture intentionally demonstrating file operations with side effects
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		log.Printf("Error reading file: %v", err)

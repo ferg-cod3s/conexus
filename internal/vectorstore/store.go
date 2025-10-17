@@ -4,9 +4,8 @@ package vectorstore
 import (
 	"context"
 	"time"
-	
+
 	"github.com/ferg-cod3s/conexus/internal/embedding"
-	"github.com/ferg-cod3s/conexus/internal/indexer"
 )
 
 // Document represents a stored chunk with its vector embedding.
@@ -28,72 +27,60 @@ type SearchResult struct {
 
 // SearchOptions configures search behavior.
 type SearchOptions struct {
-	Limit       int                    // Maximum number of results
-	Threshold   float32                // Minimum score threshold
-	Filters     map[string]interface{} // Metadata filters (e.g., language="go")
-	Rerank      bool                   // Apply reranking to results
+	Limit     int                    // Maximum number of results
+	Offset    int                    // Number of results to skip (for pagination)
+	Threshold float32                // Minimum score threshold
+	Filters   map[string]interface{} // Metadata filters (e.g., language="go")
+	Rerank    bool                   // Apply reranking to results
 }
 
 // VectorStore provides hybrid search over stored documents.
 type VectorStore interface {
 	// Upsert inserts or updates a document with its vector.
 	Upsert(ctx context.Context, doc Document) error
-	
+
 	// UpsertBatch efficiently inserts or updates multiple documents.
 	UpsertBatch(ctx context.Context, docs []Document) error
-	
+
 	// Delete removes a document by ID.
 	Delete(ctx context.Context, id string) error
-	
+
 	// Get retrieves a document by ID.
 	Get(ctx context.Context, id string) (*Document, error)
-	
+
 	// SearchVector performs dense vector similarity search.
 	SearchVector(ctx context.Context, vector embedding.Vector, opts SearchOptions) ([]SearchResult, error)
-	
+
 	// SearchBM25 performs sparse keyword search using BM25.
 	SearchBM25(ctx context.Context, query string, opts SearchOptions) ([]SearchResult, error)
-	
+
 	// SearchHybrid combines vector and BM25 search with fusion.
 	SearchHybrid(ctx context.Context, query string, vector embedding.Vector, opts SearchOptions) ([]SearchResult, error)
-	
+
 	// Count returns the total number of documents.
 	Count(ctx context.Context) (int64, error)
-	
+
+	// ListIndexedFiles returns a list of all unique file paths that have been indexed.
+	ListIndexedFiles(ctx context.Context) ([]string, error)
+
+	// GetFileChunks returns all chunks for a specific file path, sorted by start_line.
+	GetFileChunks(ctx context.Context, filePath string) ([]Document, error)
+
 	// Close releases resources.
 	Close() error
 }
 
 // IndexStats provides statistics about the vector store.
 type IndexStats struct {
-	TotalDocuments int64             // Total documents indexed
-	TotalChunks    int64             // Total chunks (same as documents for now)
-	Languages      map[string]int64  // Document count per language
-	LastIndexedAt  time.Time         // Timestamp of last indexing operation
-	IndexSize      int64             // Storage size in bytes
+	TotalDocuments int64            // Total documents indexed
+	TotalChunks    int64            // Total chunks (same as documents for now)
+	Languages      map[string]int64 // Document count per language
+	LastIndexedAt  time.Time        // Timestamp of last indexing operation
+	IndexSize      int64            // Storage size in bytes
 }
 
 // StatsProvider provides statistics about stored data.
 type StatsProvider interface {
 	// Stats returns current index statistics.
 	Stats(ctx context.Context) (*IndexStats, error)
-}
-
-// ChunkToDocument converts an indexer.Chunk to a vectorstore.Document.
-func ChunkToDocument(chunk indexer.Chunk, vector embedding.Vector) Document {
-	return Document{
-		ID:      chunk.ID,
-		Content: chunk.Content,
-		Vector:  vector,
-		Metadata: map[string]interface{}{
-			"file_path":  chunk.FilePath,
-			"language":   chunk.Language,
-			"type":       string(chunk.Type),
-			"start_line": chunk.StartLine,
-			"end_line":   chunk.EndLine,
-			"hash":       chunk.Hash,
-		},
-		CreatedAt: chunk.IndexedAt,
-		UpdatedAt: chunk.IndexedAt,
-	}
 }

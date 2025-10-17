@@ -1,0 +1,325 @@
+{
+	"Golang errors": {},
+	"Issues": [
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "/home/f3rg/src/github/conexus/internal/process/manager.go",
+			"code": "64: \n65: \tcmd := exec.CommandContext(processCtx, agentBinary)\n66: \n",
+			"line": "65",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/tests/fixtures/side_effects.go",
+			"code": "31: \tlog.Printf(\"Reading from file: %s\", filename)\n32: \tdata, err := os.ReadFile(filename)\n33: \tif err != nil {\n",
+			"line": "32",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/internal/testing/integration/helpers.go",
+			"code": "163: \t\t// Read file content\n164: \t\tcontent, err := os.ReadFile(filepath.Join(fixturesDir, filename))\n165: \t\tif err != nil {\n",
+			"line": "164",
+			"column": "19",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/internal/orchestrator/state/persistence.go",
+			"code": "143: \n144: \tdata, err := os.ReadFile(cachePath)\n145: \tif err != nil {\n",
+			"line": "144",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/internal/orchestrator/state/persistence.go",
+			"code": "56: \n57: \tdata, err := os.ReadFile(sessionPath)\n58: \tif err != nil {\n",
+			"line": "57",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/internal/indexer/walker.go",
+			"code": "268: func LoadGitignore(path string) ([]string, error) {\n269: \tdata, err := os.ReadFile(path)\n270: \tif err != nil {\n",
+			"line": "269",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/internal/indexer/merkle.go",
+			"code": "274: func computeFileHash(path string) (string, error) {\n275: \tfile, err := os.Open(path)\n276: \tif err != nil {\n",
+			"line": "275",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/internal/indexer/indexer_impl.go",
+			"code": "172: \t\t// Read file content\n173: \t\tcontent, err := os.ReadFile(fullPath)\n174: \t\tif err != nil {\n",
+			"line": "173",
+			"column": "19",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/internal/indexer/indexer_impl.go",
+			"code": "53: \t\t// Read file content\n54: \t\tcontent, err := os.ReadFile(path)\n55: \t\tif err != nil {\n",
+			"line": "54",
+			"column": "19",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/home/f3rg/src/github/conexus/internal/config/config.go",
+			"code": "162: func loadFile(path string) (*Config, error) {\n163: \tdata, err := os.ReadFile(path)\n164: \tif err != nil {\n",
+			"line": "163",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/internal/vectorstore/sqlite/store.go",
+			"code": "37: \tif err := store.initSchema(); err != nil {\n38: \t\tdb.Close()\n39: \t\treturn nil, fmt.Errorf(\"init schema: %w\", err)\n",
+			"line": "38",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/internal/testing/integration/helpers.go",
+			"code": "196: \t\tif err := os.WriteFile(fullPath, []byte(content), 0600); err != nil {\n197: \t\t\tos.RemoveAll(tmpDir)\n198: \t\t\treturn \"\", fmt.Errorf(\"failed to write file %s: %w\", filename, err)\n",
+			"line": "197",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/internal/testing/integration/helpers.go",
+			"code": "190: \t\tif err := os.MkdirAll(filepath.Dir(fullPath), 0700); err != nil {\n191: \t\t\tos.RemoveAll(tmpDir)\n192: \t\t\treturn \"\", fmt.Errorf(\"failed to create directory for %s: %w\", filename, err)\n",
+			"line": "191",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/internal/protocol/jsonrpc.go",
+			"code": "162: \t\tif err != nil {\n163: \t\t\ts.sendError(req.ID, InternalError, err.Error(), nil)\n164: \t\t\tcontinue\n",
+			"line": "163",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/internal/protocol/jsonrpc.go",
+			"code": "155: \t\tif req.Method == \"\" {\n156: \t\t\ts.sendError(req.ID, InvalidRequest, \"method required\", nil)\n157: \t\t\tcontinue\n",
+			"line": "156",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/internal/protocol/jsonrpc.go",
+			"code": "150: \t\tif req.JSONRPC != JSONRPCVersion {\n151: \t\t\ts.sendError(req.ID, InvalidRequest, \"invalid jsonrpc version\", nil)\n152: \t\t\tcontinue\n",
+			"line": "151",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/internal/indexer/indexer_impl.go",
+			"code": "453: \tif err := os.Rename(tempPath, sm.statePath); err != nil {\n454: \t\tos.Remove(tempPath) // Clean up on failure\n455: \t\treturn fmt.Errorf(\"rename state file: %w\", err)\n",
+			"line": "454",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/cmd/conexus/main.go",
+			"code": "452: \tw.WriteHeader(http.StatusOK) // JSON-RPC errors still use 200 OK\n453: \tjson.NewEncoder(w).Encode(resp)\n454: }\n",
+			"line": "453",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/f3rg/src/github/conexus/cmd/conexus/main.go",
+			"code": "426: \tw.WriteHeader(http.StatusOK)\n427: \tjson.NewEncoder(w).Encode(resp)\n428: }\n",
+			"line": "427",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		}
+	],
+	"Stats": {
+		"files": 58,
+		"lines": 14189,
+		"nosec": 1,
+		"found": 19
+	},
+	"GosecVersion": "dev"
+}

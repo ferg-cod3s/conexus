@@ -22,12 +22,13 @@ func (s *Store) SearchBM25(ctx context.Context, query string, opts vectorstore.S
 	if limit <= 0 {
 		limit = 10
 	}
+	offset := opts.Offset
 
 	// Parse and escape query for FTS5
 	fts5Query := parseFTS5Query(query)
 
 	// Build the SQL query with metadata filters
-	sqlQuery, args := buildBM25Query(fts5Query, opts.Filters, limit)
+	sqlQuery, args := buildBM25Query(fts5Query, opts.Filters, limit, offset)
 
 	// Execute search
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
@@ -98,7 +99,7 @@ func parseFTS5Query(query string) string {
 
 	// Handle quoted phrases - preserve them
 	phrases := extractPhrases(query)
-	
+
 	// Replace phrases with placeholders
 	for i, phrase := range phrases {
 		placeholder := fmt.Sprintf("__PHRASE_%d__", i)
@@ -133,7 +134,7 @@ func parseFTS5Query(query string) string {
 func extractPhrases(query string) []string {
 	re := regexp.MustCompile(`"([^"]+)"`)
 	matches := re.FindAllStringSubmatch(query, -1)
-	
+
 	phrases := make([]string, 0, len(matches))
 	for _, match := range matches {
 		if len(match) > 1 {
@@ -174,7 +175,7 @@ func splitPreservingQuotes(query string) []string {
 	var tokens []string
 	var current strings.Builder
 	inQuotes := false
-	
+
 	for _, r := range query {
 		switch r {
 		case '"':
@@ -194,18 +195,17 @@ func splitPreservingQuotes(query string) []string {
 			current.WriteRune(r)
 		}
 	}
-	
+
 	// Don't forget the last token
 	if current.Len() > 0 {
 		tokens = append(tokens, strings.TrimSpace(current.String()))
 	}
-	
+
 	return tokens
 }
 
-
 // buildBM25Query constructs the SQL query for BM25 search with filters
-func buildBM25Query(fts5Query string, filters map[string]interface{}, limit int) (string, []interface{}) {
+func buildBM25Query(fts5Query string, filters map[string]interface{}, limit int, offset int) (string, []interface{}) {
 	baseQuery := `
 		SELECT 
 			d.id,
@@ -235,9 +235,9 @@ func buildBM25Query(fts5Query string, filters map[string]interface{}, limit int)
 	// Order by relevance (rank is negative, lower is better)
 	baseQuery += " ORDER BY fts.rank ASC"
 
-	// Add limit
-	baseQuery += " LIMIT ?"
-	args = append(args, limit)
+	// Add limit and offset
+	baseQuery += " LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
 
 	return baseQuery, args
 }
@@ -248,7 +248,7 @@ func normalizeRank(rank float32) float32 {
 	// Invert and clamp to reasonable range
 	// Most relevant results are near 0, less relevant go to -10 or lower
 	score := -rank
-	
+
 	// Normalize to [0, 1] scale
 	// Assume typical range is 0 to 10
 	if score < 0 {
@@ -257,6 +257,6 @@ func normalizeRank(rank float32) float32 {
 	if score > 10 {
 		score = 10
 	}
-	
+
 	return score / 10.0
 }

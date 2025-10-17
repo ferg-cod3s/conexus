@@ -1,0 +1,15 @@
+{
+  "summary": {
+    "total_requests": 188028,
+    "total_errors": 0,
+    "error_rate": 0,
+    "test_duration_seconds": 0,
+    "total_samples": 188028
+  },
+  "overall_performance": {
+    "p50_ms": 0.56483,
+    "p95_ms": 1.126654,
+    "p99_ms": 2.131509,
+    "max_ms": 54.00848
+  }
+}

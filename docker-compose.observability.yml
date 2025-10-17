@@ -1,0 +1,124 @@
+services:
+  # Prometheus - Metrics collection and storage
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: conexus-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - conexus-network
+    restart: unless-stopped
+
+  # Grafana - Visualization and dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: conexus-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./observability/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./observability/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    networks:
+      - conexus-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Jaeger - Distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: conexus-jaeger
+    ports:
+      - "5775:5775/udp"   # Zipkin compact
+      - "6831:6831/udp"   # Compact thrift
+      - "6832:6832/udp"   # Binary thrift
+      - "5778:5778"       # Config
+      - "16686:16686"     # UI
+      - "14250:14250"     # Model proto
+      - "14268:14268"     # Jaeger collector
+      - "14269:14269"     # Admin
+      - "4317:4317"       # OTLP gRPC
+      - "4318:4318"       # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    networks:
+      - conexus-network
+    restart: unless-stopped
+
+  # Conexus service with observability enabled
+  conexus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: conexus:latest
+    container_name: conexus
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - ./config.yml:/app/config.yml:ro
+    environment:
+      # Server configuration
+      - CONEXUS_HOST=0.0.0.0
+      - CONEXUS_PORT=8080
+      
+      # Database configuration
+      - CONEXUS_DB_PATH=/data/conexus.db
+      
+      # Codebase path
+      - CONEXUS_ROOT_PATH=/data/codebase
+      
+      # Logging configuration
+      - CONEXUS_LOG_LEVEL=info
+      - CONEXUS_LOG_FORMAT=json
+      
+      # Metrics configuration
+      - CONEXUS_METRICS_ENABLED=true
+      - CONEXUS_METRICS_PORT=9091
+      
+      # Tracing configuration
+      - CONEXUS_TRACING_ENABLED=true
+      - CONEXUS_TRACING_ENDPOINT=http://jaeger:4318
+      - CONEXUS_TRACING_SAMPLE_RATE=1.0
+      - CONEXUS_SERVICE_NAME=conexus
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - conexus-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - jaeger
+
+networks:
+  conexus-network:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+

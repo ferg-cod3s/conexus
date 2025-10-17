@@ -1,0 +1,44 @@
+
+# Development-specific overrides for docker-compose
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  conexus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Cache build stages for faster rebuilds
+      cache_from:
+        - conexus:latest
+    environment:
+      # Development logging
+      - CONEXUS_LOG_LEVEL=debug
+      - CONEXUS_LOG_FORMAT=text
+      
+      # Development features
+      - CONEXUS_DEV_MODE=true
+    volumes:
+      # Mount local codebase for live indexing
+      - .:/data/codebase:ro
+      # Persistent data in local directory
+      - ./data:/data
+    ports:
+      # Expose additional ports for debugging
+      - "8080:8080"  # HTTP + MCP
+      - "6060:6060"  # pprof (if enabled)
+    restart: "no"  # Don't auto-restart in dev mode
+
+  # Optional: Add development tools
+  # pgadmin:
+  #   image: dpage/pgadmin4
+  #   environment:
+  #     - PGADMIN_DEFAULT_EMAIL=admin@example.com
+  #     - PGADMIN_DEFAULT_PASSWORD=admin
+  #   ports:
+  #     - "5050:80"
+  #   networks:
+  #     - conexus-network
+
+networks:
+  conexus-network:
+    driver: bridge

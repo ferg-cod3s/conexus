@@ -46,23 +46,65 @@ This directory contains comprehensive documentation for the **Conexus (Agentic C
   - Epic breakdowns with acceptance criteria
   - Risk tracking and go/no-go gates
 
+## 🚀 Getting Started
+
+### For Developers
+- **[Developer Onboarding](./getting-started/developer-onboarding.md)** - Setup guide for new developers
+  - Environment setup and prerequisites
+  - Local development workflow
+  - Testing and debugging
+  
+- **[MCP Integration Guide](./getting-started/mcp-integration-guide.md)** - Claude Desktop Integration ⭐ NEW
+  - Complete MCP tool reference (4 tools)
+  - Claude Desktop configuration
+  - Protocol specification and examples
+  - Integration with TypeScript/Python/cURL
+
+### For Operations
+- **[Operations Guide](./operations/operations-guide.md)** - Deployment and operations
+  - Docker deployment
+  - Configuration management
+  - Backup and recovery
+
+- **[Monitoring Guide](./operations/monitoring-guide.md)** - Observability Stack ⭐ NEW
+  - Metrics catalog (25+ metrics)
+  - Grafana dashboards and alerting
+  - Distributed tracing with Jaeger
+  - Performance tuning and runbooks
+
+- **[Observability](./operations/observability.md)** - Detailed observability setup
+  - Prometheus configuration
+  - Logging best practices
+  - Troubleshooting guide
+
 ## 📊 Documentation Statistics
 
 | Document | Size | Lines | Status |
 |----------|------|-------|--------|
+| **Strategic** |
 | PRD | 12KB | 186 | ✅ Complete |
+| Go-to-Market Strategy | 16KB | 230 | ✅ Enhanced |
+| Development Roadmap | 12KB | 319 | ✅ Enhanced |
+| **Technical** |
 | Technical Architecture | 16KB | 318 | ✅ Enhanced |
 | API Specification | 24KB | 881 | ✅ Enhanced |
 | Security & Compliance | 20KB | 227 | ✅ Enhanced |
-| Go-to-Market Strategy | 16KB | 230 | ✅ Enhanced |
-| Development Roadmap | 12KB | 319 | ✅ Enhanced |
-| **Total** | **100KB** | **2,161** | **100%** |
+| **Guides - Getting Started** |
+| Developer Onboarding | 8KB | 150 | ✅ Complete |
+| MCP Integration Guide | 28KB | 575 | ✅ NEW |
+| **Guides - Operations** |
+| Operations Guide | 12KB | 220 | ✅ Complete |
+| Monitoring Guide | 35KB | 721 | ✅ NEW |
+| Observability | 10KB | 180 | ✅ Complete |
+| **Total** | **193KB** | **4,007** | **100%** |
 
 ## 🎯 Quick Navigation
 
 **For Developers:**
 - Start with [PRD.md](./PRD.md) for product vision
 - Review [Technical-Architecture.md](./Technical-Architecture.md) for system design
+- Follow [Developer Onboarding](./getting-started/developer-onboarding.md) for setup
+- Integrate with [MCP Integration Guide](./getting-started/mcp-integration-guide.md)
 - Reference [API-Specification.md](./API-Specification.md) for implementation
 
 **For Business Stakeholders:**
@@ -75,6 +117,11 @@ This directory contains comprehensive documentation for the **Conexus (Agentic C
 - Review security sections in [Technical-Architecture.md](./Technical-Architecture.md)
 - Check authentication in [API-Specification.md](./API-Specification.md)
 
+**For DevOps/SRE:**
+- Deploy using [Operations Guide](./operations/operations-guide.md)
+- Monitor with [Monitoring Guide](./operations/monitoring-guide.md)
+- Configure observability with [Observability](./operations/observability.md)
+
 ## 🔄 Document Relationships
 
 ```
@@ -82,9 +129,17 @@ PRD (What & Why)
   ↓
 Technical Architecture (How to Build)
   ↓
+Developer Onboarding (How to Start) ← NEW
+  ↓
+MCP Integration Guide (How to Integrate) ← NEW
+  ↓
 API Specification (How to Use)
   ↓
 Security & Compliance (How to Secure)
+  ↓
+Operations Guide (How to Deploy)
+  ↓
+Monitoring Guide (How to Monitor) ← NEW
   ↓
 Development Roadmap (When to Build)
   ↓
@@ -97,8 +152,8 @@ Go-to-Market Strategy (How to Sell)
 - **Performance:** <1s query latency, 100+ concurrent users
 - **Stack:** Go, PostgreSQL/SQLite, Qdrant, hybrid RAG
 - **APIs:** MCP + REST with OpenAPI 3.0
-- **Test Coverage:** 80-90% unit tests
-- **Security:** SOC 2 compliant, STRIDE threat modeled
+- **Test Coverage:** 80-90% unit tests (218/218 passing)
+- **Security:** SOC 2 compliant, STRIDE threat modeled, 0 security issues
 
 ### Business Metrics
 - **TAM:** $15B (AI coding assistance market)
@@ -113,12 +168,18 @@ Go-to-Market Strategy (How to Sell)
 2. **Phase 2 (6-12m):** Enterprise seeding - $250K ARR, 8+ customers
 3. **Phase 3 (12-36m):** Commercial scale - $20M+ ARR, 400+ customers
 
-## 🚀 Getting Started
+## 🚀 Quick Start Path
 
+### For First-Time Users:
 1. **Understand the Vision:** Read [PRD.md](./PRD.md)
-2. **Review Architecture:** Study [Technical-Architecture.md](./Technical-Architecture.md)
-3. **Check Timeline:** Review [Development-Roadmap.md](./Development-Roadmap.md)
-4. **Explore APIs:** Reference [API-Specification.md](./API-Specification.md)
+2. **Setup Development:** Follow [Developer Onboarding](./getting-started/developer-onboarding.md)
+3. **Integrate with Claude:** Configure [MCP Integration](./getting-started/mcp-integration-guide.md)
+4. **Deploy & Monitor:** Use [Operations](./operations/operations-guide.md) + [Monitoring](./operations/monitoring-guide.md)
+
+### For Existing Users:
+- **MCP Tools:** See [MCP Integration Guide](./getting-started/mcp-integration-guide.md) for 4 available tools
+- **Monitoring:** Check [Monitoring Guide](./operations/monitoring-guide.md) for 25+ metrics and alerting
+- **API Reference:** Browse [API Specification](./API-Specification.md) for endpoints
 
 ## 📝 Documentation Standards
 
@@ -143,6 +204,7 @@ For questions, improvements, or contributions to this documentation:
 
 ---
 
-**Last Updated:** October 12, 2025  
+**Last Updated:** October 16, 2025  
 **Status:** Documentation Complete ✅  
-**Version:** 1.0 (Enterprise-grade)
+**Version:** 1.1 (Enterprise-grade + Operations Guides)
+

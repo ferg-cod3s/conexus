@@ -1,0 +1,52 @@
+
+services:
+  conexus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: conexus:latest
+    container_name: conexus
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persistent data storage
+      - ./data:/data
+      # Optional: Mount config file (falls back to env vars if not present)
+      - ./config.yml:/app/config.yml:ro
+    environment:
+      # Server configuration
+      - CONEXUS_HOST=0.0.0.0
+      - CONEXUS_PORT=8080
+      
+      # Database configuration
+      - CONEXUS_DB_PATH=/data/conexus.db
+      
+      # Codebase path (mount your codebase to /data/codebase)
+      - CONEXUS_ROOT_PATH=/data/codebase
+      
+      # Logging configuration
+      - CONEXUS_LOG_LEVEL=info
+      - CONEXUS_LOG_FORMAT=json
+      
+      # Optional: Embedding provider (defaults to mock)
+      # - CONEXUS_EMBEDDING_PROVIDER=openai
+      # - CONEXUS_EMBEDDING_MODEL=text-embedding-3-small
+      # - OPENAI_API_KEY=your-api-key-here
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - conexus-network
+
+networks:
+  conexus-network:
+    driver: bridge
+
+volumes:
+  # Named volume for persistent data (alternative to bind mount)
+  conexus-data:
+    driver: local
