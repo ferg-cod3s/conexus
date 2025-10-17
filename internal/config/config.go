@@ -54,6 +54,7 @@ type LoggingConfig struct {
 type ObservabilityConfig struct {
 	Metrics MetricsConfig `json:"metrics" yaml:"metrics"`
 	Tracing TracingConfig `json:"tracing" yaml:"tracing"`
+	Sentry  SentryConfig  `json:"sentry" yaml:"sentry"`
 }
 
 // MetricsConfig holds metrics configuration.
@@ -70,22 +71,36 @@ type TracingConfig struct {
 	SampleRate float64 `json:"sample_rate" yaml:"sample_rate"`
 }
 
+// SentryConfig holds Sentry error monitoring configuration.
+type SentryConfig struct {
+	Enabled     bool    `json:"enabled" yaml:"enabled"`
+	DSN         string  `json:"dsn" yaml:"dsn"`
+	Environment string  `json:"environment" yaml:"environment"`
+	SampleRate  float64 `json:"sample_rate" yaml:"sample_rate"`
+	Release     string  `json:"release" yaml:"release"`
+}
+
 // Default values
 const (
-	DefaultHost            = "0.0.0.0"
-	DefaultPort            = 8080
-	DefaultDBPath          = "./data/conexus.db"
-	DefaultRootPath        = "."
-	DefaultChunkSize       = 512
-	DefaultChunkOverlap    = 50
-	DefaultLogLevel        = "info"
-	DefaultLogFormat       = "json"
-	DefaultMetricsEnabled  = false
-	DefaultMetricsPort     = 9091
-	DefaultMetricsPath     = "/metrics"
-	DefaultTracingEnabled  = false
-	DefaultTracingEndpoint = "http://localhost:4318"
-	DefaultSampleRate      = 0.1
+	DefaultHost             = "0.0.0.0"
+	DefaultPort             = 8080
+	DefaultDBPath           = "./data/conexus.db"
+	DefaultRootPath         = "."
+	DefaultChunkSize        = 512
+	DefaultChunkOverlap     = 50
+	DefaultLogLevel         = "info"
+	DefaultLogFormat        = "json"
+	DefaultMetricsEnabled   = false
+	DefaultMetricsPort      = 9091
+	DefaultMetricsPath      = "/metrics"
+	DefaultTracingEnabled   = false
+	DefaultTracingEndpoint  = "http://localhost:4318"
+	DefaultSampleRate       = 0.1
+	DefaultSentryEnabled    = false
+	DefaultSentryDSN        = ""
+	DefaultSentryEnv        = "development"
+	DefaultSentrySampleRate = 1.0
+	DefaultSentryRelease    = "0.1.0-alpha"
 )
 
 // Valid values for validation
@@ -106,7 +121,7 @@ func Load(ctx context.Context) (*Config, error) {
 		if _, err := validation.ValidateConfigPath(configFile); err != nil {
 			return nil, fmt.Errorf("config file path validation failed: %w", err)
 		}
-		
+
 		fileCfg, err := loadFile(configFile)
 		if err != nil {
 			return nil, fmt.Errorf("load config file: %w", err)
@@ -155,6 +170,13 @@ func defaults() *Config {
 				Endpoint:   DefaultTracingEndpoint,
 				SampleRate: DefaultSampleRate,
 			},
+			Sentry: SentryConfig{
+				Enabled:     DefaultSentryEnabled,
+				DSN:         DefaultSentryDSN,
+				Environment: DefaultSentryEnv,
+				SampleRate:  DefaultSentrySampleRate,
+				Release:     DefaultSentryRelease,
+			},
 		},
 	}
 }
@@ -166,7 +188,7 @@ func loadFile(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid config path: %w", err)
 	}
-	
+
 	// #nosec G304 - Path validated at line 165 with ValidatePath
 	data, err := os.ReadFile(safePath)
 	if err != nil {
@@ -263,6 +285,27 @@ func loadEnv(cfg *Config) *Config {
 		}
 	}
 
+	// Sentry config
+	if sentryEnabled := os.Getenv("CONEXUS_SENTRY_ENABLED"); sentryEnabled != "" {
+		if enabled, err := strconv.ParseBool(sentryEnabled); err == nil {
+			cfg.Observability.Sentry.Enabled = enabled
+		}
+	}
+	if sentryDSN := os.Getenv("CONEXUS_SENTRY_DSN"); sentryDSN != "" {
+		cfg.Observability.Sentry.DSN = sentryDSN
+	}
+	if sentryEnv := os.Getenv("CONEXUS_SENTRY_ENVIRONMENT"); sentryEnv != "" {
+		cfg.Observability.Sentry.Environment = sentryEnv
+	}
+	if sentrySampleRate := os.Getenv("CONEXUS_SENTRY_SAMPLE_RATE"); sentrySampleRate != "" {
+		if rate, err := strconv.ParseFloat(sentrySampleRate, 64); err == nil {
+			cfg.Observability.Sentry.SampleRate = rate
+		}
+	}
+	if sentryRelease := os.Getenv("CONEXUS_SENTRY_RELEASE"); sentryRelease != "" {
+		cfg.Observability.Sentry.Release = sentryRelease
+	}
+
 	return cfg
 }
 
@@ -325,6 +368,23 @@ func merge(base, override *Config) *Config {
 		result.Observability.Tracing.SampleRate = override.Observability.Tracing.SampleRate
 	}
 
+	// Observability - Sentry
+	if override.Observability.Sentry.Enabled != DefaultSentryEnabled {
+		result.Observability.Sentry.Enabled = override.Observability.Sentry.Enabled
+	}
+	if override.Observability.Sentry.DSN != "" {
+		result.Observability.Sentry.DSN = override.Observability.Sentry.DSN
+	}
+	if override.Observability.Sentry.Environment != "" {
+		result.Observability.Sentry.Environment = override.Observability.Sentry.Environment
+	}
+	if override.Observability.Sentry.SampleRate != 0 {
+		result.Observability.Sentry.SampleRate = override.Observability.Sentry.SampleRate
+	}
+	if override.Observability.Sentry.Release != "" {
+		result.Observability.Sentry.Release = override.Observability.Sentry.Release
+	}
+
 	return &result
 }
 
@@ -383,6 +443,16 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Validate sentry config
+	if c.Observability.Sentry.Enabled {
+		if c.Observability.Sentry.DSN == "" {
+			return fmt.Errorf("sentry DSN cannot be empty when sentry enabled")
+		}
+		if c.Observability.Sentry.SampleRate < 0 || c.Observability.Sentry.SampleRate > 1 {
+			return fmt.Errorf("sentry sample rate must be between 0 and 1: %f", c.Observability.Sentry.SampleRate)
+		}
+	}
+
 	return nil
 }
 
@@ -425,6 +495,13 @@ func Default() *Config {
 				Enabled:    DefaultTracingEnabled,
 				Endpoint:   DefaultTracingEndpoint,
 				SampleRate: DefaultSampleRate,
+			},
+			Sentry: SentryConfig{
+				Enabled:     DefaultSentryEnabled,
+				DSN:         DefaultSentryDSN,
+				Environment: DefaultSentryEnv,
+				SampleRate:  DefaultSentrySampleRate,
+				Release:     DefaultSentryRelease,
 			},
 		},
 	}

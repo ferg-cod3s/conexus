@@ -17,3 +17,19 @@ indexer:
 logging:
   level: "info"  # debug, info, warn, error
   format: "json" # json, text
+
+observability:
+  metrics:
+    enabled: false
+    port: 9091
+    path: "/metrics"
+  tracing:
+    enabled: false
+    endpoint: "http://localhost:4318"
+    sample_rate: 0.1
+  sentry:
+    enabled: false
+    dsn: ""  # Set your Sentry DSN here
+    environment: "development"
+    sample_rate: 1.0
+    release: "0.1.0-alpha"

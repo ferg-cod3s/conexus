@@ -1,0 +1,105 @@
+# Prometheus Alert Rules for Conexus
+# These rules define critical alerts for MCP server operations
+
+groups:
+  - name: conexus_mcp_alerts
+    interval: 30s
+    rules:
+      # Alert: High MCP error rate
+      - alert: HighMCPErrorRate
+        expr: |
+          (
+            sum(rate(conexus_mcp_requests_total{status="error"}[5m]))
+            /
+            sum(rate(conexus_mcp_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: mcp
+        annotations:
+          summary: "High MCP request error rate"
+          description: "MCP server error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+          runbook: "Check logs with: docker logs conexus-mcp | grep ERROR"
+
+      # Alert: Slow MCP requests
+      - alert: SlowMCPRequests
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(conexus_mcp_request_duration_seconds_bucket[5m])) by (le, method)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: mcp
+        annotations:
+          summary: "MCP requests are slow"
+          description: "P95 latency for {{ $labels.method }} is {{ $value }}s (threshold: 1s)"
+          runbook: "Check performance metrics in Grafana and review indexer/search performance"
+
+  - name: conexus_resource_alerts
+    interval: 30s
+    rules:
+      # Alert: High memory usage
+      - alert: HighMemoryUsage
+        expr: |
+          go_memstats_heap_alloc_bytes > 1073741824
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Heap allocation is {{ $value | humanize1024 }}B (threshold: 1GB)"
+          runbook: "Check for memory leaks, review indexer batch sizes, consider increasing container limits"
+
+      # Alert: High goroutine count
+      - alert: HighGoroutineCount
+        expr: |
+          go_goroutines > 1000
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High number of goroutines"
+          description: "Goroutine count is {{ $value }} (threshold: 1000)"
+          runbook: "Check for goroutine leaks, review concurrent operations"
+
+  - name: conexus_indexer_alerts
+    interval: 30s
+    rules:
+      # Alert: Indexer stalled
+      - alert: IndexerStalled
+        expr: |
+          rate(conexus_indexer_files_indexed_total[15m]) == 0
+          and
+          rate(conexus_indexer_files_indexed_total[1h]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          component: indexer
+        annotations:
+          summary: "Indexer has stalled"
+          description: "No files indexed in the last 15 minutes"
+          runbook: "Check indexer logs, verify file system access, restart if necessary"
+
+  - name: conexus_cache_alerts
+    interval: 30s
+    rules:
+      # Alert: Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: |
+          (
+            sum(rate(conexus_embedding_cache_hits_total[10m]))
+            /
+            sum(rate(conexus_embedding_requests_total[10m]))
+          ) < 0.5
+        for: 10m
+        labels:
+          severity: info
+          component: embedding
+        annotations:
+          summary: "Low embedding cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} (threshold: 50%)"
+          runbook: "Review cache configuration, consider increasing cache size or TTL"

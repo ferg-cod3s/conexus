@@ -12,34 +12,38 @@ import (
 // MetricsCollector holds all Prometheus metrics for Conexus.
 type MetricsCollector struct {
 	// MCP request metrics
-	MCPRequestsTotal      *prometheus.CounterVec
-	MCPRequestDuration    *prometheus.HistogramVec
-	MCPRequestsInFlight   *prometheus.GaugeVec
-	MCPErrors             *prometheus.CounterVec
+	MCPRequestsTotal    *prometheus.CounterVec
+	MCPRequestDuration  *prometheus.HistogramVec
+	MCPRequestsInFlight *prometheus.GaugeVec
+	MCPErrors           *prometheus.CounterVec
 
 	// Indexer metrics
-	IndexerOperations     *prometheus.CounterVec
-	IndexerDuration       *prometheus.HistogramVec
-	IndexedFilesTotal     prometheus.Counter
-	IndexedChunksTotal    prometheus.Counter
-	IndexerErrorsTotal    *prometheus.CounterVec
+	IndexerOperations  *prometheus.CounterVec
+	IndexerDuration    *prometheus.HistogramVec
+	IndexedFilesTotal  prometheus.Counter
+	IndexedChunksTotal prometheus.Counter
+	IndexerErrorsTotal *prometheus.CounterVec
 
 	// Embedding metrics
-	EmbeddingRequests     *prometheus.CounterVec
-	EmbeddingDuration     *prometheus.HistogramVec
-	EmbeddingCacheHits    prometheus.Counter
-	EmbeddingCacheMisses  prometheus.Counter
-	EmbeddingErrorsTotal  *prometheus.CounterVec
+	EmbeddingRequests    *prometheus.CounterVec
+	EmbeddingDuration    *prometheus.HistogramVec
+	EmbeddingCacheHits   prometheus.Counter
+	EmbeddingCacheMisses prometheus.Counter
+	EmbeddingErrorsTotal *prometheus.CounterVec
+
+	// Search cache metrics
+	SearchCacheHits   prometheus.Counter
+	SearchCacheMisses prometheus.Counter
 
 	// Vector store metrics
-	VectorSearchRequests  *prometheus.CounterVec
-	VectorSearchDuration  *prometheus.HistogramVec
-	VectorSearchResults   *prometheus.HistogramVec
-	VectorStoreSize       prometheus.Gauge
+	VectorSearchRequests *prometheus.CounterVec
+	VectorSearchDuration *prometheus.HistogramVec
+	VectorSearchResults  *prometheus.HistogramVec
+	VectorStoreSize      prometheus.Gauge
 
 	// System metrics
-	SystemStartTime       prometheus.Gauge
-	SystemHealth          *prometheus.GaugeVec
+	SystemStartTime prometheus.Gauge
+	SystemHealth    *prometheus.GaugeVec
 }
 
 // NewMetricsCollector creates and registers all Prometheus metrics.
@@ -157,6 +161,20 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 				Help:      "Total number of embedding cache misses",
 			},
 		),
+		SearchCacheHits: promauto.NewCounter(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "search_cache_hits_total",
+				Help:      "Total number of search cache hits",
+			},
+		),
+		SearchCacheMisses: promauto.NewCounter(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "search_cache_misses_total",
+				Help:      "Total number of search cache misses",
+			},
+		),
 		EmbeddingErrorsTotal: promauto.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
@@ -271,6 +289,16 @@ func (m *MetricsCollector) RecordEmbeddingCacheHit() {
 // RecordEmbeddingCacheMiss records a cache miss.
 func (m *MetricsCollector) RecordEmbeddingCacheMiss() {
 	m.EmbeddingCacheMisses.Inc()
+}
+
+// RecordSearchCacheHit records a search cache hit.
+func (m *MetricsCollector) RecordSearchCacheHit() {
+	m.SearchCacheHits.Inc()
+}
+
+// RecordSearchCacheMiss records a search cache miss.
+func (m *MetricsCollector) RecordSearchCacheMiss() {
+	m.SearchCacheMisses.Inc()
 }
 
 // RecordEmbeddingError records an embedding error.

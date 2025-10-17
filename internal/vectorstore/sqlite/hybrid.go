@@ -45,9 +45,10 @@ func (s *Store) SearchHybrid(ctx context.Context, query string, vector embedding
 
 	// Fetch more results from each method to ensure we have enough after fusion
 	// We request 2x the limit to account for overlaps and get better coverage
-	searchLimit := hybridOpts.Limit * 2
+	searchLimit := (hybridOpts.Limit + hybridOpts.Offset) * 2
 	searchOpts := vectorstore.SearchOptions{
 		Limit:     searchLimit,
+		Offset:    hybridOpts.Offset,
 		Threshold: opts.Threshold,
 		Filters:   opts.Filters,
 	}

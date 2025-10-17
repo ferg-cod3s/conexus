@@ -260,7 +260,7 @@ func DefaultIgnorePatterns() []string {
 		"*.dylib",
 		"*.dll",
 		"*.exe",
-		".DS_Store",
+		"data/", ".DS_Store",
 		"Thumbs.db",
 	}
 }

@@ -12,10 +12,10 @@ import (
 // newTestMetricsCollector creates a MetricsCollector with a custom registry for testing
 func newTestMetricsCollector(t *testing.T) (*MetricsCollector, *prometheus.Registry) {
 	t.Helper()
-	
+
 	registry := prometheus.NewRegistry()
 	namespace := "test"
-	
+
 	collector := &MetricsCollector{
 		// MCP request metrics
 		MCPRequestsTotal: prometheus.NewCounterVec(
@@ -51,7 +51,7 @@ func newTestMetricsCollector(t *testing.T) (*MetricsCollector, *prometheus.Regis
 			},
 			[]string{"method", "error_type"},
 		),
-		
+
 		// Indexer metrics
 		IndexerOperations: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -92,7 +92,7 @@ func newTestMetricsCollector(t *testing.T) (*MetricsCollector, *prometheus.Regis
 			},
 			[]string{"error_type"},
 		),
-		
+
 		// Embedding metrics
 		EmbeddingRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -125,6 +125,20 @@ func newTestMetricsCollector(t *testing.T) (*MetricsCollector, *prometheus.Regis
 				Help:      "Total number of embedding cache misses",
 			},
 		),
+		SearchCacheHits: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "search_cache_hits_total",
+				Help:      "Total number of search cache hits",
+			},
+		),
+		SearchCacheMisses: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "search_cache_misses_total",
+				Help:      "Total number of search cache misses",
+			},
+		),
 		EmbeddingErrorsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
@@ -133,7 +147,7 @@ func newTestMetricsCollector(t *testing.T) (*MetricsCollector, *prometheus.Regis
 			},
 			[]string{"provider", "error_type"},
 		),
-		
+
 		// Vector store metrics
 		VectorSearchRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -168,7 +182,7 @@ func newTestMetricsCollector(t *testing.T) (*MetricsCollector, *prometheus.Regis
 				Help:      "Current size of vector store in bytes",
 			},
 		),
-		
+
 		// System metrics
 		SystemStartTime: prometheus.NewGauge(
 			prometheus.GaugeOpts{
@@ -186,7 +200,7 @@ func newTestMetricsCollector(t *testing.T) (*MetricsCollector, *prometheus.Regis
 			[]string{"component"},
 		),
 	}
-	
+
 	// Register all metrics with the custom registry
 	registry.MustRegister(
 		collector.MCPRequestsTotal,
@@ -210,7 +224,7 @@ func newTestMetricsCollector(t *testing.T) (*MetricsCollector, *prometheus.Regis
 		collector.SystemStartTime,
 		collector.SystemHealth,
 	)
-	
+
 	return collector, registry
 }
 
@@ -421,6 +435,20 @@ func TestRecordEmbeddingCache(t *testing.T) {
 	// Record cache miss
 	collector.RecordEmbeddingCacheMiss()
 	misses := testutil.ToFloat64(collector.EmbeddingCacheMisses)
+	assert.Equal(t, float64(1), misses)
+}
+
+func TestRecordSearchCache(t *testing.T) {
+	collector, _ := newTestMetricsCollector(t)
+
+	// Record cache hit
+	collector.RecordSearchCacheHit()
+	hits := testutil.ToFloat64(collector.SearchCacheHits)
+	assert.Equal(t, float64(1), hits)
+
+	// Record cache miss
+	collector.RecordSearchCacheMiss()
+	misses := testutil.ToFloat64(collector.SearchCacheMisses)
 	assert.Equal(t, float64(1), misses)
 }
 

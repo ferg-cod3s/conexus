@@ -203,8 +203,8 @@ func CreateTempCodebase(files map[string]string) (string, error) {
 
 		// Write file
 		if err := os.WriteFile(fullPath, []byte(content), 0600); err != nil {
-			os.RemoveAll(tmpDir)
 			// #nosec G104 - Best-effort cleanup in error path, primary error already captured
+			os.RemoveAll(tmpDir)
 			return "", fmt.Errorf("failed to write file %s: %w", filename, err)
 		}
 	}

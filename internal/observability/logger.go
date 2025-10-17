@@ -18,6 +18,16 @@ const (
 	RequestIDKey ContextKey = "request_id"
 	// UserIDKey is the context key for user IDs.
 	UserIDKey ContextKey = "user_id"
+	// UserEmailKey is the context key for user emails.
+	UserEmailKey ContextKey = "user_email"
+	// SessionIDKey is the context key for session IDs.
+	SessionIDKey ContextKey = "session_id"
+	// OrganizationKey is the context key for organization.
+	OrganizationKey ContextKey = "organization"
+	// ToolNameKey is the context key for tool names.
+	ToolNameKey ContextKey = "tool_name"
+	// ToolVersionKey is the context key for tool versions.
+	ToolVersionKey ContextKey = "tool_version"
 )
 
 // Logger wraps slog.Logger with additional context-aware methods.
@@ -101,6 +111,31 @@ func (l *Logger) WithContext(ctx context.Context) *slog.Logger {
 	// Add user ID if present
 	if userID, ok := ctx.Value(UserIDKey).(string); ok && userID != "" {
 		logger = logger.With("user_id", userID)
+	}
+
+	// Add user email if present
+	if userEmail, ok := ctx.Value(UserEmailKey).(string); ok && userEmail != "" {
+		logger = logger.With("user_email", userEmail)
+	}
+
+	// Add session ID if present
+	if sessionID, ok := ctx.Value(SessionIDKey).(string); ok && sessionID != "" {
+		logger = logger.With("session_id", sessionID)
+	}
+
+	// Add organization if present
+	if organization, ok := ctx.Value(OrganizationKey).(string); ok && organization != "" {
+		logger = logger.With("organization", organization)
+	}
+
+	// Add tool name if present
+	if toolName, ok := ctx.Value(ToolNameKey).(string); ok && toolName != "" {
+		logger = logger.With("tool_name", toolName)
+	}
+
+	// Add tool version if present
+	if toolVersion, ok := ctx.Value(ToolVersionKey).(string); ok && toolVersion != "" {
+		logger = logger.With("tool_version", toolVersion)
 	}
 
 	return logger

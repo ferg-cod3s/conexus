@@ -284,6 +284,49 @@ func (m *MemoryStore) Count(ctx context.Context) (int64, error) {
 	return int64(len(m.documents)), nil
 }
 
+// ListIndexedFiles returns a list of all unique file paths that have been indexed.
+func (m *MemoryStore) ListIndexedFiles(ctx context.Context) ([]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	fileSet := make(map[string]bool)
+	for _, doc := range m.documents {
+		if filePath, ok := doc.Metadata["file_path"].(string); ok && filePath != "" {
+			fileSet[filePath] = true
+		}
+	}
+
+	files := make([]string, 0, len(fileSet))
+	for file := range fileSet {
+		files = append(files, file)
+	}
+
+	sort.Strings(files)
+	return files, nil
+}
+
+// GetFileChunks returns all chunks for a specific file path, sorted by start_line.
+func (m *MemoryStore) GetFileChunks(ctx context.Context, filePath string) ([]Document, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var chunks []Document
+	for _, doc := range m.documents {
+		if docFilePath, ok := doc.Metadata["file_path"].(string); ok && docFilePath == filePath {
+			chunks = append(chunks, doc)
+		}
+	}
+
+	// Sort by start_line
+	sort.Slice(chunks, func(i, j int) bool {
+		startLineI, _ := chunks[i].Metadata["start_line"].(float64)
+		startLineJ, _ := chunks[j].Metadata["start_line"].(float64)
+		return startLineI < startLineJ
+	})
+
+	return chunks, nil
+}
+
 // Close releases resources (no-op for memory store).
 func (m *MemoryStore) Close() error {
 	return nil
@@ -361,7 +404,7 @@ func tokenize(text string) []string {
 	var terms []string
 	for _, word := range words {
 		// Remove common punctuation
-		word = strings.Trim(word, ".,!?;:\"'()[]{}") 
+		word = strings.Trim(word, ".,!?;:\"'()[]{}")
 		if len(word) > 0 {
 			terms = append(terms, word)
 		}

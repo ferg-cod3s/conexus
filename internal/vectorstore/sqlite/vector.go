@@ -30,6 +30,7 @@ func (s *Store) SearchVector(ctx context.Context, queryVector embedding.Vector, 
 	if limit <= 0 {
 		limit = 10
 	}
+	offset := opts.Offset
 
 	// Build SQL query to fetch all documents
 	// Note: In production, we'd use spatial indexes or approximate nearest neighbor algorithms
@@ -123,12 +124,21 @@ func (s *Store) SearchVector(ctx context.Context, queryVector embedding.Vector, 
 		return candidates[i].Score > candidates[j].Score
 	})
 
-	// Apply limit
-	if len(candidates) > limit {
-		candidates = candidates[:limit]
+	// Apply offset and limit
+	start := offset
+	if start > len(candidates) {
+		start = len(candidates)
+	}
+	end := start + limit
+	if end > len(candidates) {
+		end = len(candidates)
 	}
 
-	return candidates, nil
+	if start >= end {
+		return []vectorstore.SearchResult{}, nil
+	}
+
+	return candidates[start:end], nil
 }
 
 // cosineSimilarity calculates the cosine similarity between two vectors.

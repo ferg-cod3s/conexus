@@ -5,9 +5,9 @@ import "encoding/json"
 
 // Tool names exposed by the MCP server
 const (
-	ToolContextSearch            = "context.search"
-	ToolContextGetRelatedInfo    = "context.get_related_info"
-	ToolContextIndexControl      = "context.index_control"
+	ToolContextSearch              = "context.search"
+	ToolContextGetRelatedInfo      = "context.get_related_info"
+	ToolContextIndexControl        = "context.index_control"
 	ToolContextConnectorManagement = "context.connector_management"
 )
 
@@ -19,10 +19,11 @@ const (
 
 // SearchRequest represents the input for context.search tool
 type SearchRequest struct {
-	Query       string                 `json:"query"`
-	WorkContext *WorkContext           `json:"work_context,omitempty"`
-	TopK        int                    `json:"top_k,omitempty"`
-	Filters     *SearchFilters         `json:"filters,omitempty"`
+	Query       string         `json:"query"`
+	WorkContext *WorkContext   `json:"work_context,omitempty"`
+	TopK        int            `json:"top_k,omitempty"`
+	Offset      int            `json:"offset,omitempty"` // For pagination
+	Filters     *SearchFilters `json:"filters,omitempty"`
 }
 
 // WorkContext provides information about the user's current working context
@@ -34,8 +35,17 @@ type WorkContext struct {
 
 // SearchFilters defines filtering options for search
 type SearchFilters struct {
-	SourceTypes []string   `json:"source_types,omitempty"`
-	DateRange   *DateRange `json:"date_range,omitempty"`
+	SourceTypes []string            `json:"source_types,omitempty"`
+	DateRange   *DateRange          `json:"date_range,omitempty"`
+	WorkContext *WorkContextFilters `json:"work_context,omitempty"`
+}
+
+// WorkContextFilters defines filters based on work context
+type WorkContextFilters struct {
+	ActiveFile    string   `json:"active_file,omitempty"`
+	GitBranch     string   `json:"git_branch,omitempty"`
+	OpenTicketIDs []string `json:"open_ticket_ids,omitempty"`
+	BoostActive   bool     `json:"boost_active,omitempty"` // Boost results related to active file/tickets
 }
 
 // DateRange specifies a time range filter
@@ -46,9 +56,12 @@ type DateRange struct {
 
 // SearchResponse represents the output of context.search tool
 type SearchResponse struct {
-	Results      []SearchResultItem `json:"results"`
-	TotalCount   int                `json:"total_count"`
-	QueryTime    float64            `json:"query_time_ms"`
+	Results    []SearchResultItem `json:"results"`
+	TotalCount int                `json:"total_count"`
+	QueryTime  float64            `json:"query_time_ms"`
+	Offset     int                `json:"offset,omitempty"`
+	Limit      int                `json:"limit,omitempty"`
+	HasMore    bool               `json:"has_more,omitempty"`
 }
 
 // SearchResultItem represents a single search result
@@ -66,12 +79,25 @@ type GetRelatedInfoRequest struct {
 	TicketID string `json:"ticket_id,omitempty"`
 }
 
+// RelatedItem represents a single related item with relevance score
+type RelatedItem struct {
+	ID         string                 `json:"id"`
+	Content    string                 `json:"content"`
+	Score      float32                `json:"score"`
+	SourceType string                 `json:"source_type"`
+	FilePath   string                 `json:"file_path,omitempty"`
+	StartLine  int                    `json:"start_line,omitempty"`
+	EndLine    int                    `json:"end_line,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+}
+
 // GetRelatedInfoResponse represents the output of context.get_related_info tool
 type GetRelatedInfoResponse struct {
-	Summary      string              `json:"summary"`
-	RelatedPRs   []string            `json:"related_prs,omitempty"`
-	RelatedIssues []string           `json:"related_issues,omitempty"`
-	Discussions  []DiscussionSummary `json:"discussions,omitempty"`
+	Summary       string              `json:"summary"`
+	RelatedItems  []RelatedItem       `json:"related_items"`
+	RelatedPRs    []string            `json:"related_prs,omitempty"`
+	RelatedIssues []string            `json:"related_issues,omitempty"`
+	Discussions   []DiscussionSummary `json:"discussions,omitempty"`
 }
 
 // DiscussionSummary provides a summary of a Slack discussion
@@ -83,15 +109,43 @@ type DiscussionSummary struct {
 
 // IndexControlRequest represents the input for context.index_control tool
 type IndexControlRequest struct {
-	Action     string   `json:"action"` // "start", "stop", "status", "force_reindex"
-	Connectors []string `json:"connectors,omitempty"`
+	Action     string   `json:"action"`               // "start", "stop", "status", "force_reindex", "reindex_paths"
+	Connectors []string `json:"connectors,omitempty"` // Connectors to use for indexing
+	Paths      []string `json:"paths,omitempty"`      // Specific paths/files to reindex (for reindex_paths action)
 }
 
 // IndexControlResponse represents the output of context.index_control tool
 type IndexControlResponse struct {
-	Status      string            `json:"status"`
-	Message     string            `json:"message"`
-	Details     map[string]string `json:"details,omitempty"`
+	Status      string                 `json:"status"`
+	Message     string                 `json:"message"`
+	Details     map[string]interface{} `json:"details,omitempty"`
+	IndexStatus *IndexStatus           `json:"index_status,omitempty"`
+}
+
+// IndexStatus represents the current status of indexing operations
+type IndexStatus struct {
+	IsIndexing     bool          `json:"is_indexing"`
+	Phase          string        `json:"phase"`
+	Progress       float64       `json:"progress"`
+	FilesProcessed int           `json:"files_processed"`
+	TotalFiles     int           `json:"total_files"`
+	ChunksCreated  int           `json:"chunks_created"`
+	StartTime      string        `json:"start_time,omitempty"`
+	EstimatedEnd   string        `json:"estimated_end,omitempty"`
+	LastError      string        `json:"last_error,omitempty"`
+	Metrics        *IndexMetrics `json:"metrics,omitempty"`
+}
+
+// IndexMetrics provides statistics about indexing operations
+type IndexMetrics struct {
+	TotalFiles      int     `json:"total_files"`
+	IndexedFiles    int     `json:"indexed_files"`
+	SkippedFiles    int     `json:"skipped_files"`
+	TotalChunks     int     `json:"total_chunks"`
+	Duration        float64 `json:"duration_seconds"`
+	BytesProcessed  int64   `json:"bytes_processed"`
+	StateSize       int64   `json:"state_size_bytes"`
+	IncrementalSave float64 `json:"incremental_save_seconds"`
 }
 
 // ConnectorManagementRequest represents the input for context.connector_management tool
@@ -158,6 +212,11 @@ func GetToolDefinitions() []ToolDefinition {
 						"default": 20,
 						"maximum": 100
 					},
+					"offset": {
+						"type": "integer",
+						"default": 0,
+						"minimum": 0
+					},
 					"filters": {
 						"type": "object",
 						"properties": {
@@ -170,6 +229,15 @@ func GetToolDefinitions() []ToolDefinition {
 								"properties": {
 									"from": {"type": "string", "format": "date-time"},
 									"to": {"type": "string", "format": "date-time"}
+								}
+							},
+							"work_context": {
+								"type": "object",
+								"properties": {
+									"active_file": {"type": "string"},
+									"git_branch": {"type": "string"},
+									"open_ticket_ids": {"type": "array", "items": {"type": "string"}},
+									"boost_active": {"type": "boolean", "default": true}
 								}
 							}
 						}
@@ -203,11 +271,16 @@ func GetToolDefinitions() []ToolDefinition {
 				"properties": {
 					"action": {
 						"type": "string",
-						"enum": ["start", "stop", "status", "force_reindex"]
+						"enum": ["start", "stop", "status", "force_reindex", "reindex_paths"]
 					},
 					"connectors": {
 						"type": "array",
 						"items": {"type": "string"}
+					},
+					"paths": {
+						"type": "array",
+						"items": {"type": "string"},
+						"description": "Specific paths/files to reindex (required for reindex_paths action)"
 					}
 				},
 				"required": ["action"]
