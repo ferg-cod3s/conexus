@@ -26,13 +26,79 @@ func NewCodeChunker(maxChunkSize, overlapSize int) *CodeChunker {
 	if maxChunkSize <= 0 {
 		maxChunkSize = 2000 // Default
 	}
-	if overlapSize < 0 {
-		overlapSize = 200 // Default
+	if overlapSize <= 0 {
+		// Default to 20% of maxChunkSize for token-aware overlap
+		overlapSize = maxChunkSize / 5
 	}
 	return &CodeChunker{
 		maxChunkSize: maxChunkSize,
 		overlapSize:  overlapSize,
 	}
+
+}
+// estimateTokens provides a rough estimate of token count from character count.
+// Code typically has ~4 characters per token on average.
+func (c *CodeChunker) estimateTokens(content string) int {
+	return len(content) / 4
+}
+
+// calculateOverlapSize calculates the overlap size in characters based on token estimation.
+// Returns the overlap size that represents approximately 20% of the chunk in tokens.
+func (c *CodeChunker) calculateOverlapSize(chunkContent string) int {
+	estimatedTokens := c.estimateTokens(chunkContent)
+	overlapTokens := estimatedTokens / 5 // 20% in tokens
+	return overlapTokens * 4              // Convert back to approximate characters
+}
+
+// extractOverlapContent extracts overlap content from the end of a chunk,
+// respecting line boundaries to avoid breaking mid-statement.
+func (c *CodeChunker) extractOverlapContent(content string, overlapSize int) string {
+	if len(content) <= overlapSize {
+		return content
+	}
+	
+	// Start from the desired overlap point
+	startPos := len(content) - overlapSize
+	
+	// Find the first newline after startPos to avoid mid-line breaks
+	newlinePos := strings.Index(content[startPos:], "\n")
+	if newlinePos != -1 {
+		startPos += newlinePos + 1
+	}
+	
+	return content[startPos:]
+}
+
+// addOverlapToChunks adds overlapping content between consecutive semantic chunks.
+// This ensures context continuity when chunks are processed independently.
+func (c *CodeChunker) addOverlapToChunks(chunks []Chunk) []Chunk {
+	if len(chunks) <= 1 || c.overlapSize <= 0 {
+		return chunks
+	}
+	
+	result := make([]Chunk, 0, len(chunks))
+	var previousOverlap string
+	
+	for i, chunk := range chunks {
+		content := chunk.Content
+		
+		// Add overlap from previous chunk at the beginning
+		if i > 0 && previousOverlap != "" {
+			content = previousOverlap + content
+		}
+		
+		// Extract overlap for next chunk
+		if i < len(chunks)-1 {
+			previousOverlap = c.extractOverlapContent(chunk.Content, c.overlapSize)
+		}
+		
+		// Update chunk with overlapped content
+		chunk.Content = content
+		chunk.Hash = generateContentHash(content)
+		result = append(result, chunk)
+	}
+	
+	return result
 }
 
 // Supports returns true if this chunker handles the given file extension.
@@ -162,7 +228,7 @@ func (c *CodeChunker) chunkGoCode(ctx context.Context, content string, filePath 
 		return c.chunkGenericCode(ctx, content, filePath)
 	}
 
-	return chunks, nil
+	return c.addOverlapToChunks(chunks), nil
 }
 
 // chunkPythonCode implements semantic chunking for Python code.
@@ -234,7 +300,7 @@ func (c *CodeChunker) chunkPythonCode(ctx context.Context, content string, fileP
 		return c.chunkGenericCode(ctx, content, filePath)
 	}
 
-	return chunks, nil
+	return c.addOverlapToChunks(chunks), nil
 }
 
 // chunkJavaScriptCode implements semantic chunking for JavaScript/TypeScript code.
@@ -306,7 +372,7 @@ func (c *CodeChunker) chunkJavaScriptCode(ctx context.Context, content string, f
 		return c.chunkGenericCode(ctx, content, filePath)
 	}
 
-	return chunks, nil
+	return c.addOverlapToChunks(chunks), nil
 }
 
 // chunkJavaCode implements semantic chunking for Java code.
@@ -372,7 +438,7 @@ func (c *CodeChunker) chunkJavaCode(ctx context.Context, content string, filePat
 		return c.chunkGenericCode(ctx, content, filePath)
 	}
 
-	return chunks, nil
+	return c.addOverlapToChunks(chunks), nil
 }
 
 // chunkCCode implements semantic chunking for C/C++ code.
@@ -423,7 +489,7 @@ func (c *CodeChunker) chunkCCode(ctx context.Context, content string, filePath s
 		return c.chunkGenericCode(ctx, content, filePath)
 	}
 
-	return chunks, nil
+	return c.addOverlapToChunks(chunks), nil
 }
 
 // chunkRustCode implements semantic chunking for Rust code.
@@ -500,7 +566,7 @@ func (c *CodeChunker) chunkRustCode(ctx context.Context, content string, filePat
 		return c.chunkGenericCode(ctx, content, filePath)
 	}
 
-	return chunks, nil
+	return c.addOverlapToChunks(chunks), nil
 }
 
 // chunkGenericCode implements fallback chunking for unsupported languages.
