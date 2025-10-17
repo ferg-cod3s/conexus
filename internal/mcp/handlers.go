@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+	"strings"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
 	"github.com/ferg-cod3s/conexus/internal/indexer"
@@ -292,117 +293,158 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 		req.FilePath = safePath
 	}
 
-	// Build search query based on provided identifiers
-	var query string
+	// Route to appropriate flow
 	if req.FilePath != "" {
-		query = fmt.Sprintf("file:%s", req.FilePath)
-	} else {
-		query = fmt.Sprintf("ticket:%s", req.TicketID)
+		return s.handleFilePathFlow(ctx, req)
+	}
+	return s.handleTicketIDFlow(ctx, req)
+}
+
+// handleFilePathFlow implements the file path-based relationship discovery
+func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoRequest) (*GetRelatedInfoResponse, error) {
+	detector := NewRelationshipDetector(req.FilePath)
+
+	// Step 1: Get chunks for the source file (future optimization: use for symbol extraction)
+	_, err := s.vectorStore.GetFileChunks(ctx, req.FilePath)
+	if err != nil {
+		// File not found is acceptable - we can still find related files
+		// Log but don't fail
 	}
 
-	// Create relationship detector if we have a file path
-	var detector *RelationshipDetector
-	if req.FilePath != "" {
-		detector = NewRelationshipDetector(req.FilePath)
-	}
-
-	// Search for related documents
-	queryVec, err := s.embedder.Embed(ctx, query)
+	// Step 2: Get all indexed files for relationship detection
+	allFiles, err := s.vectorStore.ListIndexedFiles(ctx)
 	if err != nil {
 		return nil, &protocol.Error{
 			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("failed to generate embedding: %v", err),
+			Message: fmt.Sprintf("failed to list indexed files: %v", err),
 		}
 	}
 
-	opts := vectorstore.SearchOptions{
-		Limit: 20,
+	// Step 3: Find related files and score them
+	type relatedFileScore struct {
+		filePath     string
+		relationType string
+		score        float32
+		chunks       []vectorstore.Document
 	}
 
-	results, err := s.vectorStore.SearchHybrid(ctx, query, queryVec.Vector, opts)
-	if err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("search failed: %v", err),
+	relatedFiles := make(map[string]*relatedFileScore)
+	
+	for _, candidateFile := range allFiles {
+		// Skip the source file itself
+		if candidateFile == req.FilePath {
+			continue
+		}
+
+		// Detect relationship type
+		// Note: We pass empty chunkType and nil metadata here since we're checking file-level
+		// relationships. Chunk-level relationships are detected later.
+		relationType := detector.DetectRelationType(candidateFile, "", nil)
+		
+		if relationType != "" {
+			// Get chunks for this related file
+			chunks, err := s.vectorStore.GetFileChunks(ctx, candidateFile)
+			if err != nil {
+				// Log error but continue with other files
+				continue
+			}
+
+			// Calculate base score from relationship type
+			score := s.getRelationshipScore(relationType)
+			
+			relatedFiles[candidateFile] = &relatedFileScore{
+				filePath:     candidateFile,
+				relationType: relationType,
+				score:        score,
+				chunks:       chunks,
+			}
 		}
 	}
 
+	// Step 4: Build RelatedItems from related file chunks
+	relatedItems := make([]RelatedItem, 0)
+	
+	for _, rf := range relatedFiles {
+		for _, chunk := range rf.chunks {
+			// Extract metadata
+			sourceType, _ := chunk.Metadata["source_type"].(string)
+			startLine, _ := s.extractLineNumber(chunk.Metadata, "start_line")
+			endLine, _ := s.extractLineNumber(chunk.Metadata, "end_line")
+			chunkType, _ := chunk.Metadata["type"].(string)
 
-	// Group results by type and build RelatedItems
+			// Refine relationship type at chunk level if needed
+			chunkRelationType := detector.DetectRelationType(rf.filePath, chunkType, chunk.Metadata)
+			if chunkRelationType == "" {
+				chunkRelationType = rf.relationType
+			}
+
+			// Adjust score based on chunk-level relationship
+			chunkScore := rf.score
+			if chunkRelationType != rf.relationType {
+				chunkScore = s.getRelationshipScore(chunkRelationType)
+			}
+
+			relatedItems = append(relatedItems, RelatedItem{
+				ID:           chunk.ID,
+				Content:      chunk.Content,
+				Score:        chunkScore,
+				SourceType:   sourceType,
+				FilePath:     rf.filePath,
+				RelationType: chunkRelationType,
+				StartLine:    startLine,
+				EndLine:      endLine,
+				Metadata:     chunk.Metadata,
+			})
+		}
+	}
+
+	// Step 5: Sort by score (descending) and relationship priority
+	sort.Slice(relatedItems, func(i, j int) bool {
+		// Primary sort by score
+		if relatedItems[i].Score != relatedItems[j].Score {
+			return relatedItems[i].Score > relatedItems[j].Score
+		}
+		// Secondary sort by relationship type priority
+		return s.getRelationshipPriority(relatedItems[i].RelationType) < 
+		       s.getRelationshipPriority(relatedItems[j].RelationType)
+	})
+
+	// Step 6: Limit results to top N (default 50)
+	limit := 50
+	if len(relatedItems) > limit {
+		relatedItems = relatedItems[:limit]
+	}
+
+	// Step 7: Build response with summaries
 	var relatedPRs, relatedIssues []string
 	var discussions []DiscussionSummary
-	relatedItems := make([]RelatedItem, 0, len(results))
+	fileCount := len(relatedFiles)
 
-	for _, r := range results {
-		sourceType, _ := r.Document.Metadata["source_type"].(string)
-
-		switch sourceType {
+	for _, item := range relatedItems {
+		switch item.SourceType {
 		case "github_pr":
-			if prNum, ok := r.Document.Metadata["pr_number"].(string); ok {
+			if prNum, ok := item.Metadata["pr_number"].(string); ok {
 				relatedPRs = append(relatedPRs, prNum)
 			}
 		case "github_issue", "jira":
-			if issueID, ok := r.Document.Metadata["issue_id"].(string); ok {
+			if issueID, ok := item.Metadata["issue_id"].(string); ok {
 				relatedIssues = append(relatedIssues, issueID)
 			}
 		case "slack":
-			channel, _ := r.Document.Metadata["channel"].(string)
-			timestamp, _ := r.Document.Metadata["timestamp"].(string)
+			channel, _ := item.Metadata["channel"].(string)
+			timestamp, _ := item.Metadata["timestamp"].(string)
 			discussions = append(discussions, DiscussionSummary{
 				Channel:   channel,
 				Timestamp: timestamp,
-				Summary:   r.Document.Content[:min(200, len(r.Document.Content))],
+				Summary:   item.Content[:min(200, len(item.Content))],
 			})
 		}
-
-		// Build RelatedItem for all results
-		filePath, _ := r.Document.Metadata["file_path"].(string)
-		startLine, _ := r.Document.Metadata["start_line"].(int)
-		endLine, _ := r.Document.Metadata["end_line"].(int)
-
-		// Handle different numeric types for line numbers
-		if startLine == 0 {
-			if sl, ok := r.Document.Metadata["start_line"].(float64); ok {
-				startLine = int(sl)
-			}
-		}
-		if endLine == 0 {
-			if el, ok := r.Document.Metadata["end_line"].(float64); ok {
-				endLine = int(el)
-			}
-		}
-
-		// Detect relationship type if we have a detector
-		var relationType string
-		if detector != nil {
-			chunkType, _ := r.Document.Metadata["type"].(string)
-			relationType = detector.DetectRelationType(filePath, chunkType, r.Document.Metadata)
-		}
-
-		relatedItems = append(relatedItems, RelatedItem{
-			ID:           r.Document.ID,
-			Content:      r.Document.Content,
-			Score:        r.Score,
-			SourceType:   sourceType,
-			FilePath:     filePath,
-			RelationType: relationType,
-			StartLine:    startLine,
-			EndLine:      endLine,
-			Metadata:     r.Document.Metadata,
-		})
 	}
 
-	// Generate summary
-	summary := fmt.Sprintf("Found %d related items", len(results))
-	if req.FilePath != "" {
-		summary = fmt.Sprintf("Related information for %s: %d items (%d PRs, %d issues, %d discussions)",
-			req.FilePath, len(relatedItems), len(relatedPRs), len(relatedIssues), len(discussions))
-	} else {
-		summary = fmt.Sprintf("Related information for ticket %s: %d items (%d PRs, %d issues, %d discussions)",
-			req.TicketID, len(relatedItems), len(relatedPRs), len(relatedIssues), len(discussions))
-	}
+	summary := fmt.Sprintf("Found %d related files with %d chunks for %s (%d PRs, %d issues, %d discussions)",
+		fileCount, len(relatedItems), req.FilePath, len(relatedPRs), len(relatedIssues), len(discussions))
 
-	return GetRelatedInfoResponse{
+	return &GetRelatedInfoResponse{
 		Summary:       summary,
 		RelatedPRs:    relatedPRs,
 		RelatedIssues: relatedIssues,
@@ -410,6 +452,221 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 		RelatedItems:  relatedItems,
 	}, nil
 }
+
+
+// handleTicketIDFlow implements ticket ID-based relationship discovery
+func (s *Server) handleTicketIDFlow(ctx context.Context, req GetRelatedInfoRequest) (*GetRelatedInfoResponse, error) {
+	// Step 1: Get repository root
+	repoRoot, err := getRepoRoot(req.FilePath)
+	if err != nil {
+		// If not in a git repo, fall back to error
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("not in a git repository: %v", err),
+		}
+	}
+
+	// Step 2: Find ticket in git history
+	gitInfo, err := s.findTicketInGit(ctx, req.TicketID, repoRoot)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to search git history: %v", err),
+		}
+	}
+
+	// Step 3: Check if we found any matches
+	if len(gitInfo.Branches) == 0 && len(gitInfo.Commits) == 0 {
+		return &GetRelatedInfoResponse{
+			Summary:       fmt.Sprintf("No git history found for ticket %s", req.TicketID),
+			RelatedPRs:    []string{},
+			RelatedIssues: []string{},
+			Discussions:   []DiscussionSummary{},
+			RelatedItems:  []RelatedItem{},
+		}, nil
+	}
+
+	// Step 4: Query vector store for each modified file to get context
+	relatedItems := make([]RelatedItem, 0)
+	filesSeen := make(map[string]bool)
+	
+	for _, filePath := range gitInfo.ModifiedFiles {
+		if filesSeen[filePath] {
+			continue
+		}
+		filesSeen[filePath] = true
+
+		// Query vector store for this file
+		queryVec, err := s.embedder.Embed(ctx, fmt.Sprintf("file:%s", filePath))
+		if err != nil {
+			continue // Skip files we can't embed
+		}
+
+		opts := vectorstore.SearchOptions{
+			Limit: 5, // Limit per file to avoid overwhelming results
+			Filters: map[string]interface{}{
+				"file_path": filePath,
+			},
+		}
+
+		results, err := s.vectorStore.SearchHybrid(ctx, filePath, queryVec.Vector, opts)
+		if err != nil {
+			continue // Skip files with search errors
+		}
+
+		// Add chunks for this file
+		for _, r := range results {
+			sourceType, _ := r.Document.Metadata["source_type"].(string)
+			startLine, _ := s.extractLineNumber(r.Document.Metadata, "start_line")
+			endLine, _ := s.extractLineNumber(r.Document.Metadata, "end_line")
+
+			relatedItems = append(relatedItems, RelatedItem{
+				ID:         r.Document.ID,
+				Content:    r.Document.Content,
+				Score:      r.Score + 0.3, // Boost score since from git history
+				SourceType: sourceType,
+				FilePath:   filePath,
+				StartLine:  startLine,
+				EndLine:    endLine,
+				Metadata:   r.Document.Metadata,
+			})
+		}
+	}
+
+	// Step 5: Search for PR descriptions and issue metadata in vector store
+	var relatedPRs, relatedIssues []string
+	var discussions []DiscussionSummary
+
+	// Search for ticket ID in PR/issue metadata
+	queryVec, err := s.embedder.Embed(ctx, fmt.Sprintf("ticket:%s", req.TicketID))
+	if err == nil {
+		opts := vectorstore.SearchOptions{
+			Limit: 20,
+		}
+
+		results, err := s.vectorStore.SearchHybrid(ctx, req.TicketID, queryVec.Vector, opts)
+		if err == nil {
+			for _, r := range results {
+				sourceType, _ := r.Document.Metadata["source_type"].(string)
+
+				switch sourceType {
+				case "github_pr":
+					if prNum, ok := r.Document.Metadata["pr_number"].(string); ok {
+						relatedPRs = append(relatedPRs, prNum)
+					}
+				case "github_issue", "jira":
+					if issueID, ok := r.Document.Metadata["issue_id"].(string); ok {
+						relatedIssues = append(relatedIssues, issueID)
+					}
+				case "slack":
+					channel, _ := r.Document.Metadata["channel"].(string)
+					timestamp, _ := r.Document.Metadata["timestamp"].(string)
+					discussions = append(discussions, DiscussionSummary{
+						Channel:   channel,
+						Timestamp: timestamp,
+						Summary:   r.Document.Content[:min(200, len(r.Document.Content))],
+					})
+				}
+			}
+		}
+	}
+
+	// Step 6: Build summary
+	summary := fmt.Sprintf(
+		"Ticket %s: found in %d branches, %d commits, %d modified files. Related: %d PRs, %d issues, %d discussions",
+		req.TicketID,
+		len(gitInfo.Branches),
+		len(gitInfo.Commits),
+		len(gitInfo.ModifiedFiles),
+		len(relatedPRs),
+		len(relatedIssues),
+		len(discussions),
+	)
+
+	// Add git commit information to summary
+	if len(gitInfo.Commits) > 0 {
+		summary += fmt.Sprintf("\n\nRecent commits:\n")
+		for i, commit := range gitInfo.Commits {
+			if i >= 5 { // Limit to 5 most recent
+				break
+			}
+			summary += fmt.Sprintf("- %s: %s (%s)\n", 
+				commit.Hash[:8], 
+				commit.Message[:min(80, len(commit.Message))],
+				commit.Author,
+			)
+		}
+	}
+
+	if len(gitInfo.Branches) > 0 {
+		summary += fmt.Sprintf("\nBranches: %s", strings.Join(gitInfo.Branches, ", "))
+	}
+
+	return &GetRelatedInfoResponse{
+		Summary:       summary,
+		RelatedPRs:    relatedPRs,
+		RelatedIssues: relatedIssues,
+		Discussions:   discussions,
+		RelatedItems:  relatedItems,
+	}, nil
+}
+
+// getRelationshipScore returns a score for a relationship type
+func (s *Server) getRelationshipScore(relationType string) float32 {
+	switch relationType {
+	case RelationTypeTestFile:
+		return 1.0
+	case RelationTypeDocumentation:
+		return 0.9
+	case RelationTypeSymbolRef:
+		return 0.8
+	case RelationTypeImport:
+		return 0.7
+	case RelationTypeCommitHistory:
+		return 0.6
+	case RelationTypeSimilarCode:
+		return 0.5
+	default:
+		return 0.3
+	}
+}
+
+// getRelationshipPriority returns priority order for sorting (lower is higher priority)
+func (s *Server) getRelationshipPriority(relationType string) int {
+	switch relationType {
+	case RelationTypeTestFile:
+		return 1
+	case RelationTypeDocumentation:
+		return 2
+	case RelationTypeSymbolRef:
+		return 3
+	case RelationTypeImport:
+		return 4
+	case RelationTypeCommitHistory:
+		return 5
+	case RelationTypeSimilarCode:
+		return 6
+	default:
+		return 99
+	}
+}
+
+// extractLineNumber safely extracts line numbers from metadata
+func (s *Server) extractLineNumber(metadata map[string]interface{}, key string) (int, bool) {
+	if val, ok := metadata[key]; ok {
+		switch v := val.(type) {
+		case int:
+			return v, true
+		case float64:
+			return int(v), true
+		case int64:
+			return int(v), true
+		}
+	}
+	return 0, false
+}
+
+
 
 // handleIndexControl implements the context.index_control tool
 func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (interface{}, error) {
