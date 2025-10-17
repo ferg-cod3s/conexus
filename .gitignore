@@ -81,3 +81,10 @@ full_test*.txt
 test_summary.sh
 create_phase*.sh
 fix_*.sh
+
+# Load test results (large files)
+tests/load/results/*.json
+tests/load/results/*.log
+!tests/load/results/*-analysis.json
+!tests/load/results/LOAD_TEST_ANALYSIS.md
+!tests/load/results/STRESS_TEST_ANALYSIS.md
