@@ -19,23 +19,23 @@ func TestNewService(t *testing.T) {
 	assert.NotNil(t, service)
 }
 
-// MockSearchableConnector implements SearchableConnector for testing
-type MockSearchableConnector struct {
+// MockConnectorWithTestify implements SearchableConnector for testing using testify/mock
+type MockConnectorWithTestify struct {
 	mock.Mock
-	id   string
+	id       string
 	connType string
 }
 
-func (m *MockSearchableConnector) Search(ctx context.Context, req *schema.SearchRequest) ([]schema.SearchResultItem, error) {
+func (m *MockConnectorWithTestify) Search(ctx context.Context, req *schema.SearchRequest) ([]schema.SearchResultItem, error) {
 	args := m.Called(ctx, req)
 	return args.Get(0).([]schema.SearchResultItem), args.Error(1)
 }
 
-func (m *MockSearchableConnector) GetID() string {
+func (m *MockConnectorWithTestify) GetID() string {
 	return m.id
 }
 
-func (m *MockSearchableConnector) GetType() string {
+func (m *MockConnectorWithTestify) GetType() string {
 	return m.connType
 }
 
@@ -43,7 +43,7 @@ func TestService_Search(t *testing.T) {
 	tests := []struct {
 		name             string
 		req              *schema.SearchRequest
-		setupConnectors  func() []*MockSearchableConnector
+		setupConnectors  func() []*MockConnectorWithTestify
 		expectedResults  int
 		expectError      bool
 	}{
@@ -53,19 +53,19 @@ func TestService_Search(t *testing.T) {
 				Query: "test query",
 				TopK:  10,
 			},
-			setupConnectors: func() []*MockSearchableConnector {
-				conn1 := &MockSearchableConnector{id: "conn1", connType: "filesystem"}
+			setupConnectors: func() []*MockConnectorWithTestify {
+				conn1 := &MockConnectorWithTestify{id: "conn1", connType: "filesystem"}
 				conn1.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{
 					{ID: "1", Content: "result 1", Score: 0.9, SourceType: "file"},
 					{ID: "2", Content: "result 2", Score: 0.8, SourceType: "file"},
 				}, nil)
 
-				conn2 := &MockSearchableConnector{id: "conn2", connType: "github"}
+				conn2 := &MockConnectorWithTestify{id: "conn2", connType: "github"}
 				conn2.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{
 					{ID: "3", Content: "result 3", Score: 0.7, SourceType: "github"},
 				}, nil)
 
-				return []*MockSearchableConnector{conn1, conn2}
+				return []*MockConnectorWithTestify{conn1, conn2}
 			},
 			expectedResults: 3,
 			expectError:     false,
@@ -76,10 +76,10 @@ func TestService_Search(t *testing.T) {
 				Query: "empty query",
 				TopK:  5,
 			},
-			setupConnectors: func() []*MockSearchableConnector {
-				conn := &MockSearchableConnector{id: "conn1", connType: "filesystem"}
+			setupConnectors: func() []*MockConnectorWithTestify {
+				conn := &MockConnectorWithTestify{id: "conn1", connType: "filesystem"}
 				conn.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{}, nil)
-				return []*MockSearchableConnector{conn}
+				return []*MockConnectorWithTestify{conn}
 			},
 			expectedResults: 0,
 			expectError:     false,
@@ -91,14 +91,14 @@ func TestService_Search(t *testing.T) {
 				TopK:   2,
 				Offset: 1,
 			},
-			setupConnectors: func() []*MockSearchableConnector {
-				conn := &MockSearchableConnector{id: "conn1", connType: "filesystem"}
+			setupConnectors: func() []*MockConnectorWithTestify {
+				conn := &MockConnectorWithTestify{id: "conn1", connType: "filesystem"}
 				conn.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{
 					{ID: "1", Content: "result 1", Score: 0.9, SourceType: "file"},
 					{ID: "2", Content: "result 2", Score: 0.8, SourceType: "file"},
 					{ID: "3", Content: "result 3", Score: 0.7, SourceType: "file"},
 				}, nil)
-				return []*MockSearchableConnector{conn}
+				return []*MockConnectorWithTestify{conn}
 			},
 			expectedResults: 2,
 			expectError:     false,
@@ -157,8 +157,8 @@ func TestService_executeParallelSearches(t *testing.T) {
 		{
 			name: "successful parallel execution",
 			connectors: []SearchableConnector{
-				&MockSearchableConnector{id: "conn1", connType: "filesystem"},
-				&MockSearchableConnector{id: "conn2", connType: "github"},
+				&MockConnectorWithTestify{id: "conn1", connType: "filesystem"},
+				&MockConnectorWithTestify{id: "conn2", connType: "github"},
 			},
 			req:         &schema.SearchRequest{Query: "test"},
 			expectError: false,
@@ -166,7 +166,7 @@ func TestService_executeParallelSearches(t *testing.T) {
 		{
 			name: "timeout handling",
 			connectors: []SearchableConnector{
-				&MockSearchableConnector{id: "slow-conn", connType: "filesystem"},
+				&MockConnectorWithTestify{id: "slow-conn", connType: "filesystem"},
 			},
 			req:         &schema.SearchRequest{Query: "test"},
 			expectError: true, // Should timeout
@@ -182,14 +182,14 @@ func TestService_executeParallelSearches(t *testing.T) {
 				service.timeout = 1 * time.Millisecond
 
 				// Mock a slow connector
-				slowConn := tt.connectors[0].(*MockSearchableConnector)
+				slowConn := tt.connectors[0].(*MockConnectorWithTestify)
 				slowConn.On("Search", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 					time.Sleep(10 * time.Millisecond) // Sleep longer than timeout
 				}).Return([]schema.SearchResultItem{}, nil)
 			} else {
 				// Setup normal mocks
 				for _, conn := range tt.connectors {
-					mockConn := conn.(*MockSearchableConnector)
+					mockConn := conn.(*MockConnectorWithTestify)
 					mockConn.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{
 						{ID: "test", Content: "test content", Score: 0.5, SourceType: "file"},
 					}, nil)
@@ -208,7 +208,7 @@ func TestService_executeParallelSearches(t *testing.T) {
 
 			// Verify mock expectations
 			for _, conn := range tt.connectors {
-				if mockConn, ok := conn.(*MockSearchableConnector); ok {
+				if mockConn, ok := conn.(*MockConnectorWithTestify); ok {
 					mockConn.AssertExpectations(t)
 				}
 			}
@@ -226,3 +226,85 @@ func TestService_NewService(t *testing.T) {
 	assert.NotNil(t, service.detector)
 	assert.Equal(t, 10*time.Second, service.timeout)
 }
+
+// TestService_createGitHubConnector tests the GitHub connector creation
+func TestService_createGitHubConnector(t *testing.T) {
+	tests := []struct {
+		name        string
+		conn        *connectors.Connector
+		expectError bool
+		expectedErr string
+	}{
+		{
+			name: "valid GitHub connector creation with token",
+			conn: &connectors.Connector{
+				ID:     "github-1",
+				Type:   "github",
+				Status: "active",
+				Config: map[string]interface{}{
+					"token": "ghp_testtoken123456789",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "missing GitHub token",
+			conn: &connectors.Connector{
+				ID:     "github-2",
+				Type:   "github",
+				Status: "active",
+				Config: map[string]interface{}{},
+			},
+			expectError: true,
+			expectedErr: "missing or invalid GitHub token",
+		},
+		{
+			name: "empty GitHub token",
+			conn: &connectors.Connector{
+				ID:     "github-3",
+				Type:   "github",
+				Status: "active",
+				Config: map[string]interface{}{
+					"token": "",
+				},
+			},
+			expectError: true,
+			expectedErr: "missing or invalid GitHub token",
+		},
+		{
+			name: "invalid GitHub token type",
+			conn: &connectors.Connector{
+				ID:     "github-4",
+				Type:   "github",
+				Status: "active",
+				Config: map[string]interface{}{
+					"token": 12345, // Wrong type
+				},
+			},
+			expectError: true,
+			expectedErr: "missing or invalid GitHub token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := NewService(nil, nil)
+			result, err := service.createGitHubConnector(tt.conn)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.expectedErr != "" {
+					assert.Contains(t, err.Error(), tt.expectedErr)
+				}
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.conn.ID, result.GetID())
+				assert.Equal(t, "github", result.GetType())
+			}
+		})
+	}
+}
+
+

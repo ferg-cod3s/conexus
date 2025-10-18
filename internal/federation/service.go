@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
+	"github.com/ferg-cod3s/conexus/internal/connectors/github"
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/schema"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
@@ -175,6 +176,13 @@ func (s *Service) discoverSearchableConnectors(ctx context.Context, embedder emb
 		switch conn.Type {
 		case "filesystem":
 			searchableConn = NewFilesystemConnector(s.vectorStore, embedder)
+		case "github":
+			var err error
+			searchableConn, err = s.createGitHubConnector(conn)
+			if err != nil {
+				// Failed to create GitHub connector, skip it
+				continue
+			}
 		default:
 			// Skip unsupported connector types
 			continue
@@ -186,6 +194,26 @@ func (s *Service) discoverSearchableConnectors(ctx context.Context, embedder emb
 	}
 
 	return searchableConnectors, nil
+}
+
+// createGitHubConnector creates a GitHub connector from a connector configuration
+func (s *Service) createGitHubConnector(conn *connectors.Connector) (SearchableConnector, error) {
+	// Extract GitHub token from config
+	token, ok := conn.Config["token"].(string)
+	if !ok || token == "" {
+		return nil, fmt.Errorf("missing or invalid GitHub token in connector config")
+	}
+
+	// Create GitHub HTTP client
+	client := github.NewHTTPClient(token)
+
+	// Create and return GitHub connector
+	gitHubConnector := github.NewConnector(conn.ID, client)
+	if gitHubConnector == nil {
+		return nil, fmt.Errorf("failed to instantiate GitHub connector")
+	}
+
+	return gitHubConnector, nil
 }
 
 // ConnectorResult holds search results from a single connector
