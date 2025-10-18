@@ -8,15 +8,15 @@ import (
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
+	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/schema"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 )
 
-
 // SearchableConnector defines the interface for connectors that support search operations
 type SearchableConnector interface {
-// Search performs a search operation and returns results
+	// Search performs a search operation and returns results
 	Search(ctx context.Context, req *schema.SearchRequest) ([]schema.SearchResultItem, error)
 	// GetID returns the connector's unique identifier
 	GetID() string
@@ -30,27 +30,47 @@ type Service struct {
 	vectorStore      vectorstore.VectorStore
 	merger           *Merger
 	detector         *Detector
+	metrics          *observability.FederationMetrics
 	timeout          time.Duration
 }
+
+// NewService creates a new federation service without metrics
 func NewService(manager *connectors.Manager, vectorStore vectorstore.VectorStore) *Service {
+	return NewServiceWithMetrics(manager, vectorStore, nil)
+}
+
+// NewServiceWithMetrics creates a new federation service with optional metrics
+func NewServiceWithMetrics(manager *connectors.Manager, vectorStore vectorstore.VectorStore, metrics *observability.FederationMetrics) *Service {
 	return &Service{
 		connectorManager: manager,
 		vectorStore:      vectorStore,
 		merger:           NewMerger(),
 		detector:         NewDetector(),
+		metrics:          metrics,
 		timeout:          10 * time.Second, // Default timeout
 	}
 }
 
 // Search performs a federated search across all active searchable connectors
-// Search performs a federated search across all active searchable connectors
 func (s *Service) Search(ctx context.Context, req *schema.SearchRequest, embedder embedding.Embedder) (*schema.SearchResponse, error) {
 	startTime := time.Now()
+	status := "success"
+	defer func() {
+		if s.metrics != nil {
+			duration := time.Since(startTime)
+			s.metrics.RecordFederationSearch(status, duration, 0)
+		}
+	}()
 
 	// Discover active searchable connectors
 	searchableConnectors, err := s.discoverSearchableConnectors(ctx, embedder)
 	if err != nil {
+		status = "error"
 		return nil, fmt.Errorf("failed to discover connectors: %w", err)
+	}
+
+	if s.metrics != nil {
+		s.metrics.UpdateActiveConnectors(len(searchableConnectors))
 	}
 
 	// If no connectors found, fall back to filesystem
@@ -62,11 +82,32 @@ func (s *Service) Search(ctx context.Context, req *schema.SearchRequest, embedde
 	// Execute parallel searches
 	connectorResults, err := s.executeParallelSearches(ctx, req, searchableConnectors)
 	if err != nil {
+		status = "error"
 		return nil, fmt.Errorf("parallel search execution failed: %w", err)
 	}
 
+	// Record merged results before merge
+	totalBeforeMerge := 0
+	for _, cr := range connectorResults {
+		totalBeforeMerge += len(cr.Results)
+	}
+	if s.metrics != nil {
+		s.metrics.RecordMergedResults("before_merge", totalBeforeMerge)
+	}
+
 	// Merge results from all connectors
+	mergeStart := time.Now()
 	mergedResults := s.merger.Merge(connectorResults)
+	if s.metrics != nil {
+		s.metrics.RecordMergeDuration(time.Since(mergeStart))
+		s.metrics.RecordMergedResults("after_merge", len(mergedResults))
+
+		// Calculate deduplication ratio
+		if totalBeforeMerge > 0 {
+			dedupRatio := float64(totalBeforeMerge-len(mergedResults)) / float64(totalBeforeMerge)
+			s.metrics.RecordDeduplicationRatio(dedupRatio)
+		}
+	}
 
 	// Apply pagination
 	topK := req.TopK
@@ -94,6 +135,12 @@ func (s *Service) Search(ctx context.Context, req *schema.SearchRequest, embedde
 			end = len(mergedResults)
 		}
 		paginatedResults = mergedResults[offset:end]
+	}
+
+	// Record pagination and final results
+	if s.metrics != nil {
+		s.metrics.RecordPaginationOperation(fmt.Sprintf("%d", topK))
+		s.metrics.RecordMergedResults("after_pagination", len(paginatedResults))
 	}
 
 	queryTime := float64(time.Since(startTime).Milliseconds())
@@ -160,15 +207,36 @@ func (s *Service) executeParallelSearches(ctx context.Context, req *schema.Searc
 
 	// Launch goroutines for each connector
 	var wg sync.WaitGroup
+	startTimes := make(map[string]time.Time)
+	mu := sync.Mutex{}
+
 	for _, conn := range connectors {
 		wg.Add(1)
 		go func(connector SearchableConnector) {
 			defer wg.Done()
+
+			connectorStartTime := time.Now()
+			mu.Lock()
+			startTimes[connector.GetID()] = connectorStartTime
+			mu.Unlock()
+
 			results, err := connector.Search(searchCtx, req)
+
+			connectorDuration := time.Since(connectorStartTime)
+			connectorStatus := "success"
 			if err != nil {
+				connectorStatus = "error"
+				if s.metrics != nil {
+					s.metrics.RecordConnectorError(connector.GetID(), connector.GetType(), "search_error")
+				}
 				errorChan <- fmt.Errorf("connector %s (%s): %w", connector.GetID(), connector.GetType(), err)
 				return
 			}
+
+			if s.metrics != nil {
+				s.metrics.RecordConnectorSearch(connector.GetID(), connector.GetType(), connectorStatus, connectorDuration, len(results))
+			}
+
 			resultChan <- ConnectorResult{
 				ConnectorID:   connector.GetID(),
 				ConnectorType: connector.GetType(),
@@ -183,6 +251,7 @@ func (s *Service) executeParallelSearches(ctx context.Context, req *schema.Searc
 		close(resultChan)
 		close(errorChan)
 	}()
+
 	// Collect results
 	var allResults []ConnectorResult
 	var errors []error
@@ -202,6 +271,12 @@ func (s *Service) executeParallelSearches(ctx context.Context, req *schema.Searc
 				errors = append(errors, err)
 			}
 		case <-searchCtx.Done():
+			// Record timeouts
+			if s.metrics != nil {
+				for _, conn := range connectors {
+					s.metrics.RecordConnectorTimeout(conn.GetID(), conn.GetType())
+				}
+			}
 			return nil, fmt.Errorf("search timeout after %v", s.timeout)
 		}
 
@@ -216,8 +291,31 @@ func (s *Service) executeParallelSearches(ctx context.Context, req *schema.Searc
 		// For now, we'll just continue with successful results
 	}
 
-	return allResults, nil
+	// Calculate and record parallel execution efficiency
+	if s.metrics != nil && len(allResults) > 0 {
+		totalSequentialTime := float64(0)
+		maxParallelTime := float64(0)
 
+		for _, result := range allResults {
+			if startTime, ok := startTimes[result.ConnectorID]; ok {
+				duration := float64(time.Since(startTime).Milliseconds())
+				totalSequentialTime += duration
+				if duration > maxParallelTime {
+					maxParallelTime = duration
+				}
+			}
+		}
+
+		if maxParallelTime > 0 && totalSequentialTime > 0 {
+			efficiency := (totalSequentialTime / float64(len(connectors))) / maxParallelTime
+			if efficiency > 1.0 {
+				efficiency = 1.0
+			}
+			s.metrics.UpdateParallelExecutionEfficiency(efficiency)
+		}
+	}
+
+	return allResults, nil
 }
 
 // FilesystemConnector implements SearchableConnector using the vector store
@@ -253,7 +351,7 @@ func (f *FilesystemConnector) Search(ctx context.Context, req *schema.SearchRequ
 
 	opts := vectorstore.SearchOptions{
 		Limit:   req.Offset + topK + 1, // Request enough for pagination + 1 to detect more
-		Offset:  0, // Connectors return all results, pagination at federation level
+		Offset:  0,                      // Connectors return all results, pagination at federation level
 		Filters: make(map[string]interface{}),
 	}
 
