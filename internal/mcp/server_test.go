@@ -17,6 +17,7 @@ import (
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	searchschema "github.com/ferg-cod3s/conexus/internal/schema"
 )
 
 // Mock embedder for testing
@@ -284,7 +285,7 @@ func TestServer_Handle_ContextSearch(t *testing.T) {
 
 	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
-	req := SearchRequest{
+	req := searchschema.SearchRequest{
 		Query: "test query",
 		TopK:  5,
 	}

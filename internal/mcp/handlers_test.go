@@ -10,6 +10,7 @@ import (
 	"regexp"
 
 	"github.com/ferg-cod3s/conexus/internal/embedding"
+	"github.com/ferg-cod3s/conexus/internal/schema"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,7 @@ func TestHandleContextSearch_Success(t *testing.T) {
 	}
 
 	// Create search request
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "authentication",
 		TopK:  10,
 	}
@@ -66,8 +67,8 @@ func TestHandleContextSearch_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	resp, ok := result.(SearchResponse)
-	require.True(t, ok, "result should be SearchResponse")
+	resp, ok := result.(schema.SearchResponse)
+	require.True(t, ok, "result should be schema.SearchResponse")
 
 	assert.GreaterOrEqual(t, len(resp.Results), 0) // Mock embedder returns zero vectors
 	assert.Equal(t, len(resp.Results), resp.TotalCount)
@@ -82,12 +83,12 @@ func TestHandleContextSearch_WithFilters(t *testing.T) {
 	ctx := context.Background()
 
 	// Create search request with filters
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "test query",
 		TopK:  5,
-		Filters: &SearchFilters{
+		Filters: &schema.SearchFilters{
 			SourceTypes: []string{"file", "github"},
-			DateRange: &DateRange{
+			DateRange: &schema.DateRange{
 				From: time.Now().Add(-24 * time.Hour).Format(time.RFC3339),
 				To:   time.Now().Format(time.RFC3339),
 			},
@@ -104,7 +105,7 @@ func TestHandleContextSearch_WithFilters(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	resp, ok := result.(SearchResponse)
+	resp, ok := result.(schema.SearchResponse)
 	require.True(t, ok)
 	assert.NotNil(t, resp.Results)
 }
@@ -131,7 +132,7 @@ func TestHandleContextSearch_MissingQuery(t *testing.T) {
 	server := NewServer(nil, nil, "", store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
 
 	ctx := context.Background()
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "", // Empty query
 		TopK:  10,
 	}
@@ -168,7 +169,7 @@ func TestHandleContextSearch_TopKDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := SearchRequest{
+			req := schema.SearchRequest{
 				Query: "test",
 				TopK:  tt.topK,
 			}
@@ -179,7 +180,7 @@ func TestHandleContextSearch_TopKDefaults(t *testing.T) {
 			result, err := server.handleContextSearch(ctx, reqJSON)
 			assert.NoError(t, err)
 
-			resp, ok := result.(SearchResponse)
+			resp, ok := result.(schema.SearchResponse)
 			require.True(t, ok)
 			// The actual limit would be reflected in results, but we can verify no error
 			assert.NotNil(t, resp.Results)
@@ -1869,7 +1870,7 @@ func TestHandleContextSearch_NoResults(t *testing.T) {
 	// Don't add any documents - empty store
 
 	// Execute search for query that won't match anything
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "very specific query that definitely wont match anything in empty store",
 		TopK:  20,
 	}
@@ -1883,7 +1884,7 @@ func TestHandleContextSearch_NoResults(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	resp, ok := result.(SearchResponse)
+	resp, ok := result.(schema.SearchResponse)
 	require.True(t, ok)
 
 	// Verify empty results
@@ -1923,7 +1924,7 @@ func TestHandleContextSearch_MultipleResults(t *testing.T) {
 	}
 
 	// Execute search
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "authentication security",
 		TopK:  10, // Request 10 results
 	}
@@ -1937,13 +1938,14 @@ func TestHandleContextSearch_MultipleResults(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	resp, ok := result.(SearchResponse)
+	resp, ok := result.(schema.SearchResponse)
 	require.True(t, ok)
 
 	// Should return up to 10 results (limited by TopK)
 	assert.LessOrEqual(t, len(resp.Results), 10, "Should respect TopK limit")
 	assert.GreaterOrEqual(t, len(resp.Results), 1, "Should have at least some results")
-	assert.Equal(t, len(resp.Results), resp.TotalCount, "TotalCount should match results length")
+	assert.GreaterOrEqual(t, resp.TotalCount, len(resp.Results), "TotalCount should be >= returned results")
+	assert.Greater(t, resp.TotalCount, len(resp.Results), "With pagination, TotalCount should exceed returned results")
 	assert.True(t, resp.HasMore, "HasMore should be true when more results exist")
 }
 
@@ -1994,7 +1996,7 @@ func TestHandleContextSearch_ResultRanking(t *testing.T) {
 	}
 
 	// Execute search
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "authentication security",
 		TopK:  10,
 	}
@@ -2006,7 +2008,7 @@ func TestHandleContextSearch_ResultRanking(t *testing.T) {
 
 	// Verify
 	assert.NoError(t, err)
-	resp, ok := result.(SearchResponse)
+	resp, ok := result.(schema.SearchResponse)
 	require.True(t, ok)
 
 	// Verify results are sorted by score (descending)
@@ -2043,7 +2045,7 @@ func TestHandleContextSearch_SQLInjection(t *testing.T) {
 
 	for _, maliciousQuery := range sqlInjectionQueries {
 		t.Run(maliciousQuery, func(t *testing.T) {
-			req := SearchRequest{
+			req := schema.SearchRequest{
 				Query: maliciousQuery,
 				TopK:  10,
 			}
@@ -2058,7 +2060,7 @@ func TestHandleContextSearch_SQLInjection(t *testing.T) {
 			assert.NoError(t, err, "SQL injection should be safely handled")
 			assert.NotNil(t, result, "Should return valid result")
 
-			resp, ok := result.(SearchResponse)
+			resp, ok := result.(schema.SearchResponse)
 			require.True(t, ok)
 			assert.NotNil(t, resp.Results, "Should have results array (even if empty)")
 		})
@@ -2082,7 +2084,7 @@ func TestHandleContextSearch_XSSAttack(t *testing.T) {
 
 	for _, xssQuery := range xssQueries {
 		t.Run(xssQuery, func(t *testing.T) {
-			req := SearchRequest{
+			req := schema.SearchRequest{
 				Query: xssQuery,
 				TopK:  10,
 			}
@@ -2096,7 +2098,7 @@ func TestHandleContextSearch_XSSAttack(t *testing.T) {
 			assert.NoError(t, err, "XSS attempt should be safely handled")
 			assert.NotNil(t, result)
 
-			resp, ok := result.(SearchResponse)
+			resp, ok := result.(schema.SearchResponse)
 			require.True(t, ok)
 			assert.NotNil(t, resp.Results)
 		})
@@ -2122,7 +2124,7 @@ func TestHandleContextSearch_SpecialCharacters(t *testing.T) {
 
 	for _, specialQuery := range specialChars {
 		t.Run(fmt.Sprintf("special-%s", specialQuery), func(t *testing.T) {
-			req := SearchRequest{
+			req := schema.SearchRequest{
 				Query: specialQuery,
 				TopK:  10,
 			}
@@ -2136,7 +2138,7 @@ func TestHandleContextSearch_SpecialCharacters(t *testing.T) {
 			assert.NoError(t, err, "Special characters should be safely handled")
 			assert.NotNil(t, result)
 
-			resp, ok := result.(SearchResponse)
+			resp, ok := result.(schema.SearchResponse)
 			require.True(t, ok)
 			assert.NotNil(t, resp.Results)
 		})
@@ -2154,7 +2156,7 @@ func TestHandleContextSearch_LongQuery(t *testing.T) {
 	// Create a very long query (>500 chars)
 	longQuery := strings.Repeat("authentication security implementation patterns ", 20) // ~900 chars
 
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: longQuery,
 		TopK:  10,
 	}
@@ -2168,7 +2170,7 @@ func TestHandleContextSearch_LongQuery(t *testing.T) {
 	assert.NoError(t, err, "Long query should be handled")
 	assert.NotNil(t, result)
 
-	resp, ok := result.(SearchResponse)
+	resp, ok := result.(schema.SearchResponse)
 	require.True(t, ok)
 	assert.NotNil(t, resp.Results)
 	assert.GreaterOrEqual(t, resp.QueryTime, float64(0))
@@ -2208,7 +2210,7 @@ func TestHandleContextSearch_UnicodeQuery(t *testing.T) {
 
 	for _, unicodeQuery := range unicodeQueries {
 		t.Run(unicodeQuery, func(t *testing.T) {
-			req := SearchRequest{
+			req := schema.SearchRequest{
 				Query: unicodeQuery,
 				TopK:  10,
 			}
@@ -2222,7 +2224,7 @@ func TestHandleContextSearch_UnicodeQuery(t *testing.T) {
 			assert.NoError(t, err, "Unicode query should be handled")
 			assert.NotNil(t, result)
 
-			resp, ok := result.(SearchResponse)
+			resp, ok := result.(schema.SearchResponse)
 			require.True(t, ok)
 			assert.NotNil(t, resp.Results)
 		})
@@ -2248,7 +2250,7 @@ func TestHandleContextSearch_WhitespaceQuery(t *testing.T) {
 
 	for _, tc := range whitespaceQueries {
 		t.Run(tc.name, func(t *testing.T) {
-			req := SearchRequest{
+			req := schema.SearchRequest{
 				Query: tc.query,
 				TopK:  10,
 			}
@@ -2295,7 +2297,7 @@ func TestHandleContextSearch_ResultLimit(t *testing.T) {
 	}
 
 	// Request more than max limit (should cap at 100 internally)
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "authentication",
 		TopK:  150, // Request 150, should be capped at 100
 	}
@@ -2306,7 +2308,7 @@ func TestHandleContextSearch_ResultLimit(t *testing.T) {
 	result, err := server.handleContextSearch(ctx, reqJSON)
 
 	assert.NoError(t, err)
-	resp, ok := result.(SearchResponse)
+	resp, ok := result.(schema.SearchResponse)
 	require.True(t, ok)
 
 	// Should cap at max 100 results (per TopKDefaults test, over 100 capped to 100)
@@ -2338,7 +2340,7 @@ func TestHandleContextSearch_Pagination(t *testing.T) {
 	}
 
 	// First page: offset=0, limit=10
-	req1 := SearchRequest{
+	req1 := schema.SearchRequest{
 		Query:  "authentication",
 		TopK:   10,
 		Offset: 0,
@@ -2350,14 +2352,14 @@ func TestHandleContextSearch_Pagination(t *testing.T) {
 	result1, err := server.handleContextSearch(ctx, reqJSON1)
 	assert.NoError(t, err)
 
-	resp1, ok := result1.(SearchResponse)
+	resp1, ok := result1.(schema.SearchResponse)
 	require.True(t, ok)
 	assert.LessOrEqual(t, len(resp1.Results), 10)
 	assert.Equal(t, 0, resp1.Offset)
 	assert.True(t, resp1.HasMore, "First page should have more results")
 
 	// Second page: offset=10, limit=10
-	req2 := SearchRequest{
+	req2 := schema.SearchRequest{
 		Query:  "authentication",
 		TopK:   10,
 		Offset: 10,
@@ -2369,13 +2371,13 @@ func TestHandleContextSearch_Pagination(t *testing.T) {
 	result2, err := server.handleContextSearch(ctx, reqJSON2)
 	assert.NoError(t, err)
 
-	resp2, ok := result2.(SearchResponse)
+	resp2, ok := result2.(schema.SearchResponse)
 	require.True(t, ok)
 	assert.LessOrEqual(t, len(resp2.Results), 10)
 	assert.Equal(t, 10, resp2.Offset)
 
 	// Third page: offset=20, limit=10
-	req3 := SearchRequest{
+	req3 := schema.SearchRequest{
 		Query:  "authentication",
 		TopK:   10,
 		Offset: 20,
@@ -2387,7 +2389,7 @@ func TestHandleContextSearch_Pagination(t *testing.T) {
 	result3, err := server.handleContextSearch(ctx, reqJSON3)
 	assert.NoError(t, err)
 
-	resp3, ok := result3.(SearchResponse)
+	resp3, ok := result3.(schema.SearchResponse)
 	require.True(t, ok)
 	assert.LessOrEqual(t, len(resp3.Results), 10)
 	assert.Equal(t, 20, resp3.Offset)
@@ -2432,7 +2434,7 @@ func TestHandleContextSearch_HasMoreFlag(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := SearchRequest{
+			req := schema.SearchRequest{
 				Query:  "test",
 				TopK:   tc.topK,
 				Offset: tc.offset,
@@ -2444,7 +2446,7 @@ func TestHandleContextSearch_HasMoreFlag(t *testing.T) {
 			result, err := server.handleContextSearch(ctx, reqJSON)
 			assert.NoError(t, err)
 
-			resp, ok := result.(SearchResponse)
+			resp, ok := result.(schema.SearchResponse)
 			require.True(t, ok)
 
 			assert.Equal(t, tc.expectMore, resp.HasMore, 
@@ -2502,7 +2504,7 @@ func TestHandleContextSearch_ScoreSorting(t *testing.T) {
 	}
 
 	// Execute search
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "authentication security patterns",
 		TopK:  10,
 	}
@@ -2513,7 +2515,7 @@ func TestHandleContextSearch_ScoreSorting(t *testing.T) {
 	result, err := server.handleContextSearch(ctx, reqJSON)
 	assert.NoError(t, err)
 
-	resp, ok := result.(SearchResponse)
+	resp, ok := result.(schema.SearchResponse)
 	require.True(t, ok)
 
 	// Verify strict descending order
@@ -2560,7 +2562,7 @@ func TestHandleContextSearch_ScoreNormalization(t *testing.T) {
 	}
 
 	// Execute search
-	req := SearchRequest{
+	req := schema.SearchRequest{
 		Query: "authentication security",
 		TopK:  20,
 	}
@@ -2571,7 +2573,7 @@ func TestHandleContextSearch_ScoreNormalization(t *testing.T) {
 	result, err := server.handleContextSearch(ctx, reqJSON)
 	assert.NoError(t, err)
 
-	resp, ok := result.(SearchResponse)
+	resp, ok := result.(schema.SearchResponse)
 	require.True(t, ok)
 
 	// Verify all scores are normalized to 0.0-1.0 range

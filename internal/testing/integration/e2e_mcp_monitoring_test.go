@@ -63,7 +63,7 @@ func TestEndToEndMCPWithMonitoring(t *testing.T) {
 		indexReq := map[string]interface{}{
 			"name": "context.index_control",
 			"arguments": map[string]interface{}{
-				"action": "index",
+				"action": "start",
 				"content": map[string]interface{}{
 					"path":        "/test/file.go",
 					"content":     "package main\n\nfunc main() {\n\tprintln(\"Hello, World!\")\n}",

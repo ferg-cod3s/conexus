@@ -6,6 +6,7 @@ import (
 	
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	searchschema "github.com/ferg-cod3s/conexus/internal/schema"
 )
 
 func TestGetToolDefinitions(t *testing.T) {
@@ -143,17 +144,17 @@ func TestResourceDefinition_Constants(t *testing.T) {
 }
 
 func TestSearchRequest_JSONSerialization(t *testing.T) {
-	req := SearchRequest{
+	req := searchschema.SearchRequest{
 		Query: "test query",
 		TopK:  10,
-		Filters: &SearchFilters{
+		Filters: &searchschema.SearchFilters{
 			SourceTypes: []string{"file", "github"},
-			DateRange: &DateRange{
+			DateRange: &searchschema.DateRange{
 				From: "2024-01-01",
 				To:   "2024-12-31",
 			},
 		},
-		WorkContext: &WorkContext{
+		WorkContext: &searchschema.WorkContextFilters{
 			ActiveFile:    "main.go",
 			GitBranch:     "main",
 			OpenTicketIDs: []string{"TASK-123"},
@@ -163,7 +164,7 @@ func TestSearchRequest_JSONSerialization(t *testing.T) {
 	data, err := json.Marshal(req)
 	require.NoError(t, err)
 	
-	var decoded SearchRequest
+	var decoded searchschema.SearchRequest
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 	
@@ -175,8 +176,8 @@ func TestSearchRequest_JSONSerialization(t *testing.T) {
 }
 
 func TestSearchResponse_JSONSerialization(t *testing.T) {
-	resp := SearchResponse{
-		Results: []SearchResultItem{
+	resp := searchschema.SearchResponse{
+		Results: []searchschema.SearchResultItem{
 			{
 				ID:         "test-1",
 				Content:    "test content",
@@ -194,7 +195,7 @@ func TestSearchResponse_JSONSerialization(t *testing.T) {
 	data, err := json.Marshal(resp)
 	require.NoError(t, err)
 	
-	var decoded SearchResponse
+	var decoded searchschema.SearchResponse
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 	

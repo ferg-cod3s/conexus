@@ -19,11 +19,13 @@ import (
 	"github.com/ferg-cod3s/conexus/internal/mcp"
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
+	"github.com/ferg-cod3s/conexus/internal/schema"
 	"github.com/ferg-cod3s/conexus/internal/security"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore/sqlite"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
+	"github.com/getsentry/sentry-go"
 )
 
 const Version = "0.1.0-alpha"
@@ -124,6 +126,23 @@ func main() {
 
 	// Initialize error handler
 	errorHandler := observability.NewErrorHandler(logger, metrics, cfg.Observability.Sentry.Enabled)
+	// Initialize Sentry if enabled
+	if cfg.Observability.Sentry.Enabled {
+		err = sentry.Init(sentry.ClientOptions{
+			Dsn:         cfg.Observability.Sentry.DSN,
+			Environment: cfg.Observability.Sentry.Environment,
+			Release:     cfg.Observability.Sentry.Release,
+			SampleRate:  cfg.Observability.Sentry.SampleRate,
+		})
+		if err != nil {
+			logger.Error("Failed to initialize Sentry", "error", err)
+			os.Exit(1)
+		}
+		defer sentry.Flush(2 * time.Second)
+		logger.Info("Sentry error reporting enabled",
+			"environment", cfg.Observability.Sentry.Environment,
+			"sample_rate", cfg.Observability.Sentry.SampleRate)
+	}
 
 	// Check if we're running in HTTP mode (has PORT env or config)
 	if cfg.Server.Port > 0 {
@@ -495,7 +514,7 @@ func sendJSONRPCError(w http.ResponseWriter, id interface{}, code int, message s
 }
 
 func (h *mcpHTTPHandler) handleContextSearch(ctx context.Context, args json.RawMessage) (interface{}, error) {
-	var req mcp.SearchRequest
+	var req schema.SearchRequest
 	startTime := time.Now()
 
 	if err := json.Unmarshal(args, &req); err != nil {
@@ -599,7 +618,7 @@ func (h *mcpHTTPHandler) handleContextSearch(ctx context.Context, args json.RawM
 	}
 
 	// Convert results to response format
-	searchResults := make([]mcp.SearchResultItem, 0, len(results))
+	searchResults := make([]schema.SearchResultItem, 0, len(results))
 	for _, r := range results {
 		// Extract source type from metadata
 		sourceType := "file" // default
@@ -607,7 +626,7 @@ func (h *mcpHTTPHandler) handleContextSearch(ctx context.Context, args json.RawM
 			sourceType = st
 		}
 
-		searchResults = append(searchResults, mcp.SearchResultItem{
+		searchResults = append(searchResults, schema.SearchResultItem{
 			ID:         r.Document.ID,
 			Content:    r.Document.Content,
 			Score:      r.Score,
@@ -616,7 +635,7 @@ func (h *mcpHTTPHandler) handleContextSearch(ctx context.Context, args json.RawM
 		})
 	}
 
-	return mcp.SearchResponse{
+	return schema.SearchResponse{
 		Results:    searchResults,
 		TotalCount: len(searchResults),
 		QueryTime:  queryTime,

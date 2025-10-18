@@ -1,0 +1,11 @@
+{
+  "mcp": {
+    "conexus": {
+      "command": "bash",
+      "args": ["-c", "cd /home/f3rg/src/github/conexus && ./bin/conexus"],
+      "env": {
+        "CONEXUS_DB_PATH": "/home/f3rg/src/github/conexus/data/conexus.db"
+      }
+    }
+  }
+}

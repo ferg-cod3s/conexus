@@ -83,7 +83,7 @@ type SentryConfig struct {
 // Default values
 const (
 	DefaultHost             = "0.0.0.0"
-	DefaultPort             = 8080
+	DefaultPort = 8080
 	DefaultDBPath           = "./data/conexus.db"
 	DefaultRootPath         = "."
 	DefaultChunkSize        = 512

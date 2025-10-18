@@ -242,3 +242,4 @@ func (v *ValidationHook) OnPreShutdown(ctx context.Context, connector *Connector
 func (v *ValidationHook) OnPostShutdown(ctx context.Context, connector *Connector) error {
 	return nil
 }
+

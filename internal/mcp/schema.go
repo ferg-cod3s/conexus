@@ -1,7 +1,7 @@
-// Package mcp implements the Model Context Protocol server for Conexus.
 package mcp
 
 import "encoding/json"
+
 
 // Tool names exposed by the MCP server
 const (
@@ -16,62 +16,6 @@ const (
 	ResourceScheme = "engine"
 	ResourceFiles  = "files"
 )
-
-// SearchRequest represents the input for context.search tool
-type SearchRequest struct {
-	Query       string         `json:"query"`
-	WorkContext *WorkContext   `json:"work_context,omitempty"`
-	TopK        int            `json:"top_k,omitempty"`
-	Offset      int            `json:"offset,omitempty"` // For pagination
-	Filters     *SearchFilters `json:"filters,omitempty"`
-}
-
-// WorkContext provides information about the user's current working context
-type WorkContext struct {
-	ActiveFile    string   `json:"active_file,omitempty"`
-	GitBranch     string   `json:"git_branch,omitempty"`
-	OpenTicketIDs []string `json:"open_ticket_ids,omitempty"`
-}
-
-// SearchFilters defines filtering options for search
-type SearchFilters struct {
-	SourceTypes []string            `json:"source_types,omitempty"`
-	DateRange   *DateRange          `json:"date_range,omitempty"`
-	WorkContext *WorkContextFilters `json:"work_context,omitempty"`
-}
-
-// WorkContextFilters defines filters based on work context
-type WorkContextFilters struct {
-	ActiveFile    string   `json:"active_file,omitempty"`
-	GitBranch     string   `json:"git_branch,omitempty"`
-	OpenTicketIDs []string `json:"open_ticket_ids,omitempty"`
-	BoostActive   bool     `json:"boost_active,omitempty"` // Boost results related to active file/tickets
-}
-
-// DateRange specifies a time range filter
-type DateRange struct {
-	From string `json:"from,omitempty"` // ISO 8601 date-time
-	To   string `json:"to,omitempty"`   // ISO 8601 date-time
-}
-
-// SearchResponse represents the output of context.search tool
-type SearchResponse struct {
-	Results    []SearchResultItem `json:"results"`
-	TotalCount int                `json:"total_count"`
-	QueryTime  float64            `json:"query_time_ms"`
-	Offset     int                `json:"offset,omitempty"`
-	Limit      int                `json:"limit,omitempty"`
-	HasMore    bool               `json:"has_more,omitempty"`
-}
-
-// SearchResultItem represents a single search result
-type SearchResultItem struct {
-	ID         string                 `json:"id"`
-	Content    string                 `json:"content"`
-	Score      float32                `json:"score"`
-	SourceType string                 `json:"source_type"`
-	Metadata   map[string]interface{} `json:"metadata"`
-}
 
 // GetRelatedInfoRequest represents the input for context.get_related_info tool
 type GetRelatedInfoRequest struct {

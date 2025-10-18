@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
+	"github.com/ferg-cod3s/conexus/internal/federation"
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/indexer"
 	"github.com/ferg-cod3s/conexus/internal/observability"
@@ -20,16 +21,19 @@ import (
 )
 
 // Server implements the MCP protocol server
+// Server implements the MCP protocol server
 type Server struct {
-	vectorStore    vectorstore.VectorStore
-	rootPath       string
-	connectorStore connectors.ConnectorStore
-	embedder       embedding.Embedder
-	searchCache    *search.SearchCache
-	metrics        *observability.MetricsCollector
-	errorHandler   *observability.ErrorHandler
-	jsonrpcSrv     *protocol.Server
-	indexer        indexer.IndexController
+	vectorStore     vectorstore.VectorStore
+	rootPath        string
+	connectorStore  connectors.ConnectorStore
+	embedder        embedding.Embedder
+	searchCache     *search.SearchCache
+	metrics         *observability.MetricsCollector
+	errorHandler    *observability.ErrorHandler
+	jsonrpcSrv      *protocol.Server
+	indexer         indexer.IndexController
+	federationSvc   *federation.Service
+	connectorManager *connectors.Manager
 }
 
 // NewServer creates a new MCP server
@@ -45,17 +49,25 @@ func NewServer(
 	indexer indexer.IndexController,
 ) *Server {
 	// Initialize search cache (max 100 entries, 5 minute TTL)
+	// Create connector manager
+	connectorManager := connectors.NewManager(connectorStore)
+	
+	// Create federation service
+	federationSvc := federation.NewService(connectorManager, vectorStore)
+	
 	searchCache := search.NewSearchCache(100, 5*time.Minute)
 
 	s := &Server{
-		vectorStore:    vectorStore,
-		rootPath:       rootPath,
-		connectorStore: connectorStore,
-		embedder:       embedder,
-		searchCache:    searchCache,
-		metrics:        metrics,
-		errorHandler:   errorHandler,
-		indexer:        indexer,
+		vectorStore:      vectorStore,
+		rootPath:         rootPath,
+		connectorStore:   connectorStore,
+		embedder:         embedder,
+		searchCache:      searchCache,
+		metrics:          metrics,
+		errorHandler:     errorHandler,
+		indexer:          indexer,
+		federationSvc:    federationSvc,
+		connectorManager: connectorManager,
 	}
 
 	// Create JSON-RPC server with this server as handler
