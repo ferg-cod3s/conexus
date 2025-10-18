@@ -65,7 +65,7 @@ func TestSentryErrorCapture(t *testing.T) {
 				Format: "json",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics, _ := NewTestMetricsCollector("test")
+			metrics := observability.NewMetricsCollector("test")
 			errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 			ctx := context.Background()
@@ -108,7 +108,7 @@ func TestSentryTracing(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics, _ := NewTestMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -154,7 +154,7 @@ func TestSentryUserContext(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics, _ := NewTestMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -234,7 +234,7 @@ func TestSentryErrorRecovery(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics, _ := NewTestMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -274,6 +274,18 @@ func TestSentryConfigurationValidation(t *testing.T) {
 				Server: config.ServerConfig{
 					Host: "localhost",
 					Port: 9000,
+				},
+				Database: config.DatabaseConfig{
+					Path: ":memory:",
+				},
+				Indexer: config.IndexerConfig{
+					RootPath:      "/tmp/test-indexer-valid",
+					ChunkSize:     1024,
+					ChunkOverlap:  100,
+				},
+				Logging: config.LoggingConfig{
+					Level:  "debug",
+					Format: "json",
 				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
@@ -369,7 +381,7 @@ func TestSentryHealthCheck(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics, _ := NewTestMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
