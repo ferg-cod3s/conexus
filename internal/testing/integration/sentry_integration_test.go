@@ -65,7 +65,7 @@ func TestSentryErrorCapture(t *testing.T) {
 				Format: "json",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector("test")
+			metrics, _ := NewTestMetricsCollector("test")
 			errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 			ctx := context.Background()
@@ -108,7 +108,7 @@ func TestSentryTracing(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics, _ := NewTestMetricsCollector("test")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -154,7 +154,7 @@ func TestSentryUserContext(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics, _ := NewTestMetricsCollector("test")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -234,7 +234,7 @@ func TestSentryErrorRecovery(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics, _ := NewTestMetricsCollector("test")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -271,6 +271,10 @@ func TestSentryConfigurationValidation(t *testing.T) {
 		{
 			name: "valid_sentry_config",
 			config: config.Config{
+				Server: config.ServerConfig{
+					Host: "localhost",
+					Port: 9000,
+				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
 						Enabled:     true,
@@ -286,6 +290,10 @@ func TestSentryConfigurationValidation(t *testing.T) {
 		{
 			name: "missing_dsn_when_enabled",
 			config: config.Config{
+				Server: config.ServerConfig{
+					Host: "localhost",
+					Port: 9001,
+				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
 						Enabled:     true,
@@ -300,6 +308,10 @@ func TestSentryConfigurationValidation(t *testing.T) {
 		{
 			name: "invalid_sample_rate_high",
 			config: config.Config{
+				Server: config.ServerConfig{
+					Host: "localhost",
+					Port: 9002,
+				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
 						Enabled:     true,
@@ -315,6 +327,10 @@ func TestSentryConfigurationValidation(t *testing.T) {
 		{
 			name: "invalid_sample_rate_negative",
 			config: config.Config{
+				Server: config.ServerConfig{
+					Host: "localhost",
+					Port: 9003,
+				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
 						Enabled:     true,
@@ -353,7 +369,7 @@ func TestSentryHealthCheck(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics, _ := NewTestMetricsCollector("test")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
