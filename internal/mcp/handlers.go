@@ -159,7 +159,8 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		}
 
 		// Perform hybrid search (combines vector + BM25)
-		results, searchErr := s.vectorStore.SearchHybrid(ctx, req.Query, queryVec.Vector, opts)
+		var searchErr error
+		results, searchErr = s.vectorStore.SearchHybrid(ctx, req.Query, queryVec.Vector, opts)
 		if searchErr != nil {
 			errorCtx := observability.ExtractErrorContext(ctx, "context.search")
 			errorCtx.ErrorType = "search_error"
