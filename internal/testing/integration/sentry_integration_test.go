@@ -19,6 +19,15 @@ func TestSentryErrorCapture(t *testing.T) {
 		t.Skip("Skipping Sentry integration test in short mode")
 	}
 
+	// Create error handler once, reuse across all subtests
+	loggerCfg := observability.LoggerConfig{
+		Level:  "debug",
+		Format: "json",
+	}
+	logger := observability.NewLogger(loggerCfg)
+	metrics := observability.NewMetricsCollector("test-sentry-error-capture")
+	errorHandler := observability.NewErrorHandler(logger, metrics, true)
+
 	tests := []struct {
 		name        string
 		errorType   string
@@ -59,15 +68,6 @@ func TestSentryErrorCapture(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create error handler with Sentry enabled
-			loggerCfg := observability.LoggerConfig{
-				Level:  "debug",
-				Format: "json",
-			}
-			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector("test")
-			errorHandler := observability.NewErrorHandler(logger, metrics, true)
-
 			ctx := context.Background()
 
 			// Create test error
@@ -108,7 +108,7 @@ func TestSentryTracing(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test-sentry-tracing")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -154,7 +154,7 @@ func TestSentryUserContext(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test-sentry-user-context")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -234,7 +234,7 @@ func TestSentryErrorRecovery(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test-sentry-error-recovery")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -381,7 +381,7 @@ func TestSentryHealthCheck(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test-sentry-health-check")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -403,6 +403,9 @@ func TestSentryHealthCheck(t *testing.T) {
 
 	if status == "enabled" {
 		// If enabled, check additional fields
-		assert.Contains(t, sentryHealth, "message", "Enabled Sentry should have message")
+		assert.Contains(t, sentryHealth, "configured", "Enabled Sentry should have configured field")
+		configured, ok := sentryHealth["configured"].(bool)
+		assert.True(t, ok, "Configured field should be boolean")
+		assert.True(t, configured, "Enabled Sentry should have configured=true")
 	}
 }

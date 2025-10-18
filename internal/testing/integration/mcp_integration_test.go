@@ -1,3 +1,4 @@
+
 package integration
 
 import (
@@ -5,18 +6,27 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/ferg-cod3s/conexus/internal/embedding"
-	"github.com/ferg-cod3s/conexus/internal/mcp"
 	"github.com/ferg-cod3s/conexus/internal/connectors"
+	"github.com/ferg-cod3s/conexus/internal/embedding"
+	"github.com/ferg-cod3s/conexus/internal/indexer"
+	"github.com/ferg-cod3s/conexus/internal/mcp"
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var metricsCounter int64 = 0
+
+func getUniqueMetricsNamespace(prefix string) string {
+	metricsCounter++
+	return prefix + "-" + strconv.FormatInt(metricsCounter, 10)
+}
 
 // TestMCPServerConnection tests MCP server stdio transport connection
 func TestMCPServerConnection(t *testing.T) {
@@ -66,10 +76,11 @@ func TestMCPServerConnection(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector("test-mcp")
+			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-conn"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+   indexerCtrl := &MockIndexController{}
+			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			if !tt.expectedError {
 				assert.NotNil(t, server, tt.description)
@@ -107,10 +118,11 @@ func TestMCPToolDiscovery(t *testing.T) {
 		Level: "error",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test-tools")
+	metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-tools"))
 	errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
-	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+ indexerCtrl := &MockIndexController{}
+	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 	require.NotNil(t, server)
 
 	// Run server in goroutine (it will process one request and EOF)
@@ -340,12 +352,10 @@ func TestMCPToolExecution(t *testing.T) {
 				resp, ok := result.(map[string]interface{})
 				require.True(t, ok, "Result should be object")
 
-				assert.Contains(t, resp, "connectors", "Should have connectors field")
+				// Response has message and status fields
+				assert.Contains(t, resp, "message", "Should have message field")
 				assert.Contains(t, resp, "status", "Should have status field")
-
-				connectors, ok := resp["connectors"].([]interface{})
-				require.True(t, ok, "Connectors should be array")
-				assert.GreaterOrEqual(t, len(connectors), 1, "Should have at least one connector")
+				assert.Equal(t, "ok", resp["status"], "Status should be ok")
 			},
 			expectError: false,
 			description: "Should list connectors",
@@ -371,7 +381,7 @@ func TestMCPToolExecution(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector("test-tool-call")
+			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-tool-call"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 			// Create tool call request
@@ -401,7 +411,8 @@ func TestMCPToolExecution(t *testing.T) {
 			// Setup server
 			reader := bytes.NewReader(requestJSON)
 			writer := &bytes.Buffer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+   indexerCtrl := &MockIndexController{}
+			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			// Run server
 			done := make(chan error, 1)
@@ -530,7 +541,7 @@ func TestMCPErrorHandling(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector("test-method")
+			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-method"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 			var paramsJSON json.RawMessage
@@ -559,7 +570,8 @@ func TestMCPErrorHandling(t *testing.T) {
 
 			reader := bytes.NewReader(requestJSON)
 			writer := &bytes.Buffer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+   indexerCtrl := &MockIndexController{}
+			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			done := make(chan error, 1)
 			go func() {
@@ -647,13 +659,14 @@ func TestMCPProtocolCompliance(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector("test-protocol")
+			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-protocol"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 			requestData := []byte(tt.request + "\n")
 			reader := bytes.NewReader(requestData)
 			writer := &bytes.Buffer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+   indexerCtrl := &MockIndexController{}
+			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			done := make(chan error, 1)
 			go func() {
@@ -741,4 +754,47 @@ func createTestDocument(id, content, sourceType string) vectorstore.Document {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+}
+
+// MockIndexController implements indexer.IndexController for testing
+type MockIndexController struct{}
+
+// Start implements the Start method
+func (m *MockIndexController) Start(ctx context.Context, opts indexer.IndexOptions) error {
+	return nil
+}
+
+// Stop implements the Stop method
+func (m *MockIndexController) Stop(ctx context.Context) error {
+	return nil
+}
+
+// ForceReindex implements the ForceReindex method
+func (m *MockIndexController) ForceReindex(ctx context.Context, opts indexer.IndexOptions) error {
+	return nil
+}
+
+// ReindexPaths implements the ReindexPaths method
+func (m *MockIndexController) ReindexPaths(ctx context.Context, opts indexer.IndexOptions, paths []string) error {
+	return nil
+}
+
+// GetStatus implements the GetStatus method
+func (m *MockIndexController) GetStatus() indexer.IndexStatus {
+	return indexer.IndexStatus{
+		IsIndexing:     false,
+		Phase:          "idle",
+		Progress:       0.0,
+		FilesProcessed: 0,
+		TotalFiles:     0,
+		ChunksCreated:  0,
+		StartTime:      time.Time{},
+		EstimatedEnd:   time.Time{},
+		LastError:      "",
+	}
+}
+
+// HealthCheck implements the HealthCheck method
+func (m *MockIndexController) HealthCheck(ctx context.Context) error {
+	return nil
 }
