@@ -62,29 +62,183 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		offset = 0
 	}
 
-	// Use federation service for multi-source search
-	federationResponse, err := s.federationSvc.Search(ctx, &req, s.embedder)
-	if err != nil {
-		errorCtx := observability.ExtractErrorContext(ctx, "context.search")
-		errorCtx.ErrorType = "federation_error"
-		errorCtx.ErrorCode = protocol.InternalError
-		errorCtx.Params = args
-		errorCtx.Duration = time.Since(startTime)
+	// Check cache first (if available)
+	var results []vectorstore.SearchResult
+	var queryTime float64
+	var cacheHit bool
 
-		if s.errorHandler != nil {
-			s.errorHandler.HandleError(ctx, err, errorCtx)
+	if s.searchCache != nil {
+		filters := make(map[string]interface{})
+		// Include pagination parameters in cache key
+		filters["offset"] = offset
+		filters["limit"] = topK
+		if req.Filters != nil {
+			if len(req.Filters.SourceTypes) > 0 {
+				filters["source_types"] = req.Filters.SourceTypes
+			}
+			if req.Filters.DateRange != nil {
+				filters["date_range"] = map[string]string{
+					"from": req.Filters.DateRange.From,
+					"to":   req.Filters.DateRange.To,
+				}
+			}
+			if req.Filters.WorkContext != nil {
+				filters["work_context"] = req.Filters.WorkContext
+			}
 		}
 
-		return nil, &protocol.Error{
-			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("federation search failed: %v", err),
+		if cached, found := s.searchCache.Get(req.Query, filters); found {
+			results = cached.Results
+			queryTime = cached.QueryTime
+			cacheHit = true
+
+			// Record cache hit
+			if s.metrics != nil {
+				s.metrics.RecordSearchCacheHit()
+			}
 		}
 	}
 
-	// Convert federation response to MCP response format
-	searchResults := make([]schema.SearchResultItem, len(federationResponse.Results))
-	for i, r := range federationResponse.Results {
-		searchResults[i] = r
+	// Perform search if not cached
+	if !cacheHit {
+		// Generate query embedding
+		queryVec, err := s.embedder.Embed(ctx, req.Query)
+		if err != nil {
+			errorCtx := observability.ExtractErrorContext(ctx, "context.search")
+			errorCtx.ErrorType = "embedding_error"
+			errorCtx.ErrorCode = protocol.InternalError
+			errorCtx.Params = args
+
+			if s.errorHandler != nil {
+				s.errorHandler.HandleError(ctx, err, errorCtx)
+			}
+
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("failed to generate query embedding: %v", err),
+			}
+		}
+
+		// Prepare search options
+		opts := vectorstore.SearchOptions{
+			Limit:   topK + 1, // Request one extra to detect HasMore
+			Offset:  offset,
+			Filters: make(map[string]interface{}),
+		}
+
+		// Apply filters
+		if req.Filters != nil {
+			if len(req.Filters.SourceTypes) > 0 {
+				opts.Filters["source_types"] = req.Filters.SourceTypes
+			}
+			if req.Filters.DateRange != nil {
+				opts.Filters["date_range"] = map[string]string{
+					"from": req.Filters.DateRange.From,
+					"to":   req.Filters.DateRange.To,
+				}
+			}
+			// Apply work context filters
+			if req.Filters.WorkContext != nil {
+				if req.Filters.WorkContext.ActiveFile != "" {
+					opts.Filters["related_files"] = req.Filters.WorkContext.ActiveFile
+				}
+				if req.Filters.WorkContext.GitBranch != "" {
+					opts.Filters["git_branch"] = req.Filters.WorkContext.GitBranch
+				}
+				if len(req.Filters.WorkContext.OpenTicketIDs) > 0 {
+					opts.Filters["ticket_ids"] = req.Filters.WorkContext.OpenTicketIDs
+				}
+			}
+		}
+
+		// Apply work context from request (overrides filter)
+		if req.WorkContext != nil {
+			if req.WorkContext.ActiveFile != "" {
+				opts.Filters["boost_file"] = req.WorkContext.ActiveFile
+			}
+			if req.WorkContext.GitBranch != "" {
+				opts.Filters["git_branch"] = req.WorkContext.GitBranch
+			}
+			if len(req.WorkContext.OpenTicketIDs) > 0 {
+				opts.Filters["boost_tickets"] = req.WorkContext.OpenTicketIDs
+			}
+		}
+
+		// Perform hybrid search (combines vector + BM25)
+		var searchErr error
+		results, searchErr = s.vectorStore.SearchHybrid(ctx, req.Query, queryVec.Vector, opts)
+		if searchErr != nil {
+			errorCtx := observability.ExtractErrorContext(ctx, "context.search")
+			errorCtx.ErrorType = "search_error"
+			errorCtx.ErrorCode = protocol.InternalError
+			errorCtx.Params = args
+
+			if s.errorHandler != nil {
+				s.errorHandler.HandleError(ctx, searchErr, errorCtx)
+			}
+
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("search failed: %v", searchErr),
+			}
+		}
+
+		queryTime = float64(time.Since(startTime).Milliseconds())
+
+		// Cache results
+		if s.searchCache != nil {
+			filters := make(map[string]interface{})
+			// Include pagination parameters in cache key
+			filters["offset"] = offset
+			filters["limit"] = topK
+			if req.Filters != nil {
+				if len(req.Filters.SourceTypes) > 0 {
+					filters["source_types"] = req.Filters.SourceTypes
+				}
+				if req.Filters.DateRange != nil {
+					filters["date_range"] = req.Filters.DateRange
+				}
+				if req.Filters.WorkContext != nil {
+					filters["work_context"] = req.Filters.WorkContext
+				}
+			}
+			if req.WorkContext != nil {
+				if req.WorkContext.ActiveFile != "" {
+					filters["boost_file"] = req.WorkContext.ActiveFile
+				}
+				if req.WorkContext.GitBranch != "" {
+					filters["git_branch"] = req.WorkContext.GitBranch
+				}
+				if len(req.WorkContext.OpenTicketIDs) > 0 {
+					filters["boost_tickets"] = req.WorkContext.OpenTicketIDs
+				}
+			}
+
+			s.searchCache.Set(req.Query, filters, results, queryTime)
+		}
+
+		// Record cache miss
+		if s.metrics != nil {
+			s.metrics.RecordSearchCacheMiss()
+		}
+	}
+
+	// Determine if there are more results
+	hasMore := len(results) > topK
+	if hasMore {
+		results = results[:topK] // Trim to requested limit
+	}
+
+	// Convert vector store results to schema format
+	searchResults := make([]schema.SearchResultItem, len(results))
+	for i, r := range results {
+		searchResults[i] = schema.SearchResultItem{
+			ID:         r.Document.ID,
+			Content:    r.Document.Content,
+			Score:      r.Score,
+			SourceType: r.Document.Metadata["source_type"].(string),
+			Metadata:   r.Document.Metadata,
+		}
 	}
 
 	// Record successful search operation
@@ -100,14 +254,13 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 
 	return schema.SearchResponse{
 		Results:    searchResults,
-		TotalCount: federationResponse.TotalCount,
-		QueryTime:  federationResponse.QueryTime,
-		Offset:     federationResponse.Offset,
-		Limit:      federationResponse.Limit,
-		HasMore:    federationResponse.HasMore,
+		TotalCount: len(searchResults), // Note: This is the count for this page, not total
+		QueryTime:  queryTime,
+		Offset:     offset,
+		Limit:      topK,
+		HasMore:    hasMore,
 	}, nil
 }
-
 // handleGetRelatedInfo implements the context.get_related_info tool
 func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage) (interface{}, error) {
 	var req GetRelatedInfoRequest

@@ -53,7 +53,7 @@ func NewServer(
 	connectorManager := connectors.NewManager(connectorStore)
 	
 	// Create federation service
-	federationSvc := federation.NewService(connectorManager, vectorStore)
+	federationSvc := federation.NewService(connectorManager, vectorStore, 10*time.Second)
 	
 	searchCache := search.NewSearchCache(100, 5*time.Minute)
 
