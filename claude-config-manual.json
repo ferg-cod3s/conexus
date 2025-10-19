@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "codeflow-tools": {
+      "command": "bun",
+      "args": [
+        "run",
+        "/Users/johnferguson/Github/codeflow/mcp/codeflow-server.mjs"
+      ],
+      "env": {}
+    },
+    "conexus-conexus": {
+      "command": "/Users/johnferguson/Github/conexus/conexus",
+      "args": [],
+      "env": {
+        "CONEXUS_CONFIG_FILE": "/Users/johnferguson/Github/conexus/.conexus/config.yml",
+        "CONEXUS_DB_PATH": "/Users/johnferguson/Github/conexus/.conexus/conexus.db",
+        "CONEXUS_LOG_LEVEL": "info",
+        "CONEXUS_ROOT_PATH": "/Users/johnferguson/Github/conexus"
+      }
+    }
+  }
+}
