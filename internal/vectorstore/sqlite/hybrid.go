@@ -4,7 +4,10 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
@@ -87,6 +90,19 @@ func (s *Store) SearchHybrid(ctx context.Context, query string, vector embedding
 	// Apply Reciprocal Rank Fusion
 	fusedResults := applyRRF(bm25Results, vectorResults, hybridOpts)
 
+	// Apply metadata-aware reranking if requested
+	if opts.Rerank {
+		// Compute and apply metadata boosts
+		for i := range fusedResults {
+			boost := computeMetadataBoost(fusedResults[i].Document, query)
+			fusedResults[i].Score += boost
+		}
+		// Re-sort by boosted scores
+		sort.Slice(fusedResults, func(i, j int) bool {
+			return fusedResults[i].Score > fusedResults[j].Score
+		})
+	}
+
 	// Apply threshold filter if specified
 	if opts.Threshold > 0 {
 		filtered := make([]vectorstore.SearchResult, 0, len(fusedResults))
@@ -100,6 +116,59 @@ func (s *Store) SearchHybrid(ctx context.Context, query string, vector embedding
 
 	// Limit final results
 	return limitResults(fusedResults, hybridOpts.Limit), nil
+}
+
+// computeMetadataBoost calculates a small additive boost based on document metadata.
+// Boosts are conservative to avoid disrupting core relevance signals.
+func computeMetadataBoost(doc vectorstore.Document, query string) float32 {
+	var boost float32
+	const maxBoost = 0.006 // Cap total boost to avoid destabilizing rankings
+
+	// Path-based boost: prefer documents whose filename contains query terms
+	if filePath, ok := doc.Metadata["path"].(string); ok {
+		filename := strings.ToLower(filepath.Base(filePath))
+		queryTerms := strings.Fields(strings.ToLower(query))
+		for _, term := range queryTerms {
+			if strings.Contains(filename, term) {
+				boost += 0.0015
+				break // Only apply once per document
+			}
+		}
+	} else if filePath, ok := doc.Metadata["file_path"].(string); ok {
+		filename := strings.ToLower(filepath.Base(filePath))
+		queryTerms := strings.Fields(strings.ToLower(query))
+		for _, term := range queryTerms {
+			if strings.Contains(filename, term) {
+				boost += 0.0015
+				break
+			}
+		}
+	}
+
+	// Recency boost: prefer recently updated documents
+	if !doc.UpdatedAt.IsZero() {
+		daysSinceUpdate := time.Since(doc.UpdatedAt).Hours() / 24
+		if daysSinceUpdate <= 7 {
+			boost += 0.003
+		} else if daysSinceUpdate <= 30 {
+			boost += 0.0015
+		}
+	}
+
+	// Language hint boost: small boost if query mentions the document's language
+	if lang, ok := doc.Metadata["language"].(string); ok && lang != "" {
+		lowerQuery := strings.ToLower(query)
+		lowerLang := strings.ToLower(lang)
+		if strings.Contains(lowerQuery, lowerLang) {
+			boost += 0.001
+		}
+	}
+
+	// Cap the boost to prevent it from overwhelming core relevance
+	if boost > maxBoost {
+		boost = maxBoost
+	}
+	return boost
 }
 
 // applyRRF implements Reciprocal Rank Fusion to combine results from multiple search methods.
