@@ -1,0 +1,481 @@
+{
+  "scenarios": [
+    {
+      "id": "function_implementations",
+      "type": "code-search",
+      "query": "function implementations for error handling",
+      "conexus": {
+        "success": true,
+        "duration": 134,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 66.53071975857728,
+        "relevance": 0.6978496877309108,
+        "resultCount": 3
+      },
+      "improvement": -0.4978496877309108
+    },
+    {
+      "id": "database_connections",
+      "type": "code-search",
+      "query": "database connection setup and configuration",
+      "conexus": {
+        "success": true,
+        "duration": 125,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 33.96271451069421,
+        "relevance": 0.6227066852182314,
+        "resultCount": 2
+      },
+      "improvement": -0.42270668521823135
+    },
+    {
+      "id": "authentication_flow",
+      "type": "code-search",
+      "query": "authentication and authorization flow",
+      "conexus": {
+        "success": true,
+        "duration": 111,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 31.017360048990305,
+        "relevance": 0.7594656015283225,
+        "resultCount": 2
+      },
+      "improvement": -0.5594656015283226
+    },
+    {
+      "id": "api_endpoints",
+      "type": "code-search",
+      "query": "API endpoint definitions and handlers",
+      "conexus": {
+        "success": true,
+        "duration": 114,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 81.133365818446,
+        "relevance": 0.5869005186974381,
+        "resultCount": 2
+      },
+      "improvement": -0.3869005186974381
+    },
+    {
+      "id": "logging_mechanisms",
+      "type": "code-search",
+      "query": "logging setup and usage patterns",
+      "conexus": {
+        "success": true,
+        "duration": 127,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 33.903637496495996,
+        "relevance": 0.6879649852688292,
+        "resultCount": 2
+      },
+      "improvement": -0.4879649852688292
+    },
+    {
+      "id": "test_coverage",
+      "type": "code-search",
+      "query": "test coverage and testing patterns",
+      "conexus": {
+        "success": true,
+        "duration": 135,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 79.40461209986107,
+        "relevance": 0.7603496427741185,
+        "resultCount": 2
+      },
+      "improvement": -0.5603496427741186
+    },
+    {
+      "id": "data_validation",
+      "type": "code-search",
+      "query": "data validation and sanitization",
+      "conexus": {
+        "success": true,
+        "duration": 127,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 50.10316126016999,
+        "relevance": 0.7701882691902202,
+        "resultCount": 2
+      },
+      "improvement": -0.5701882691902203
+    },
+    {
+      "id": "configuration_management",
+      "type": "code-search",
+      "query": "configuration management and loading",
+      "conexus": {
+        "success": true,
+        "duration": 126,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 16.676439333741232,
+        "relevance": 0.7623754075018131,
+        "resultCount": 2
+      },
+      "improvement": -0.562375407501813
+    },
+    {
+      "id": "file_dependencies",
+      "type": "relationship-discovery",
+      "query": "dependencies and imports for the MCP handlers",
+      "conexus": {
+        "success": true,
+        "duration": 114,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 42.991385572914076,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "cross_references",
+      "type": "relationship-discovery",
+      "query": "cross-references for the Agent interface",
+      "conexus": {
+        "success": true,
+        "duration": 1,
+        "relevance": 0,
+        "resultCount": 0
+      },
+      "standard": {
+        "success": true,
+        "duration": 5.409341025621773,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": -0.2
+    },
+    {
+      "id": "error_handling_chain",
+      "type": "relationship-discovery",
+      "query": "error handling chain from user input to logging",
+      "conexus": {
+        "success": true,
+        "duration": 128,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 36.012550087146,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "data_flow",
+      "type": "relationship-discovery",
+      "query": "data flow from API request to database storage",
+      "conexus": {
+        "success": true,
+        "duration": 127,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 20.30109408144366,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "configuration_usage",
+      "type": "relationship-discovery",
+      "query": "how configuration values are used throughout the system",
+      "conexus": {
+        "success": true,
+        "duration": 126,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 34.238649858782445,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "test_to_code_mapping",
+      "type": "relationship-discovery",
+      "query": "mapping between test files and implementation files",
+      "conexus": {
+        "success": true,
+        "duration": 119,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 54.18753874338796,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "active_file_context",
+      "type": "context-aware",
+      "query": "related code for the current file being edited",
+      "conexus": {
+        "success": true,
+        "duration": 124,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 95.24628106331839,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "branch_context",
+      "type": "context-aware",
+      "query": "changes made in the current feature branch",
+      "conexus": {
+        "success": true,
+        "duration": 125,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 56.092927656421,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "issue_context",
+      "type": "context-aware",
+      "query": "code related to open issue about error handling",
+      "conexus": {
+        "success": true,
+        "duration": 118,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 72.0860173453735,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "recent_changes",
+      "type": "context-aware",
+      "query": "code affected by recent changes to the indexer",
+      "conexus": {
+        "success": true,
+        "duration": 132,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 16.061839260946364,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "team_focus",
+      "type": "context-aware",
+      "query": "code owned by the backend team",
+      "conexus": {
+        "success": true,
+        "duration": 129,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 12.772476466305315,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "performance_context",
+      "type": "context-aware",
+      "query": "performance-critical code paths",
+      "conexus": {
+        "success": true,
+        "duration": 1,
+        "relevance": 0,
+        "resultCount": 0
+      },
+      "standard": {
+        "success": true,
+        "duration": 69.38800694086615,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": -0.2
+    },
+    {
+      "id": "ticket_to_code",
+      "type": "cross-reference",
+      "query": "code changes for ticket PERF-456",
+      "conexus": {
+        "success": true,
+        "duration": 1,
+        "relevance": 0,
+        "resultCount": 0
+      },
+      "standard": {
+        "success": true,
+        "duration": 40.36254651811591,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": -0.2
+    },
+    {
+      "id": "requirement_to_implementation",
+      "type": "cross-reference",
+      "query": "implementation of user authentication requirement",
+      "conexus": {
+        "success": true,
+        "duration": 118,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 37.05909383445899,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "documentation_to_code",
+      "type": "cross-reference",
+      "query": "code examples from the API documentation",
+      "conexus": {
+        "success": true,
+        "duration": 128,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 2.502869976358002,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "bug_to_fix",
+      "type": "cross-reference",
+      "query": "fix for null pointer exception in handlers",
+      "conexus": {
+        "success": true,
+        "duration": 107,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 42.073783109908106,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "feature_to_tests",
+      "type": "cross-reference",
+      "query": "tests for the new MCP search feature",
+      "conexus": {
+        "success": true,
+        "duration": 139,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 40.97477597553255,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    },
+    {
+      "id": "design_to_code",
+      "type": "cross-reference",
+      "query": "code following the federation design pattern",
+      "conexus": {
+        "success": true,
+        "duration": 115,
+        "relevance": 0.2,
+        "resultCount": 20
+      },
+      "standard": {
+        "success": true,
+        "duration": 68.5975927234016,
+        "relevance": 0.2,
+        "resultCount": 0
+      },
+      "improvement": 0
+    }
+  ],
+  "summary": {
+    "totalScenarios": 26,
+    "conexusSuccess": 26,
+    "standardSuccess": 26,
+    "conexusAvgRelevance": 0.20000000000000007,
+    "standardAvgRelevance": 0.355684646073457,
+    "conexusAvgSpeed": 109.65384615384616,
+    "standardAvgSpeed": 43.81118386797223
+  }
+}

@@ -2,6 +2,9 @@
   "mcpServers": {
     "conexus": {
       "command": "/home/f3rg/src/github/conexus/conexus",
+  "args": [],
+  "env": {
+    "CONEXUS_STDIO": "true",,
       "args": [],
       "env": {
         "CONEXUS_PORT": "8080",

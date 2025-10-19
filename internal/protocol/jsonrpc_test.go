@@ -47,7 +47,7 @@ func TestRequest_JSONMarshaling(t *testing.T) {
 		JSONRPC: JSONRPCVersion,
 		Method:  "test_method",
 		Params:  json.RawMessage(`{"key":"value"}`),
-		ID:      1,
+		ID:      "1",
 	}
 
 	data, err := json.Marshal(req)
@@ -74,7 +74,7 @@ func TestResponse_JSONMarshaling(t *testing.T) {
 	resp := Response{
 		JSONRPC: JSONRPCVersion,
 		Result:  json.RawMessage(`{"success":true}`),
-		ID:      1,
+		ID:      "1",
 	}
 
 	data, err := json.Marshal(resp)
@@ -124,7 +124,7 @@ func TestServer_ValidRequest(t *testing.T) {
 	handler := newMockHandler()
 	handler.response = map[string]string{"result": "success"}
 
-	input := `{"jsonrpc":"2.0","method":"test","params":null,"id":1}` + "\n"
+	input := `{"jsonrpc":"2.0","method":"test","params":null,"id":"1"}` + "\n"
 	reader := strings.NewReader(input)
 	writer := &bytes.Buffer{}
 
@@ -156,7 +156,7 @@ func TestServer_ValidRequest(t *testing.T) {
 func TestServer_InvalidJSONRPCVersion(t *testing.T) {
 	handler := newMockHandler()
 
-	input := `{"jsonrpc":"1.0","method":"test","id":1}` + "\n"
+	input := `{"jsonrpc":"1.0","method":"test","id":"1"}` + "\n"
 	reader := strings.NewReader(input)
 	writer := &bytes.Buffer{}
 
@@ -182,7 +182,7 @@ func TestServer_InvalidJSONRPCVersion(t *testing.T) {
 func TestServer_MissingMethod(t *testing.T) {
 	handler := newMockHandler()
 
-	input := `{"jsonrpc":"2.0","id":1}` + "\n"
+	input := `{"jsonrpc":"2.0","id":"1"}` + "\n"
 	reader := strings.NewReader(input)
 	writer := &bytes.Buffer{}
 
@@ -246,7 +246,7 @@ func TestClient_Call(t *testing.T) {
 		JSONRPC: JSONRPCVersion,
 		Method:  "test_method",
 		Params:  json.RawMessage(`{"key":"value"}`),
-		ID:      1,
+		ID:      "1",
 	}
 
 	// Marshal and send request
@@ -285,7 +285,7 @@ func TestClient_CallWithNilParams(t *testing.T) {
 		JSONRPC: JSONRPCVersion,
 		Method:  "test",
 		Params:  nil,
-		ID:      1,
+		ID:      "1",
 	}
 
 	// Marshal request
@@ -336,6 +336,39 @@ func TestClient_Notify(t *testing.T) {
 	}
 }
 
+// TestClient_Call_EmitsStringID tests that Client.Call emits string IDs
+func TestClient_Call_EmitsStringID(t *testing.T) {
+	writer := &bytes.Buffer{}
+	client := NewClient(nil, writer)
+
+	// Mock a response that the client would read
+	responseData := `{"jsonrpc":"2.0","result":{"status":"ok"},"id":"1"}`
+	reader := strings.NewReader(responseData)
+	client.reader = reader
+
+	params := map[string]string{"key": "value"}
+	_, err := client.Call("test_method", params)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	// Parse the sent request to verify ID is a string
+	var sentReq Request
+	if err := json.Unmarshal(writer.Bytes(), &sentReq); err != nil {
+		t.Fatalf("failed to parse sent request: %v", err)
+	}
+
+	// ID should be a string "1"
+	if sentReq.ID != "1" {
+		t.Errorf("expected string ID \"1\", got %v (%T)", sentReq.ID, sentReq.ID)
+	}
+
+	// Verify nextID was incremented
+	if client.nextID != 2 {
+		t.Errorf("expected nextID to be 2, got %d", client.nextID)
+	}
+}
+
 // TestErrorCodes tests all standard error codes
 func TestErrorCodes(t *testing.T) {
 	tests := []struct {
@@ -355,7 +388,7 @@ func TestErrorCodes(t *testing.T) {
 				t.Error("error code should not be zero")
 			}
 
-			// Verify codes are in the correct range
+			// Verify codes are in correct range
 			if tt.code > -32600 || tt.code < -32800 {
 				t.Errorf("error code %d outside standard range", tt.code)
 			}
@@ -370,9 +403,9 @@ func TestServer_ConcurrentRequests(t *testing.T) {
 
 	// Create multiple requests
 	requests := []string{
-		`{"jsonrpc":"2.0","method":"test1","id":1}`,
-		`{"jsonrpc":"2.0","method":"test2","id":2}`,
-		`{"jsonrpc":"2.0","method":"test3","id":3}`,
+		`{"jsonrpc":"2.0","method":"test1","id":"1"}`,
+		`{"jsonrpc":"2.0","method":"test2","id":"2"}`,
+		`{"jsonrpc":"2.0","method":"test3","id":"3"}`,
 	}
 
 	input := strings.Join(requests, "\n") + "\n"
@@ -418,7 +451,7 @@ func TestServer_HandlerError(t *testing.T) {
 		Message: "handler error",
 	}
 
-	input := `{"jsonrpc":"2.0","method":"test","id":1}` + "\n"
+	input := `{"jsonrpc":"2.0","method":"test","id":"1"}` + "\n"
 	reader := strings.NewReader(input)
 	writer := &bytes.Buffer{}
 
@@ -449,7 +482,7 @@ func TestResponse_ErrorAndResult(t *testing.T) {
 			Code:    InternalError,
 			Message: "error",
 		},
-		ID: 1,
+		ID: "1",
 	}
 
 	// According to JSON-RPC 2.0 spec, this is invalid
@@ -497,7 +530,7 @@ func TestRequest_WithDifferentParamTypes(t *testing.T) {
 				JSONRPC: JSONRPCVersion,
 				Method:  "test",
 				Params:  paramsJSON,
-				ID:      1,
+				ID:      "1",
 			}
 
 			data, err := json.Marshal(req)

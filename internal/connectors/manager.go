@@ -238,3 +238,15 @@ func (m *Manager) GracefulShutdown() error {
 
 	return m.Close(ctx)
 }
+
+// ListActive returns all active connectors currently in memory.
+// Unlike List(), this does not fall back to the store.
+func (m *Manager) ListActive() []*Connector {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	connectors := make([]*Connector, 0, len(m.connectors))
+	for _, c := range m.connectors {
+		connectors = append(connectors, c)
+	}
+	return connectors
+}

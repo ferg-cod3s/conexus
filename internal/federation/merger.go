@@ -1,165 +1,182 @@
-// Package federation implements multi-source result federation for search queries.
 package federation
 
 import (
+	"crypto/md5"
+	"fmt"
+	"io"
 	"sort"
-	"strings"
-
-	"github.com/ferg-cod3s/conexus/internal/schema"
 )
 
-
-// Merger combines and deduplicates search results from multiple connectors
+// Merger handles deduplication and merging of results from multiple sources
 type Merger struct {
-	deduplicationThreshold float32
+	results        map[string][]interface{}
+	contentHashes  map[string]string // content -> hash
+	sourceTracking map[string][]string // item ID -> list of sources
+	attributions   map[string]map[string]interface{} // item ID -> source metadata
 }
 
 // NewMerger creates a new result merger
 func NewMerger() *Merger {
 	return &Merger{
-		deduplicationThreshold: 0.85, // 85% similarity threshold for deduplication
+		results:        make(map[string][]interface{}),
+		contentHashes:  make(map[string]string),
+		sourceTracking: make(map[string][]string),
+		attributions:   make(map[string]map[string]interface{}),
 	}
 }
 
-// Merge combines and ranks results from multiple connectors
-func (m *Merger) Merge(connectorResults []ConnectorResult) []schema.SearchResultItem {
-	if len(connectorResults) == 0 {
-		return []schema.SearchResultItem{}
+// AddResults adds results from a source to the merger
+func (m *Merger) AddResults(source string, items []interface{}) {
+	if _, exists := m.results[source]; !exists {
+		m.results[source] = []interface{}{}
 	}
-
-	// Flatten all results
-	var allResults []schema.SearchResultItem
-	for _, cr := range connectorResults {
-		for _, result := range cr.Results {
-			// Add connector metadata
-			if result.Metadata == nil {
-				result.Metadata = make(map[string]interface{})
-			}
-			result.Metadata["connector_id"] = cr.ConnectorID
-			result.Metadata["connector_type"] = cr.ConnectorType
-			allResults = append(allResults, result)
-		}
-	}
-
-	if len(allResults) == 0 {
-		return allResults
-	}
-
-	// Deduplicate results
-	dedupedResults := m.deduplicate(allResults)
-
-	// Apply cross-source ranking
-	rankedResults := m.rankBySourceDiversity(dedupedResults)
-
-	// Normalize scores to [0, 1] range
-	normalizedResults := m.normalizeScores(rankedResults)
-
-	// Sort by final score
-	sort.Slice(normalizedResults, func(i, j int) bool {
-		return normalizedResults[i].Score > normalizedResults[j].Score
-	})
-
-	return normalizedResults
+	m.results[source] = append(m.results[source], items...)
 }
 
-// deduplicate removes duplicate or very similar results
-func (m *Merger) deduplicate(results []schema.SearchResultItem) []schema.SearchResultItem {
-	if len(results) <= 1 {
-		return results
+// MergeAndDeduplicate merges and deduplicates results from all sources
+func (m *Merger) MergeAndDeduplicate() ([]interface{}, DeduplicationStats) {
+	stats := DeduplicationStats{
+		TotalResults: m.countTotalResults(),
 	}
 
-	var deduped []schema.SearchResultItem
-	seen := make(map[string]bool)
+	// Map to track unique items
+	uniqueItems := make(map[string]interface{})
+	duplicateMap := make(map[string]int) // hash -> count
 
-	for _, result := range results {
-		// Create a signature based on content similarity
-		signature := m.createContentSignature(result.Content)
+	for source, items := range m.results {
+		for _, item := range items {
+			itemStr := m.itemToString(item)
+			hash := m.hashContent(itemStr)
 
-		if !seen[signature] {
-			deduped = append(deduped, result)
-			seen[signature] = true
-		} else {
-			// If duplicate, keep the one with higher score
-			for i, existing := range deduped {
-				if m.createContentSignature(existing.Content) == signature {
-					if result.Score > existing.Score {
-						deduped[i] = result
+			if _, exists := uniqueItems[hash]; !exists {
+				// First occurrence of this item
+				itemID := fmt.Sprintf("%s_%d", source, len(uniqueItems))
+				uniqueItems[hash] = item
+				m.sourceTracking[itemID] = []string{source}
+				m.attributions[itemID] = map[string]interface{}{
+					"source": source,
+					"hash":   hash,
+				}
+			} else {
+				// Duplicate found
+				stats.DuplicatesFound++
+				// Find the item ID and add source
+				for id, tracked := range m.sourceTracking {
+					if !contains(tracked, source) {
+						tracked = append(tracked, source)
+						m.sourceTracking[id] = tracked
 					}
-					break
 				}
 			}
+
+			duplicateMap[hash]++
 		}
 	}
 
-	return deduped
+	// Build merged result list
+	mergedItems := make([]interface{}, 0, len(uniqueItems))
+	for _, item := range uniqueItems {
+		mergedItems = append(mergedItems, item)
+	}
+
+	// Sort by most common (appears in most sources)
+	sort.Slice(mergedItems, func(i, j int) bool {
+		hashI := m.hashContent(m.itemToString(mergedItems[i]))
+		hashJ := m.hashContent(m.itemToString(mergedItems[j]))
+		return duplicateMap[hashI] > duplicateMap[hashJ]
+	})
+
+	stats.UniqueResults = len(uniqueItems)
+	stats.MergedResults = len(mergedItems)
+
+	return mergedItems, stats
 }
 
-// rankBySourceDiversity boosts results that come from diverse sources
-func (m *Merger) rankBySourceDiversity(results []schema.SearchResultItem) []schema.SearchResultItem {
-	if len(results) <= 1 {
-		return results
-	}
-
-	// Count results per source type
-	sourceCounts := make(map[string]int)
-	for _, result := range results {
-		sourceCounts[result.SourceType]++
-	}
-
-	// Apply diversity bonus
-	diversityBonus := float32(0.1) // 10% bonus for underrepresented sources
-	totalSources := len(sourceCounts)
-
-	for i := range results {
-		sourceCount := sourceCounts[results[i].SourceType]
-		// Bonus is higher when this source type is less common
-		bonus := diversityBonus * float32(totalSources-sourceCount+1) / float32(totalSources)
-		results[i].Score *= (1.0 + bonus)
-	}
-
-	return results
+// GetSourceAttributions returns source attribution metadata
+func (m *Merger) GetSourceAttributions() map[string]map[string]interface{} {
+	return m.attributions
 }
 
-// normalizeScores normalizes all scores to the [0, 1] range
-func (m *Merger) normalizeScores(results []schema.SearchResultItem) []schema.SearchResultItem {
-	if len(results) == 0 {
-		return results
+// countTotalResults counts total results across all sources
+func (m *Merger) countTotalResults() int {
+	count := 0
+	for _, items := range m.results {
+		count += len(items)
 	}
-
-	// Find max score
-	maxScore := results[0].Score
-	for _, result := range results[1:] {
-		if result.Score > maxScore {
-			maxScore = result.Score
-		}
-	}
-
-	// If all scores are 0, return as is (all normalized to 0)
-	if maxScore == 0 {
-		return results
-	}
-
-	// Normalize all scores to [0, 1]
-	for i := range results {
-		results[i].Score = results[i].Score / maxScore
-		// Ensure score is within bounds (handle floating point errors)
-		if results[i].Score < 0 {
-			results[i].Score = 0
-		}
-		if results[i].Score > 1 {
-			results[i].Score = 1
-		}
-	}
-
-	return results
+	return count
 }
 
-// createContentSignature generates a simplified signature for content deduplication
-func (m *Merger) createContentSignature(content string) string {
-	// Simple approach: normalize whitespace and take first 100 characters
-	normalized := strings.Fields(content)
-	if len(normalized) > 20 { // Limit to first 20 words
-		normalized = normalized[:20]
+// itemToString converts an item to a string representation for comparison
+func (m *Merger) itemToString(item interface{}) string {
+	switch v := item.(type) {
+	case string:
+		return v
+	case map[string]interface{}:
+		// For maps, use content field if available
+		if content, ok := v["content"]; ok {
+			if s, ok := content.(string); ok {
+				return s
+			}
+		}
+		// Otherwise use file_path or id
+		if filePath, ok := v["file_path"]; ok {
+			if s, ok := filePath.(string); ok {
+				return s
+			}
+		}
+		if id, ok := v["id"]; ok {
+			if s, ok := id.(string); ok {
+				return s
+			}
+		}
+		return fmt.Sprintf("%v", v)
+	default:
+		return fmt.Sprintf("%v", item)
 	}
-	return strings.Join(normalized, " ")
+}
+
+// hashContent computes a hash of content for deduplication
+func (m *Merger) hashContent(content string) string {
+	h := md5.New()
+	_, _ = io.WriteString(h, content)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// CalculateSimilarity calculates similarity between two items (0-100)
+func CalculateSimilarity(item1, item2 interface{}) int {
+	str1 := fmt.Sprintf("%v", item1)
+	str2 := fmt.Sprintf("%v", item2)
+
+	// Simple string similarity: count common characters
+	if str1 == str2 {
+		return 100
+	}
+
+	common := 0
+	maxLen := len(str1)
+	if len(str2) > maxLen {
+		maxLen = len(str2)
+	}
+
+	for i := 0; i < len(str1) && i < len(str2); i++ {
+		if str1[i] == str2[i] {
+			common++
+		}
+	}
+
+	if maxLen == 0 {
+		return 0
+	}
+
+	return (common * 100) / maxLen
+}
+
+// helper function
+func contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
 }

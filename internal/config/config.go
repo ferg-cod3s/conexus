@@ -226,6 +226,11 @@ func loadEnv(cfg *Config) *Config {
 			cfg.Server.Port = p
 		}
 	}
+	if stdio := os.Getenv("CONEXUS_STDIO"); stdio != "" {
+		if enabled, err := strconv.ParseBool(stdio); err == nil && enabled {
+			cfg.Server.Port = 0
+		}
+	}
 
 	// Database config
 	if dbPath := os.Getenv("CONEXUS_DB_PATH"); dbPath != "" {
@@ -391,7 +396,7 @@ func merge(base, override *Config) *Config {
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
 	// Validate server config
-	if c.Server.Port < 1 || c.Server.Port > 65535 {
+	if c.Server.Port < 0 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid port: %d (must be 1-65535)", c.Server.Port)
 	}
 

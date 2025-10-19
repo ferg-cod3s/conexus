@@ -1,4 +1,3 @@
-// Package federation implements multi-source result federation for search queries.
 package federation
 
 import (
@@ -8,452 +7,265 @@ import (
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
-	"github.com/ferg-cod3s/conexus/internal/connectors/github"
-	"github.com/ferg-cod3s/conexus/internal/observability"
-	"github.com/ferg-cod3s/conexus/internal/schema"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
-	"github.com/ferg-cod3s/conexus/internal/embedding"
 )
 
-// SearchableConnector defines the interface for connectors that support search operations
-type SearchableConnector interface {
-	// Search performs a search operation and returns results
-	Search(ctx context.Context, req *schema.SearchRequest) ([]schema.SearchResultItem, error)
-	// GetID returns the connector's unique identifier
-	GetID() string
-	// GetType returns the connector type
-	GetType() string
+// QueryResult represents results from a single source
+type QueryResult struct {
+	Source       string
+	Items        []interface{}
+	Error        error
+	Duration     time.Duration
+	ItemCount    int
+	DeduplicateID string
 }
 
-// Service coordinates search operations across multiple connectors
+// FederatedResult represents merged results from multiple sources
+type FederatedResult struct {
+	Items              []interface{}
+	SourceCounts       map[string]int
+	DeduplicationStats DeduplicationStats
+	CrosSourceLinks    map[string][]string // entity ID -> list of IDs in other sources
+	TotalDuration      time.Duration
+	Errors             []error
+	SourceAttributions map[string]map[string]interface{} // item ID -> source metadata
+}
+
+// DeduplicationStats tracks deduplication metrics
+type DeduplicationStats struct {
+	TotalResults    int
+	DuplicatesFound int
+	UniqueResults   int
+	MergedResults   int
+}
+
+// Service provides multi-source query capabilities
 type Service struct {
-	connectorManager *connectors.Manager
-	vectorStore      vectorstore.VectorStore
-	merger           *Merger
-	detector         *Detector
-	metrics          *observability.FederationMetrics
-	timeout          time.Duration
+	manager     *connectors.Manager
+	vectorstore vectorstore.VectorStore
+	timeout     time.Duration
+	mu          sync.RWMutex
+	metrics     *MetricsCollector
+	logger      *Logger
 }
 
-// NewService creates a new federation service without metrics
-func NewService(manager *connectors.Manager, vectorStore vectorstore.VectorStore) *Service {
-	return NewServiceWithMetrics(manager, vectorStore, nil)
-}
-
-// NewServiceWithMetrics creates a new federation service with optional metrics
-func NewServiceWithMetrics(manager *connectors.Manager, vectorStore vectorstore.VectorStore, metrics *observability.FederationMetrics) *Service {
+// NewService creates a new federation service
+func NewService(manager *connectors.Manager, vs vectorstore.VectorStore, timeout time.Duration) *Service {
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
 	return &Service{
-		connectorManager: manager,
-		vectorStore:      vectorStore,
-		merger:           NewMerger(),
-		detector:         NewDetector(),
-		metrics:          metrics,
-		timeout:          10 * time.Second, // Default timeout
+		manager:     manager,
+		vectorstore: vs,
+		timeout:     timeout,
+		metrics:     NewMetricsCollector(),
+		logger:      NewLogger(context.Background()),
 	}
 }
 
-// Search performs a federated search across all active searchable connectors
-func (s *Service) Search(ctx context.Context, req *schema.SearchRequest, embedder embedding.Embedder) (*schema.SearchResponse, error) {
-	startTime := time.Now()
-	status := "success"
-	defer func() {
-		if s.metrics != nil {
-			duration := time.Since(startTime)
-			s.metrics.RecordFederationSearch(status, duration, 0)
-		}
-	}()
-
-	// Discover active searchable connectors
-	searchableConnectors, err := s.discoverSearchableConnectors(ctx, embedder)
-	if err != nil {
-		status = "error"
-		return nil, fmt.Errorf("failed to discover connectors: %w", err)
-	}
-
-	if s.metrics != nil {
-		s.metrics.UpdateActiveConnectors(len(searchableConnectors))
-	}
-
-	// If no connectors found, fall back to filesystem
-	if len(searchableConnectors) == 0 {
-		filesystemConn := NewFilesystemConnector(s.vectorStore, embedder)
-		searchableConnectors = []SearchableConnector{filesystemConn}
-	}
-
-	// Execute parallel searches
-	connectorResults, err := s.executeParallelSearches(ctx, req, searchableConnectors)
-	if err != nil {
-		status = "error"
-		return nil, fmt.Errorf("parallel search execution failed: %w", err)
-	}
-
-	// Record merged results before merge
-	totalBeforeMerge := 0
-	for _, cr := range connectorResults {
-		totalBeforeMerge += len(cr.Results)
-	}
-	if s.metrics != nil {
-		s.metrics.RecordMergedResults("before_merge", totalBeforeMerge)
-	}
-
-	// Merge results from all connectors
-	mergeStart := time.Now()
-	mergedResults := s.merger.Merge(connectorResults)
-	if s.metrics != nil {
-		s.metrics.RecordMergeDuration(time.Since(mergeStart))
-		s.metrics.RecordMergedResults("after_merge", len(mergedResults))
-
-		// Calculate deduplication ratio
-		if totalBeforeMerge > 0 {
-			dedupRatio := float64(totalBeforeMerge-len(mergedResults)) / float64(totalBeforeMerge)
-			s.metrics.RecordDeduplicationRatio(dedupRatio)
-		}
-	}
-
-	// Apply pagination
-	topK := req.TopK
-	if topK <= 0 {
-		topK = 20
-	}
-	if topK > 100 {
-		topK = 100
-	}
-	offset := req.Offset
-	if offset < 0 {
-		offset = 0
-	}
-
-	// Apply offset and limit
-	var paginatedResults []schema.SearchResultItem
-	hasMore := false
-	if offset < len(mergedResults) {
-		end := offset + topK
-		// HasMore is true if there are results beyond this page
-		if end < len(mergedResults) {
-			hasMore = true
-		}
-		if end > len(mergedResults) {
-			end = len(mergedResults)
-		}
-		paginatedResults = mergedResults[offset:end]
-	}
-
-	// Record pagination and final results
-	if s.metrics != nil {
-		s.metrics.RecordPaginationOperation(fmt.Sprintf("%d", topK))
-		s.metrics.RecordMergedResults("after_pagination", len(paginatedResults))
-	}
-
-	queryTime := float64(time.Since(startTime).Milliseconds())
-
-	return &schema.SearchResponse{
-		Results:    paginatedResults,
-		TotalCount: len(mergedResults),
-		QueryTime:  queryTime,
-		Offset:     offset,
-		Limit:      topK,
-		HasMore:    hasMore,
-	}, nil
+// GetMetrics returns current metrics snapshot
+func (s *Service) GetMetrics() MetricsSnapshot {
+	return s.metrics.GetMetrics()
 }
 
-// discoverSearchableConnectors finds all active connectors that support search operations
-func (s *Service) discoverSearchableConnectors(ctx context.Context, embedder embedding.Embedder) ([]SearchableConnector, error) {
-	// Get all active connectors from manager
-	connectors, err := s.connectorManager.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list connectors: %w", err)
-	}
-
-	var searchableConnectors []SearchableConnector
-	for _, conn := range connectors {
-		// Only include active connectors
-		if conn.Status != "active" {
-			continue
-		}
-
-		// Create searchable connector based on type
-		var searchableConn SearchableConnector
-		switch conn.Type {
-		case "filesystem":
-			searchableConn = NewFilesystemConnector(s.vectorStore, embedder)
-		case "github":
-			var err error
-			searchableConn, err = s.createGitHubConnector(conn)
-			if err != nil {
-				// Failed to create GitHub connector, skip it
-				continue
-			}
-		default:
-			// Skip unsupported connector types
-			continue
-		}
-
-		if searchableConn != nil {
-			searchableConnectors = append(searchableConnectors, searchableConn)
-		}
-	}
-
-	return searchableConnectors, nil
+// ResetMetrics resets all collected metrics
+func (s *Service) ResetMetrics() {
+	s.metrics.Reset()
 }
 
-// createGitHubConnector creates a GitHub connector from a connector configuration
-func (s *Service) createGitHubConnector(conn *connectors.Connector) (SearchableConnector, error) {
-	// Extract GitHub token from config
-	token, ok := conn.Config["token"].(string)
-	if !ok || token == "" {
-		return nil, fmt.Errorf("missing or invalid GitHub token in connector config")
+// QueryMultipleSources executes a query across all active connectors
+func (s *Service) QueryMultipleSources(ctx context.Context, query string) (*FederatedResult, error) {
+	if query == "" {
+		return nil, fmt.Errorf("query cannot be empty")
 	}
 
-	// Create GitHub HTTP client
-	client := github.NewHTTPClient(token)
+	// Generate query ID for tracing
+	queryID := fmt.Sprintf("query_%d", time.Now().UnixNano())
 
-	// Create and return GitHub connector
-	gitHubConnector := github.NewConnector(conn.ID, client)
-	if gitHubConnector == nil {
-		return nil, fmt.Errorf("failed to instantiate GitHub connector")
+	// Record query start
+	s.metrics.RecordQueryStart()
+	s.logger.LogQueryStart(queryID, query, 0)
+
+	start := time.Now()
+
+	// Get all active connectors
+	conns := s.manager.ListActive()
+	s.logger.LogQueryStart(queryID, query, len(conns))
+
+	if len(conns) == 0 {
+		result := &FederatedResult{
+			Items:              []interface{}{},
+			SourceCounts:       make(map[string]int),
+			SourceAttributions: make(map[string]map[string]interface{}),
+		}
+		totalDuration := time.Since(start)
+		result.TotalDuration = totalDuration
+
+		s.metrics.RecordQueryEnd(totalDuration.Nanoseconds(), []string{}, true)
+		s.logger.LogQueryEnd(queryID, totalDuration, 0, 0, 0, true)
+
+		return result, nil
 	}
 
-	return gitHubConnector, nil
-}
+	// Execute queries in parallel
+	resultsChan := make(chan *QueryResult, len(conns))
+	wg := sync.WaitGroup{}
 
-// ConnectorResult holds search results from a single connector
-type ConnectorResult struct {
-	ConnectorID   string
-	ConnectorType string
-	Results       []schema.SearchResultItem
-}
-
-// executeParallelSearches runs searches across multiple connectors concurrently
-func (s *Service) executeParallelSearches(ctx context.Context, req *schema.SearchRequest, connectors []SearchableConnector) ([]ConnectorResult, error) {
-	// Create context with timeout
-	searchCtx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
-
-	// Channel for results
-	resultChan := make(chan ConnectorResult, len(connectors))
-	errorChan := make(chan error, len(connectors))
-
-	// Launch goroutines for each connector
-	var wg sync.WaitGroup
-	startTimes := make(map[string]time.Time)
-	mu := sync.Mutex{}
-
-	for _, conn := range connectors {
+	for _, conn := range conns {
 		wg.Add(1)
-		go func(connector SearchableConnector) {
+		go func(c *connectors.Connector) {
 			defer wg.Done()
-
-			connectorStartTime := time.Now()
-			mu.Lock()
-			startTimes[connector.GetID()] = connectorStartTime
-			mu.Unlock()
-
-			results, err := connector.Search(searchCtx, req)
-
-			connectorDuration := time.Since(connectorStartTime)
-			connectorStatus := "success"
-			if err != nil {
-				connectorStatus = "error"
-				if s.metrics != nil {
-					s.metrics.RecordConnectorError(connector.GetID(), connector.GetType(), "search_error")
-				}
-				errorChan <- fmt.Errorf("connector %s (%s): %w", connector.GetID(), connector.GetType(), err)
-				return
-			}
-
-			if s.metrics != nil {
-				s.metrics.RecordConnectorSearch(connector.GetID(), connector.GetType(), connectorStatus, connectorDuration, len(results))
-			}
-
-			resultChan <- ConnectorResult{
-				ConnectorID:   connector.GetID(),
-				ConnectorType: connector.GetType(),
-				Results:       results,
-			}
+			result := s.queryConnector(ctx, queryID, c, query)
+			resultsChan <- result
 		}(conn)
 	}
 
-	// Wait for all goroutines to complete
-	go func() {
-		wg.Wait()
-		close(resultChan)
-		close(errorChan)
-	}()
+	wg.Wait()
+	close(resultsChan)
 
-	// Collect results
-	var allResults []ConnectorResult
-	var errors []error
+	// Collect all results
+	var results []*QueryResult
+	var errorCount int
+	var sourcesQueried []string
 
-	for {
-		select {
-		case result, ok := <-resultChan:
-			if !ok {
-				resultChan = nil
-			} else {
-				allResults = append(allResults, result)
-			}
-		case err, ok := <-errorChan:
-			if !ok {
-				errorChan = nil
-			} else {
-				errors = append(errors, err)
-			}
-		case <-searchCtx.Done():
-			// Record timeouts
-			if s.metrics != nil {
-				for _, conn := range connectors {
-					s.metrics.RecordConnectorTimeout(conn.GetID(), conn.GetType())
-				}
-			}
-			return nil, fmt.Errorf("search timeout after %v", s.timeout)
-		}
-
-		if resultChan == nil && errorChan == nil {
-			break
+	for result := range resultsChan {
+		results = append(results, result)
+		sourcesQueried = append(sourcesQueried, result.Source)
+		if result.Error != nil {
+			errorCount++
 		}
 	}
 
-	// Log errors but don't fail the entire search
-	if len(errors) > 0 {
-		// In a real implementation, this would be logged
-		// For now, we'll just continue with successful results
-	}
+	totalDuration := time.Since(start)
 
-	// Calculate and record parallel execution efficiency
-	if s.metrics != nil && len(allResults) > 0 {
-		totalSequentialTime := float64(0)
-		maxParallelTime := float64(0)
+	// Merge and deduplicate results
+	mergeStart := time.Now()
+	fedResult := s.mergeResults(results)
+	mergeDuration := time.Since(mergeStart)
+	fedResult.TotalDuration = totalDuration
 
-		for _, result := range allResults {
-			if startTime, ok := startTimes[result.ConnectorID]; ok {
-				duration := float64(time.Since(startTime).Milliseconds())
-				totalSequentialTime += duration
-				if duration > maxParallelTime {
-					maxParallelTime = duration
-				}
-			}
-		}
+	s.metrics.RecordMergeOperation(mergeDuration.Nanoseconds())
+	s.logger.LogMergeEnd(mergeDuration, fedResult.DeduplicationStats)
 
-		if maxParallelTime > 0 && totalSequentialTime > 0 {
-			efficiency := (totalSequentialTime / float64(len(connectors))) / maxParallelTime
-			if efficiency > 1.0 {
-				efficiency = 1.0
-			}
-			s.metrics.UpdateParallelExecutionEfficiency(efficiency)
-		}
-	}
+	// Detect cross-source relationships
+	relStart := time.Now()
+	fedResult.CrosSourceLinks = s.detectRelationships(results, fedResult.Items)
+	relDuration := time.Since(relStart)
 
-	return allResults, nil
+	s.metrics.RecordRelationshipDetection(len(fedResult.CrosSourceLinks))
+	s.logger.LogRelationshipDetection(len(fedResult.CrosSourceLinks), relDuration)
+
+	// Record query completion
+	success := errorCount == 0
+	s.metrics.RecordQueryEnd(totalDuration.Nanoseconds(), sourcesQueried, success)
+	s.logger.LogQueryEnd(queryID, totalDuration, len(fedResult.Items), errorCount,
+		len(fedResult.CrosSourceLinks), success)
+
+	return fedResult, nil
 }
 
-// FilesystemConnector implements SearchableConnector using the vector store
-type FilesystemConnector struct {
-	vectorStore vectorstore.VectorStore
-	embedder    embedding.Embedder
-}
-
-// NewFilesystemConnector creates a new filesystem connector
-func NewFilesystemConnector(vectorStore vectorstore.VectorStore, embedder embedding.Embedder) *FilesystemConnector {
-	return &FilesystemConnector{
-		vectorStore: vectorStore,
-		embedder:    embedder,
+// queryConnector queries a single connector with timeout
+func (s *Service) queryConnector(ctx context.Context, queryID string, conn *connectors.Connector, query string) *QueryResult {
+	result := &QueryResult{
+		Source: conn.ID,
 	}
-}
 
-// Search performs a search using the vector store
-func (f *FilesystemConnector) Search(ctx context.Context, req *schema.SearchRequest) ([]schema.SearchResultItem, error) {
-	// Generate query embedding
-	embedding, err := f.embedder.Embed(ctx, req.Query)
+	// Create context with timeout
+	queryCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+
+	start := time.Now()
+
+	// For now, we'll simulate querying the connector
+	// In a real implementation, this would call the connector's query method
+	items, err := s.executeQuery(queryCtx, conn, query)
+
+	duration := time.Since(start)
+	result.Duration = duration
+	result.Items = items
+	result.Error = err
+	result.ItemCount = len(items)
+
+	// Log source query
+	s.logger.LogSourceQuery(queryID, conn.ID, duration, len(items), err)
+
+	// Record source query metrics
+	success := err == nil
+	s.metrics.RecordSourceQuery(conn.ID, duration.Nanoseconds(), success, len(items))
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
+		s.metrics.RecordError("query_error")
 	}
 
-	// Prepare search options
-	topK := req.TopK
-	if topK <= 0 {
-		topK = 20
-	}
-	if topK > 100 {
-		topK = 100
-	}
-
-	opts := vectorstore.SearchOptions{
-		Limit:   req.Offset + topK + 1, // Request enough for pagination + 1 to detect more
-		Offset:  0,                      // Connectors return all results, pagination at federation level
-		Filters: make(map[string]interface{}),
-	}
-
-	// Apply filters
-	if req.Filters != nil {
-		if len(req.Filters.SourceTypes) > 0 {
-			opts.Filters["source_types"] = req.Filters.SourceTypes
-		}
-		if req.Filters.DateRange != nil {
-			opts.Filters["date_range"] = map[string]string{
-				"from": req.Filters.DateRange.From,
-				"to":   req.Filters.DateRange.To,
-			}
-		}
-		// Apply work context filters
-		if req.Filters.WorkContext != nil {
-			if req.Filters.WorkContext.ActiveFile != "" {
-				opts.Filters["related_files"] = req.Filters.WorkContext.ActiveFile
-			}
-			if req.Filters.WorkContext.GitBranch != "" {
-				opts.Filters["git_branch"] = req.Filters.WorkContext.GitBranch
-			}
-			if len(req.Filters.WorkContext.OpenTicketIDs) > 0 {
-				opts.Filters["ticket_ids"] = req.Filters.WorkContext.OpenTicketIDs
-			}
-		}
-	}
-
-	// Apply work context from request (overrides filter)
-	if req.WorkContext != nil {
-		if req.WorkContext.ActiveFile != "" {
-			opts.Filters["boost_file"] = req.WorkContext.ActiveFile
-		}
-		if req.WorkContext.GitBranch != "" {
-			opts.Filters["git_branch"] = req.WorkContext.GitBranch
-		}
-		if len(req.WorkContext.OpenTicketIDs) > 0 {
-			opts.Filters["boost_tickets"] = req.WorkContext.OpenTicketIDs
-		}
-	}
-
-	// Perform hybrid search
-	results, err := f.vectorStore.SearchHybrid(ctx, req.Query, embedding.Vector, opts)
-	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
-	}
-
-	// Convert results to SearchResultItem format
-	searchResults := make([]schema.SearchResultItem, 0, len(results))
-	for _, r := range results {
-		// Extract source type from metadata
-		sourceType := "file" // default
-		if st, ok := r.Document.Metadata["source_type"].(string); ok {
-			sourceType = st
-		}
-
-		searchResults = append(searchResults, schema.SearchResultItem{
-			ID:         r.Document.ID,
-			Content:    r.Document.Content,
-			Score:      r.Score,
-			SourceType: sourceType,
-			Metadata:   r.Document.Metadata,
-		})
-	}
-
-	return searchResults, nil
+	return result
 }
 
-// GetID returns the connector ID
-func (f *FilesystemConnector) GetID() string {
-	return "filesystem"
+// executeQuery executes a query against a connector
+// This is a placeholder - real implementation would use connector-specific APIs
+func (s *Service) executeQuery(ctx context.Context, conn *connectors.Connector, query string) ([]interface{}, error) {
+	// For local-files connector, we can query the vectorstore
+	if conn.Type == "local-files" {
+		// Query vectorstore for matching documents using BM25
+		opts := vectorstore.SearchOptions{
+			Limit: 10,
+		}
+		searchResults, err := s.vectorstore.SearchBM25(ctx, query, opts)
+		if err != nil {
+			return nil, fmt.Errorf("vectorstore query failed: %w", err)
+		}
+
+		items := make([]interface{}, len(searchResults))
+		for i, sr := range searchResults {
+			items[i] = map[string]interface{}{
+				"id":        sr.Document.ID,
+				"content":   sr.Document.Content,
+				"file_path": sr.Document.Metadata["file_path"],
+				"score":     sr.Score,
+			}
+		}
+		return items, nil
+	}
+
+	// For other connector types, return empty for now
+	// Real implementation would use connector-specific APIs
+	return []interface{}{}, nil
 }
 
-// GetType returns the connector type
-func (f *FilesystemConnector) GetType() string {
-	return "filesystem"
+// mergeResults merges results from multiple sources
+func (s *Service) mergeResults(results []*QueryResult) *FederatedResult {
+	fedResult := &FederatedResult{
+		Items:              []interface{}{},
+		SourceCounts:       make(map[string]int),
+		SourceAttributions: make(map[string]map[string]interface{}),
+		Errors:             []error{},
+	}
+
+	// Use merger to deduplicate and merge
+	merger := NewMerger()
+	for _, result := range results {
+		if result.Error != nil {
+			fedResult.Errors = append(fedResult.Errors, result.Error)
+			continue
+		}
+
+		fedResult.SourceCounts[result.Source] = result.ItemCount
+		merger.AddResults(result.Source, result.Items)
+	}
+
+	// Get merged and deduplicated results
+	mergedItems, stats := merger.MergeAndDeduplicate()
+	fedResult.Items = mergedItems
+	fedResult.DeduplicationStats = stats
+	fedResult.SourceAttributions = merger.GetSourceAttributions()
+
+	// Record deduplication stats in metrics
+	s.metrics.RecordDeduplicationStats(stats)
+
+	return fedResult
+}
+
+// detectRelationships detects cross-source relationships
+func (s *Service) detectRelationships(results []*QueryResult, mergedItems []interface{}) map[string][]string {
+	detector := NewDetector()
+	return detector.DetectRelationships(results, mergedItems)
 }

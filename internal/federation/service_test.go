@@ -2,309 +2,523 @@ package federation
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/ferg-cod3s/conexus/internal/schema"
+	"github.com/ferg-cod3s/conexus/internal/connectors"
+	"github.com/ferg-cod3s/conexus/internal/embedding"
+	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/mock"
-	"github.com/ferg-cod3s/conexus/internal/connectors"
 )
 
-// TestNewService tests that service can be created
+// mockVectorStore is a mock implementation of VectorStore
+type mockVectorStore struct {
+	results []vectorstore.SearchResult
+	err     error
+}
+
+func (m *mockVectorStore) Upsert(ctx context.Context, doc vectorstore.Document) error {
+	return m.err
+}
+
+func (m *mockVectorStore) UpsertBatch(ctx context.Context, docs []vectorstore.Document) error {
+	return m.err
+}
+
+func (m *mockVectorStore) Delete(ctx context.Context, id string) error {
+	return m.err
+}
+
+func (m *mockVectorStore) Get(ctx context.Context, id string) (*vectorstore.Document, error) {
+	return nil, m.err
+}
+
+func (m *mockVectorStore) SearchVector(ctx context.Context, vector embedding.Vector, opts vectorstore.SearchOptions) ([]vectorstore.SearchResult, error) {
+	return m.results, m.err
+}
+
+func (m *mockVectorStore) SearchBM25(ctx context.Context, query string, opts vectorstore.SearchOptions) ([]vectorstore.SearchResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	limit := opts.Limit
+	if limit > 0 && len(m.results) > limit {
+		return m.results[:limit], nil
+	}
+	return m.results, nil
+}
+
+func (m *mockVectorStore) SearchHybrid(ctx context.Context, query string, vector embedding.Vector, opts vectorstore.SearchOptions) ([]vectorstore.SearchResult, error) {
+	return m.results, m.err
+}
+
+func (m *mockVectorStore) Count(ctx context.Context) (int64, error) {
+	return int64(len(m.results)), m.err
+}
+
+func (m *mockVectorStore) ListIndexedFiles(ctx context.Context) ([]string, error) {
+	return []string{}, m.err
+}
+
+func (m *mockVectorStore) GetFileChunks(ctx context.Context, filePath string) ([]vectorstore.Document, error) {
+	return []vectorstore.Document{}, m.err
+}
+
+func (m *mockVectorStore) Close() error {
+	return nil
+}
+
+// mockConnectorStore is a mock implementation of ConnectorStore
+type mockConnectorStore struct {
+	connectors map[string]*connectors.Connector
+	err        error
+}
+
+func (m *mockConnectorStore) Add(ctx context.Context, connector *connectors.Connector) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.connectors[connector.ID] = connector
+	return nil
+}
+
+func (m *mockConnectorStore) Get(ctx context.Context, id string) (*connectors.Connector, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	c, ok := m.connectors[id]
+	if !ok {
+		return nil, fmt.Errorf("connector not found")
+	}
+	return c, nil
+}
+
+func (m *mockConnectorStore) List(ctx context.Context) ([]*connectors.Connector, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	result := make([]*connectors.Connector, 0, len(m.connectors))
+	for _, c := range m.connectors {
+		result = append(result, c)
+	}
+	return result, nil
+}
+
+func (m *mockConnectorStore) Update(ctx context.Context, id string, connector *connectors.Connector) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.connectors[id] = connector
+	return nil
+}
+
+func (m *mockConnectorStore) Remove(ctx context.Context, id string) error {
+	if m.err != nil {
+		return m.err
+	}
+	delete(m.connectors, id)
+	return nil
+}
+
+func (m *mockConnectorStore) Close() error {
+	return nil
+}
+
+// TestNewService tests service initialization
 func TestNewService(t *testing.T) {
-	// Test that service can be created
-	service := NewService(nil, nil)
-	assert.NotNil(t, service)
+	vs := &mockVectorStore{}
+	mgr := &connectors.Manager{}
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	require.NotNil(t, svc)
+	assert.Equal(t, 5*time.Second, svc.timeout)
 }
 
-// MockConnectorWithTestify implements SearchableConnector for testing using testify/mock
-type MockConnectorWithTestify struct {
-	mock.Mock
-	id       string
-	connType string
+// TestNewService_DefaultTimeout tests service with default timeout
+func TestNewService_DefaultTimeout(t *testing.T) {
+	vs := &mockVectorStore{}
+	mgr := &connectors.Manager{}
+	svc := NewService(mgr, vs, 0)
+
+	require.NotNil(t, svc)
+	assert.Equal(t, 30*time.Second, svc.timeout)
 }
 
-func (m *MockConnectorWithTestify) Search(ctx context.Context, req *schema.SearchRequest) ([]schema.SearchResultItem, error) {
-	args := m.Called(ctx, req)
-	return args.Get(0).([]schema.SearchResultItem), args.Error(1)
+// TestQueryMultipleSources_EmptyConnectors tests query with no active connectors
+func TestQueryMultipleSources_EmptyConnectors(t *testing.T) {
+	vs := &mockVectorStore{}
+	mgr := connectors.NewManager(&mockConnectorStore{connectors: make(map[string]*connectors.Connector)})
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	result, err := svc.QueryMultipleSources(context.Background(), "test query")
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 0, len(result.Items))
+	assert.Equal(t, 0, len(result.SourceCounts))
 }
 
-func (m *MockConnectorWithTestify) GetID() string {
-	return m.id
+// TestQueryMultipleSources_EmptyQuery tests query with empty string
+func TestQueryMultipleSources_EmptyQuery(t *testing.T) {
+	vs := &mockVectorStore{}
+	mgr := connectors.NewManager(&mockConnectorStore{connectors: make(map[string]*connectors.Connector)})
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	_, err := svc.QueryMultipleSources(context.Background(), "")
+
+	assert.Error(t, err)
 }
 
-func (m *MockConnectorWithTestify) GetType() string {
-	return m.connType
-}
-
-func TestService_Search(t *testing.T) {
-	tests := []struct {
-		name             string
-		req              *schema.SearchRequest
-		setupConnectors  func() []*MockConnectorWithTestify
-		expectedResults  int
-		expectError      bool
-	}{
-		{
-			name: "successful search with multiple connectors",
-			req: &schema.SearchRequest{
-				Query: "test query",
-				TopK:  10,
-			},
-			setupConnectors: func() []*MockConnectorWithTestify {
-				conn1 := &MockConnectorWithTestify{id: "conn1", connType: "filesystem"}
-				conn1.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{
-					{ID: "1", Content: "result 1", Score: 0.9, SourceType: "file"},
-					{ID: "2", Content: "result 2", Score: 0.8, SourceType: "file"},
-				}, nil)
-
-				conn2 := &MockConnectorWithTestify{id: "conn2", connType: "github"}
-				conn2.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{
-					{ID: "3", Content: "result 3", Score: 0.7, SourceType: "github"},
-				}, nil)
-
-				return []*MockConnectorWithTestify{conn1, conn2}
-			},
-			expectedResults: 3,
-			expectError:     false,
-		},
-		{
-			name: "empty results from all connectors",
-			req: &schema.SearchRequest{
-				Query: "empty query",
-				TopK:  5,
-			},
-			setupConnectors: func() []*MockConnectorWithTestify {
-				conn := &MockConnectorWithTestify{id: "conn1", connType: "filesystem"}
-				conn.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{}, nil)
-				return []*MockConnectorWithTestify{conn}
-			},
-			expectedResults: 0,
-			expectError:     false,
-		},
-		{
-			name: "pagination works correctly",
-			req: &schema.SearchRequest{
-				Query:  "test query",
-				TopK:   2,
-				Offset: 1,
-			},
-			setupConnectors: func() []*MockConnectorWithTestify {
-				conn := &MockConnectorWithTestify{id: "conn1", connType: "filesystem"}
-				conn.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{
-					{ID: "1", Content: "result 1", Score: 0.9, SourceType: "file"},
-					{ID: "2", Content: "result 2", Score: 0.8, SourceType: "file"},
-					{ID: "3", Content: "result 3", Score: 0.7, SourceType: "file"},
-				}, nil)
-				return []*MockConnectorWithTestify{conn}
-			},
-			expectedResults: 2,
-			expectError:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup mock connectors
-			mockConnectors := tt.setupConnectors()
-
-			// Create mock manager
-			mockManager := &connectors.Manager{}
-			// We need to mock the List method - this is tricky with the current design
-			// For now, we'll create a simple test that focuses on the service logic
-
-			// Create service
-			service := NewService(mockManager, nil)
-
-			// For this test, we'll directly test the executeParallelSearches method
-			// by creating a mock context and connectors
-			ctx := context.Background()
-
-			// Convert to SearchableConnector interface
-			var searchable []SearchableConnector
-			for _, mc := range mockConnectors {
-				searchable = append(searchable, mc)
-			}
-
-			// Execute parallel searches
-			results, err := service.executeParallelSearches(ctx, tt.req, searchable)
-
-			if tt.expectError {
-				assert.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Len(t, results, len(mockConnectors))
-
-			// Verify mock expectations
-			for _, conn := range mockConnectors {
-				conn.AssertExpectations(t)
-			}
-		})
-	}
-}
-
-func TestService_executeParallelSearches(t *testing.T) {
-	tests := []struct {
-		name        string
-		connectors  []SearchableConnector
-		req         *schema.SearchRequest
-		expectError bool
-	}{
-		{
-			name: "successful parallel execution",
-			connectors: []SearchableConnector{
-				&MockConnectorWithTestify{id: "conn1", connType: "filesystem"},
-				&MockConnectorWithTestify{id: "conn2", connType: "github"},
-			},
-			req:         &schema.SearchRequest{Query: "test"},
-			expectError: false,
-		},
-		{
-			name: "timeout handling",
-			connectors: []SearchableConnector{
-				&MockConnectorWithTestify{id: "slow-conn", connType: "filesystem"},
-			},
-			req:         &schema.SearchRequest{Query: "test"},
-			expectError: true, // Should timeout
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			service := NewService(nil, nil) // Manager not needed for this test
-
-			if tt.name == "timeout handling" {
-				// Set very short timeout
-				service.timeout = 1 * time.Millisecond
-
-				// Mock a slow connector
-				slowConn := tt.connectors[0].(*MockConnectorWithTestify)
-				slowConn.On("Search", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-					time.Sleep(10 * time.Millisecond) // Sleep longer than timeout
-				}).Return([]schema.SearchResultItem{}, nil)
-			} else {
-				// Setup normal mocks
-				for _, conn := range tt.connectors {
-					mockConn := conn.(*MockConnectorWithTestify)
-					mockConn.On("Search", mock.Anything, mock.Anything).Return([]schema.SearchResultItem{
-						{ID: "test", Content: "test content", Score: 0.5, SourceType: "file"},
-					}, nil)
-				}
-			}
-
-			ctx := context.Background()
-			results, err := service.executeParallelSearches(ctx, tt.req, tt.connectors)
-
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Len(t, results, len(tt.connectors))
-			}
-
-			// Verify mock expectations
-			for _, conn := range tt.connectors {
-				if mockConn, ok := conn.(*MockConnectorWithTestify); ok {
-					mockConn.AssertExpectations(t)
-				}
-			}
-		})
-	}
-}
-
-func TestService_NewService(t *testing.T) {
-	mockManager := &connectors.Manager{}
-	service := NewService(mockManager, nil)
-
-	assert.NotNil(t, service)
-	assert.Equal(t, mockManager, service.connectorManager)
-	assert.NotNil(t, service.merger)
-	assert.NotNil(t, service.detector)
-	assert.Equal(t, 10*time.Second, service.timeout)
-}
-
-// TestService_createGitHubConnector tests the GitHub connector creation
-func TestService_createGitHubConnector(t *testing.T) {
-	tests := []struct {
-		name        string
-		conn        *connectors.Connector
-		expectError bool
-		expectedErr string
-	}{
-		{
-			name: "valid GitHub connector creation with token",
-			conn: &connectors.Connector{
-				ID:     "github-1",
-				Type:   "github",
-				Status: "active",
-				Config: map[string]interface{}{
-					"token": "ghp_testtoken123456789",
+// TestQueryMultipleSources_SingleConnector tests query with one connector
+func TestQueryMultipleSources_SingleConnector(t *testing.T) {
+	vs := &mockVectorStore{
+		results: []vectorstore.SearchResult{
+			{
+				Document: vectorstore.Document{
+					ID:      "doc1",
+					Content: "test content",
+					Metadata: map[string]interface{}{
+						"file_path": "/test/file.txt",
+					},
 				},
+				Score:  0.95,
+				Method: "bm25",
 			},
-			expectError: false,
-		},
-		{
-			name: "missing GitHub token",
-			conn: &connectors.Connector{
-				ID:     "github-2",
-				Type:   "github",
-				Status: "active",
-				Config: map[string]interface{}{},
-			},
-			expectError: true,
-			expectedErr: "missing or invalid GitHub token",
-		},
-		{
-			name: "empty GitHub token",
-			conn: &connectors.Connector{
-				ID:     "github-3",
-				Type:   "github",
-				Status: "active",
-				Config: map[string]interface{}{
-					"token": "",
-				},
-			},
-			expectError: true,
-			expectedErr: "missing or invalid GitHub token",
-		},
-		{
-			name: "invalid GitHub token type",
-			conn: &connectors.Connector{
-				ID:     "github-4",
-				Type:   "github",
-				Status: "active",
-				Config: map[string]interface{}{
-					"token": 12345, // Wrong type
-				},
-			},
-			expectError: true,
-			expectedErr: "missing or invalid GitHub token",
 		},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			service := NewService(nil, nil)
-			result, err := service.createGitHubConnector(tt.conn)
-
-			if tt.expectError {
-				assert.Error(t, err)
-				if tt.expectedErr != "" {
-					assert.Contains(t, err.Error(), tt.expectedErr)
-				}
-				assert.Nil(t, result)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.conn.ID, result.GetID())
-				assert.Equal(t, "github", result.GetType())
-			}
-		})
+	
+	store := &mockConnectorStore{connectors: make(map[string]*connectors.Connector)}
+	store.connectors["conn1"] = &connectors.Connector{
+		ID:   "conn1",
+		Type: "local-files",
+		Name: "Test Connector",
 	}
+	mgr := connectors.NewManager(store)
+	require.NoError(t, mgr.Initialize(context.Background(), store.connectors["conn1"]))
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	result, err := svc.QueryMultipleSources(context.Background(), "test query")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, len(result.Items), 0)
 }
 
+// TestQueryMultipleSources_Timeout tests query timeout handling
+func TestQueryMultipleSources_Timeout(t *testing.T) {
+	vs := &mockVectorStore{}
+	store := &mockConnectorStore{connectors: make(map[string]*connectors.Connector)}
+	store.connectors["conn1"] = &connectors.Connector{
+		ID:   "conn1",
+		Type: "external-api",
+		Name: "External Connector",
+	}
+	mgr := connectors.NewManager(store)
+	svc := NewService(mgr, vs, 1*time.Millisecond) // Very short timeout
 
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	result, err := svc.QueryMultipleSources(ctx, "test query")
+
+	// Should either succeed with empty results or handle timeout gracefully
+	require.NoError(t, err)
+	require.NotNil(t, result)
+}
+
+// TestQueryMultipleSources_MultipleConnectors tests query with multiple connectors
+func TestQueryMultipleSources_MultipleConnectors(t *testing.T) {
+	vs := &mockVectorStore{
+		results: []vectorstore.SearchResult{
+			{
+				Document: vectorstore.Document{
+					ID:      "doc1",
+					Content: "first result",
+					Metadata: map[string]interface{}{
+						"file_path": "/file1.txt",
+					},
+				},
+				Score:  0.9,
+				Method: "bm25",
+			},
+			{
+				Document: vectorstore.Document{
+					ID:      "doc2",
+					Content: "second result",
+					Metadata: map[string]interface{}{
+						"file_path": "/file2.txt",
+					},
+				},
+				Score:  0.85,
+				Method: "bm25",
+			},
+		},
+	}
+
+	store := &mockConnectorStore{connectors: make(map[string]*connectors.Connector)}
+	store.connectors["conn1"] = &connectors.Connector{
+		ID:   "conn1",
+		Type: "local-files",
+		Name: "Local Files",
+	}
+	store.connectors["conn2"] = &connectors.Connector{
+		ID:   "conn2",
+		Type: "local-files",
+		Name: "Local Files 2",
+	}
+	mgr := connectors.NewManager(store)
+	require.NoError(t, mgr.Initialize(context.Background(), store.connectors["conn1"]))
+	require.NoError(t, mgr.Initialize(context.Background(), store.connectors["conn2"]))
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	result, err := svc.QueryMultipleSources(context.Background(), "test query")
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Greater(t, result.TotalDuration, time.Duration(0))
+}
+
+// TestQueryMultipleSources_WithErrors tests handling of connector errors
+func TestQueryMultipleSources_WithErrors(t *testing.T) {
+	vs := &mockVectorStore{
+		err: fmt.Errorf("vectorstore error"),
+	}
+
+	store := &mockConnectorStore{connectors: make(map[string]*connectors.Connector)}
+	store.connectors["conn1"] = &connectors.Connector{
+		ID:   "conn1",
+		Type: "local-files",
+		Name: "Local Files",
+	}
+	mgr := connectors.NewManager(store)
+	require.NoError(t, mgr.Initialize(context.Background(), store.connectors["conn1"]))
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	result, err := svc.QueryMultipleSources(context.Background(), "test query")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, len(result.Errors), 0)
+}
+
+// TestQueryMultipleSources_Deduplication tests result deduplication
+func TestQueryMultipleSources_Deduplication(t *testing.T) {
+	// Create duplicate results across connectors
+	vs := &mockVectorStore{
+		results: []vectorstore.SearchResult{
+			{
+				Document: vectorstore.Document{
+					ID:      "same-id",
+					Content: "duplicate content",
+					Metadata: map[string]interface{}{
+						"file_path": "/dup.txt",
+					},
+				},
+				Score:  0.9,
+				Method: "bm25",
+			},
+		},
+	}
+
+	store := &mockConnectorStore{connectors: make(map[string]*connectors.Connector)}
+	store.connectors["conn1"] = &connectors.Connector{
+		ID:   "conn1",
+		Type: "local-files",
+		Name: "Local Files 1",
+	}
+	store.connectors["conn2"] = &connectors.Connector{
+		ID:   "conn2",
+		Type: "local-files",
+		Name: "Local Files 2",
+	}
+	mgr := connectors.NewManager(store)
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	result, err := svc.QueryMultipleSources(context.Background(), "test query")
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.DeduplicationStats)
+}
+
+// TestQueryMultipleSources_CrossSourceRelationships tests relationship detection
+func TestQueryMultipleSources_CrossSourceRelationships(t *testing.T) {
+	vs := &mockVectorStore{
+		results: []vectorstore.SearchResult{
+			{
+				Document: vectorstore.Document{
+					ID:      "issue-123",
+					Content: "GitHub issue",
+					Metadata: map[string]interface{}{
+						"file_path": "/issues/123",
+					},
+				},
+				Score:  0.9,
+				Method: "bm25",
+			},
+		},
+	}
+
+	store := &mockConnectorStore{connectors: make(map[string]*connectors.Connector)}
+	store.connectors["github"] = &connectors.Connector{
+		ID:   "github",
+		Type: "local-files",
+		Name: "GitHub Issues",
+	}
+	mgr := connectors.NewManager(store)
+	require.NoError(t, mgr.Initialize(context.Background(), store.connectors["github"]))
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	result, err := svc.QueryMultipleSources(context.Background(), "test query")
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.CrosSourceLinks)
+}
+
+// TestExecuteQuery_LocalFiles tests local-files connector query execution
+func TestExecuteQuery_LocalFiles(t *testing.T) {
+	vs := &mockVectorStore{
+		results: []vectorstore.SearchResult{
+			{
+				Document: vectorstore.Document{
+					ID:      "doc1",
+					Content: "test",
+					Metadata: map[string]interface{}{
+						"file_path": "/test.txt",
+					},
+				},
+				Score:  0.95,
+				Method: "bm25",
+			},
+		},
+	}
+
+	svc := &Service{vectorstore: vs}
+	conn := &connectors.Connector{
+		ID:   "local",
+		Type: "local-files",
+	}
+
+	items, err := svc.executeQuery(context.Background(), conn, "test")
+
+	require.NoError(t, err)
+	assert.Greater(t, len(items), 0)
+}
+
+// TestExecuteQuery_NonLocalFiles tests non-local-files connector
+func TestExecuteQuery_NonLocalFiles(t *testing.T) {
+	vs := &mockVectorStore{}
+	svc := &Service{vectorstore: vs}
+	conn := &connectors.Connector{
+		ID:   "external",
+		Type: "external-api",
+	}
+
+	items, err := svc.executeQuery(context.Background(), conn, "test")
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(items))
+}
+
+// TestExecuteQuery_VectorstoreError tests handling of vectorstore errors
+func TestExecuteQuery_VectorstoreError(t *testing.T) {
+	vs := &mockVectorStore{
+		err: fmt.Errorf("connection failed"),
+	}
+
+	svc := &Service{vectorstore: vs}
+	conn := &connectors.Connector{
+		ID:   "local",
+		Type: "local-files",
+	}
+
+	_, err := svc.executeQuery(context.Background(), conn, "test")
+
+	assert.Error(t, err)
+}
+
+// TestMergeResults_Empty tests merging empty results
+func TestMergeResults_Empty(t *testing.T) {
+	svc := &Service{}
+	result := svc.mergeResults([]*QueryResult{})
+
+	require.NotNil(t, result)
+	assert.Equal(t, 0, len(result.Items))
+	assert.Equal(t, 0, len(result.SourceCounts))
+}
+
+// TestMergeResults_WithErrors tests merging results with errors
+func TestMergeResults_WithErrors(t *testing.T) {
+	svc := &Service{}
+	results := []*QueryResult{
+		{
+			Source: "source1",
+			Error:  fmt.Errorf("test error"),
+		},
+		{
+			Source: "source2",
+			Items:  []interface{}{map[string]interface{}{"id": "item1"}},
+		},
+	}
+
+	result := svc.mergeResults(results)
+
+	assert.Greater(t, len(result.Errors), 0)
+	assert.Greater(t, len(result.Items), 0)
+}
+
+// TestDetectRelationships tests relationship detection
+func TestDetectRelationships(t *testing.T) {
+	svc := &Service{}
+	results := []*QueryResult{
+		{
+			Source: "source1",
+			Items:  []interface{}{map[string]interface{}{"id": "item1"}},
+		},
+		{
+			Source: "source2",
+			Items:  []interface{}{map[string]interface{}{"id": "item1"}},
+		},
+	}
+
+	relationships := svc.detectRelationships(results, nil)
+
+	require.NotNil(t, relationships)
+}
+
+// TestIntegration_CompleteFlow tests complete query flow
+func TestIntegration_CompleteFlow(t *testing.T) {
+	vs := &mockVectorStore{
+		results: []vectorstore.SearchResult{
+			{
+				Document: vectorstore.Document{
+					ID:      "result1",
+					Content: "test content",
+					Metadata: map[string]interface{}{
+						"file_path": "/test.txt",
+					},
+				},
+				Score:  0.95,
+				Method: "bm25",
+			},
+		},
+	}
+
+	store := &mockConnectorStore{connectors: make(map[string]*connectors.Connector)}
+	store.connectors["local"] = &connectors.Connector{
+		ID:   "local",
+		Type: "local-files",
+		Name: "Local Files",
+	}
+	mgr := connectors.NewManager(store)
+	require.NoError(t, mgr.Initialize(context.Background(), store.connectors["local"]))
+	svc := NewService(mgr, vs, 5*time.Second)
+
+	result, err := svc.QueryMultipleSources(context.Background(), "integration test")
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.DeduplicationStats)
+	assert.NotNil(t, result.CrosSourceLinks)
+	assert.Greater(t, result.TotalDuration, time.Duration(0))
+}

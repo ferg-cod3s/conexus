@@ -61,18 +61,18 @@ func TestSearchHybrid_Basic(t *testing.T) {
 	// Test hybrid search with both query and vector
 	query := "calculate"
 	queryVector := normalizeVector([]float32{1.0, 0.0, 0.0})
-	
+
 	results, err := store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
 		Limit: 10,
 	})
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, results, "Should find results")
-	
+
 	// doc1 should rank highly (matches both keyword "calculate" and vector similarity)
 	assert.Equal(t, "doc1", results[0].Document.ID, "doc1 should rank first")
 	assert.Equal(t, "hybrid", results[0].Method, "Method should be 'hybrid'")
-	
+
 	// All results should have scores
 	for _, result := range results {
 		assert.Greater(t, result.Score, float32(0), "Score should be positive")
@@ -384,7 +384,7 @@ func TestSearchHybrid_Overlapping(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	
+
 	// Count occurrences of each document ID
 	idCount := make(map[string]int)
 	for _, result := range results {
@@ -451,10 +451,10 @@ func TestApplyRRF_AlphaWeights(t *testing.T) {
 			}
 
 			results := applyRRF(bm25Results, vectorResults, opts)
-			
+
 			require.NotEmpty(t, results)
 			assert.Equal(t, tc.expectFirst, results[0].Document.ID, "First result should match expected")
-			
+
 			// All results should have method="hybrid"
 			for _, result := range results {
 				assert.Equal(t, "hybrid", result.Method)
@@ -477,7 +477,7 @@ func TestApplyRRF_EmptyResults(t *testing.T) {
 
 	// RRF should handle empty vector results gracefully
 	results := applyRRF(bm25Results, vectorResults, opts)
-	
+
 	require.Len(t, results, 1)
 	assert.Equal(t, "doc1", results[0].Document.ID)
 }
@@ -518,11 +518,11 @@ func normalizeVector(v []float32) []float32 {
 		magnitude += val * val
 	}
 	magnitude = float32(math.Sqrt(float64(magnitude)))
-	
+
 	if magnitude == 0 {
 		return v
 	}
-	
+
 	normalized := make([]float32, len(v))
 	for i, val := range v {
 		normalized[i] = val / magnitude
@@ -533,12 +533,277 @@ func normalizeVector(v []float32) []float32 {
 // setupTestStore creates a new test store with a temporary database.
 func setupTestStore(t *testing.T) *Store {
 	t.Helper()
-	
+
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
-	
+
 	store, err := NewStore(dbPath)
 	require.NoError(t, err, "Failed to create test store")
-	
+
 	return store
+}
+
+// TestSearchHybrid_Rerank_PathBoost tests that documents with matching filenames get boosted when rerank is enabled.
+func TestSearchHybrid_Rerank_PathBoost(t *testing.T) {
+	store := setupTestStore(t)
+	defer store.Close()
+
+	// Create two documents with similar relevance but different filenames
+	now := time.Now()
+	docs := []vectorstore.Document{
+		{
+			ID:      "docA",
+			Content: "implement parser function", // Text match for "parser"
+			Vector:  normalizeVector([]float32{0.98, 0.02, 0.0}),
+			Metadata: map[string]interface{}{
+				"path":     "utils/parser.go", // Filename contains "parser"
+				"language": "go",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:      "docB",
+			Content: "parser helper parser function",             // Has "parser" twice for stronger BM25 match
+			Vector:  normalizeVector([]float32{0.99, 0.01, 0.0}), // Better vector match
+			Metadata: map[string]interface{}{
+				"path":     "utils/helper.go", // Filename does not contain "parser"
+				"language": "go",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+
+	err := store.UpsertBatch(context.Background(), docs)
+	require.NoError(t, err)
+
+	query := "parser"
+	queryVector := normalizeVector([]float32{1.0, 0.0, 0.0})
+
+	// Without rerank, docB should rank first due to slightly better vector similarity
+	resultsNoRerank, err := store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
+		Limit:  10,
+		Rerank: false,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resultsNoRerank)
+	// docB should rank first without rerank (better vector score)
+	assert.Equal(t, "docB", resultsNoRerank[0].Document.ID, "docB should rank first without rerank")
+
+	// With rerank, docA should be boosted due to filename match and rank first
+	resultsWithRerank, err := store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
+		Limit:  10,
+		Rerank: true,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resultsWithRerank)
+	assert.Equal(t, "docA", resultsWithRerank[0].Document.ID, "docA should be boosted to first with rerank enabled")
+
+	// Verify that scores are actually boosted
+	assert.Greater(t, resultsWithRerank[0].Score, resultsNoRerank[0].Score, "Reranked score should be higher")
+}
+
+// TestSearchHybrid_Rerank_Recency tests that recently updated documents get boosted when rerank is enabled.
+func TestSearchHybrid_Rerank_Recency(t *testing.T) {
+	store := setupTestStore(t)
+	defer store.Close()
+
+	// Create documents with similar relevance but different update times
+	oldTime := time.Now().AddDate(0, 0, -60)   // 60 days ago
+	recentTime := time.Now().AddDate(0, 0, -3) // 3 days ago
+
+	docs := []vectorstore.Document{
+		{
+			ID:      "oldDoc",
+			Content: "calculate total sum",
+			Vector:  normalizeVector([]float32{0.99, 0.01, 0.0}),
+			Metadata: map[string]interface{}{
+				"path":     "math.go",
+				"language": "go",
+			},
+			CreatedAt: oldTime,
+			UpdatedAt: oldTime,
+		},
+		{
+			ID:      "recentDoc",
+			Content: "calculate total sum",
+			Vector:  normalizeVector([]float32{0.99, 0.01, 0.0}),
+			Metadata: map[string]interface{}{
+				"path":     "math.go",
+				"language": "go",
+			},
+			CreatedAt: recentTime,
+			UpdatedAt: recentTime,
+		},
+	}
+
+	err := store.UpsertBatch(context.Background(), docs)
+	require.NoError(t, err)
+
+	query := "calculate total"
+	queryVector := normalizeVector([]float32{1.0, 0.0, 0.0})
+
+	// Without rerank, order should be stable (likely by insertion order or internal tie-breaking)
+	resultsNoRerank, err := store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
+		Limit:  10,
+		Rerank: false,
+	})
+	require.NoError(t, err)
+	require.Len(t, resultsNoRerank, 2)
+
+	// With rerank, the recent document should be boosted
+	resultsWithRerank, err := store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
+		Limit:  10,
+		Rerank: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resultsWithRerank, 2)
+
+	// The recent document should rank first with rerank
+	assert.Equal(t, "recentDoc", resultsWithRerank[0].Document.ID, "Recent document should be boosted to first with rerank")
+
+	// Verify the recent document has a higher score with rerank
+	var recentScoreNoRerank float32
+	var recentScoreWithRerank float32
+
+	for _, result := range resultsNoRerank {
+		if result.Document.ID == "recentDoc" {
+			recentScoreNoRerank = result.Score
+		} else if result.Document.ID == "oldDoc" {
+		}
+	}
+
+	for _, result := range resultsWithRerank {
+		if result.Document.ID == "recentDoc" {
+			recentScoreWithRerank = result.Score
+		} else if result.Document.ID == "oldDoc" {
+		}
+	}
+
+	assert.Greater(t, recentScoreWithRerank, recentScoreNoRerank, "Recent document score should be boosted")
+	// The boost should be approximately 0.003 for recent documents (<= 7 days)
+	expectedBoost := float32(0.003)
+	assert.InDelta(t, recentScoreWithRerank-recentScoreNoRerank, expectedBoost, 0.0005, "Recent boost should be ~0.003")
+}
+
+// TestSearchHybrid_Rerank_LanguageHint tests that language matching provides a small boost.
+func TestSearchHybrid_Rerank_LanguageHint(t *testing.T) {
+	store := setupTestStore(t)
+	defer store.Close()
+
+	now := time.Now()
+	docs := []vectorstore.Document{
+		{
+			ID:      "goDoc",
+			Content: "go function implementation",
+			Vector:  normalizeVector([]float32{1.0, 0.0, 0.0}), // Better vector match for baseline
+			Metadata: map[string]interface{}{
+				"path":     "utils.go",
+				"language": "go",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:      "pyDoc",
+			Content: "python function implementation",
+			Vector:  normalizeVector([]float32{0.8, 0.2, 0.0}),
+			Metadata: map[string]interface{}{
+				"path":     "utils.py",
+				"language": "python",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+
+	err := store.UpsertBatch(context.Background(), docs)
+	require.NoError(t, err)
+
+	// Query that mentions "go" - should boost the Go document
+	query := "go function implementation"
+	queryVector := normalizeVector([]float32{1.0, 0.0, 0.0})
+
+	resultsWithRerank, err := store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
+		Limit:  10,
+		Rerank: true,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resultsWithRerank)
+
+	// The Go document should be boosted to the top
+	assert.Equal(t, "goDoc", resultsWithRerank[0].Document.ID, "Go document should be boosted when query mentions 'go'")
+
+	// Query that mentions "python" - should boost the Python document
+	query = "python function implementation"
+	resultsWithRerank, err = store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
+		Limit:  10,
+		Rerank: true,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resultsWithRerank)
+
+	assert.Equal(t, "pyDoc", resultsWithRerank[0].Document.ID, "Python document should be boosted when query mentions 'python'")
+}
+
+// TestSearchHybrid_Rerank_NoEffectWhenIrrelevant tests that rerank doesn't disrupt rankings when metadata is irrelevant.
+func TestSearchHybrid_Rerank_NoEffectWhenIrrelevant(t *testing.T) {
+	store := setupTestStore(t)
+	defer store.Close()
+
+	now := time.Now()
+	docs := []vectorstore.Document{
+		{
+			ID:      "doc1",
+			Content: "exact match content",
+			Vector:  normalizeVector([]float32{1.0, 0.0, 0.0}),
+			Metadata: map[string]interface{}{
+				"path":     "random.go",
+				"language": "go",
+			},
+			CreatedAt: now,
+			UpdatedAt: now.AddDate(0, 0, -10), // 10 days ago
+		},
+		{
+			ID:      "doc2",
+			Content: "partial match",
+			Vector:  normalizeVector([]float32{0.5, 0.5, 0.0}),
+			Metadata: map[string]interface{}{
+				"path":     "other.py",
+				"language": "python",
+			},
+			CreatedAt: now,
+			UpdatedAt: now.AddDate(0, 0, -10), // 10 days ago
+		},
+	}
+
+	err := store.UpsertBatch(context.Background(), docs)
+	require.NoError(t, err)
+
+	query := "exact match"
+	queryVector := normalizeVector([]float32{1.0, 0.0, 0.0})
+
+	// Get results without rerank
+	resultsNoRerank, err := store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
+		Limit:  10,
+		Rerank: false,
+	})
+	require.NoError(t, err)
+
+	// Get results with rerank
+	resultsWithRerank, err := store.SearchHybrid(context.Background(), query, queryVector, vectorstore.SearchOptions{
+		Limit:  10,
+		Rerank: true,
+	})
+	require.NoError(t, err)
+
+	// The top result should be the same in both cases (doc1 has much better relevance)
+	require.NotEmpty(t, resultsNoRerank)
+	require.NotEmpty(t, resultsWithRerank)
+	assert.Equal(t, resultsNoRerank[0].Document.ID, resultsWithRerank[0].Document.ID, "Top result should remain the same when metadata is irrelevant")
+
+	// Scores should be very close (only minimal boost if any)
+	scoreDiff := resultsWithRerank[0].Score - resultsNoRerank[0].Score
+	assert.Less(t, scoreDiff, float32(0.002), "Score difference should be minimal when metadata is irrelevant")
 }
