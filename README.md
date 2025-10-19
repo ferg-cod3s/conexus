@@ -33,6 +33,7 @@ Conexus is an **agentic context engine** that transforms Large Language Models (
 - **Go 1.23.4+** ([download](https://go.dev/dl/))
 - Git
 - Linux/macOS/Windows with WSL
+- **Bun runtime** (required for dogfooding tests only)
 
 ### Installation
 
@@ -54,15 +55,17 @@ go test ./...
 ### Basic Usage
 
 ```bash
-# Run the Conexus agent (development)
+# Run the Conexus MCP server (default port 8080)
 ./conexus
 
-# Run with verbose logging
-./conexus -v
+# Run with custom configuration
+CONEXUS_LOG_LEVEL=debug ./conexus
 
-# Run specific agent
-./conexus agent locator --pattern "func.*Handler"
+# Test the server is running
+curl http://localhost:8080/health
 ```
+
+**Note**: Conexus runs as an MCP server exposing HTTP endpoints. See the **MCP Integration** section below for connecting with AI assistants.
 
 ---
 
@@ -88,7 +91,7 @@ Conexus provides first-class support for the [Model Context Protocol (MCP)](http
 go install github.com/ferg-cod3s/conexus/cmd/conexus@latest
 
 # Start the MCP server (will auto-index current directory)
-conexus mcp --host localhost --port 3000
+conexus
 ```
 
 **2. Configure Claude Desktop:**
@@ -100,7 +103,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   "mcpServers": {
     "conexus": {
       "command": "conexus",
-      "args": ["mcp", "--root", "/path/to/your/codebase"],
+      "args": [],
       "env": {
         "CONEXUS_LOG_LEVEL": "info"
       }
@@ -179,30 +182,30 @@ For production deployments, custom embedding providers, and advanced search opti
 │  │   Parser    │  │   Engine    │  │  Manager    │ │
 │  └─────────────┘  └─────────────┘  └─────────────┘ │
 └─────────────────────────────────────────────────────┘
-                        │
-        ┌───────────────┼───────────────┐
-        │               │               │
-  ┌─────▼─────┐   ┌────▼─────┐   ┌────▼─────┐
-  │  Locator  │   │ Analyzer │   │  Future  │
-  │   Agent   │   │  Agent   │   │  Agents  │
-  └─────┬─────┘   └────┬─────┘   └──────────┘
-        │               │
-        └───────┬───────┘
-                │
-  ┌─────────────▼─────────────┐
-  │      Validation Layer     │
-  │  ┌──────────┐ ┌─────────┐ │
-  │  │ Evidence │ │ Schema  │ │
-  │  │Validator │ │Validator│ │
-  │  └──────────┘ └─────────┘ │
-  └───────────────────────────┘
-                │
-  ┌─────────────▼─────────────┐
-  │     Profiling Layer       │
-  │  ┌──────────┐ ┌─────────┐ │
-  │  │Collector │ │Reporter │ │
-  │  └──────────┘ └─────────┘ │
-  └───────────────────────────┘
+                         │
+         ┌───────────────┼───────────────┐
+         │               │               │
+   ┌─────▼─────┐   ┌────▼─────┐   ┌────▼─────┐
+   │  Locator  │   │ Analyzer │   │  Future  │
+   │   Agent   │   │  Agent   │   │  Agents  │
+   └─────┬─────┘   └────┬─────┘   └──────────┘
+         │               │
+         └───────┬───────┘
+                 │
+   ┌─────────────▼─────────────┐
+   │      Validation Layer     │
+   │  ┌──────────┐ ┌─────────┐ │
+   │  │ Evidence │ │ Schema  │ │
+   │  │Validator │ │Validator│ │
+   │  └──────────┘ └─────────┘ │
+   └───────────────────────────┘
+                 │
+   ┌─────────────▼─────────────┐
+   │     Profiling Layer       │
+   │  ┌──────────┐ ┌─────────┐ │
+   │  │Collector │ │Reporter │ │
+   │  └──────────┘ └─────────┘ │
+   └───────────────────────────┘
 ```
 
 ### Core Components
@@ -259,6 +262,26 @@ go test -run TestLocatorAnalyzerIntegration ./internal/testing/integration
 - **Single Agent Execution**: <50ms
 - **Multi-Agent Workflow**: <100ms
 - **Real Codebase Analysis**: <100ms per file
+
+### Dogfooding Tests
+
+Conexus includes a comprehensive dogfooding test suite that validates real-world performance:
+
+```bash
+# Start the server
+./conexus &
+
+# Run dogfooding benchmarks (requires Bun)
+bun run tests/dogfooding/benchmarks/dogfooding-benchmark.js
+
+# View results
+cat tests/dogfooding/results/dogfooding-results.json
+```
+
+**Expected Results:**
+- 100% success rate for basic scenarios
+- Sub-200ms average response times
+- Comprehensive coverage of developer use cases
 
 ---
 
@@ -548,7 +571,7 @@ See **[Testing Strategy](docs/contributing/testing-strategy.md)** for workflow t
 ### Quick Start with Docker
 
 ```bash
-# Pull and run the latest image (when available)
+# Pull and run latest image (when available)
 docker pull conexus:latest
 docker run -d -p 8080:8080 --name conexus conexus:latest
 
@@ -556,7 +579,7 @@ docker run -d -p 8080:8080 --name conexus conexus:latest
 docker build -t conexus:latest .
 docker run -d -p 8080:8080 --name conexus conexus:latest
 
-# Test the service
+# Test service
 curl http://localhost:8080/health
 ```
 
@@ -565,13 +588,13 @@ curl http://localhost:8080/health
 **Production deployment:**
 
 ```bash
-# Start the service
+# Start service
 docker compose up -d
 
 # View logs
 docker compose logs -f
 
-# Stop the service
+# Stop service
 docker compose down
 
 # Rebuild after code changes
@@ -648,7 +671,7 @@ volumes:
 
 ### MCP Server Endpoints
 
-Once running, the service exposes:
+Once running, service exposes:
 
 **HTTP Endpoints:**
 ```bash
@@ -871,7 +894,7 @@ We welcome contributions! Please see:
 
 ### Quick Contribution Checklist
 
-- [ ] Fork the repository
+- [ ] Fork repository
 - [ ] Create a feature branch
 - [ ] Write tests for new features
 - [ ] Ensure all tests pass (`go test ./...`)
@@ -883,7 +906,7 @@ We welcome contributions! Please see:
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see [LICENSE](LICENSE) for details.
+This project is licensed under **MIT License** - see [LICENSE](LICENSE) for details.
 
 ---
 
@@ -911,4 +934,4 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) for 
 
 ---
 
-**Built with ❤️ by the Conexus team**
+**Built with ❤️ by Conexus team**
