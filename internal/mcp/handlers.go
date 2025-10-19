@@ -280,12 +280,19 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 		}
 	}
 
-	// Build search query based on provided identifiers
+	// Build search query and filters based on provided identifiers
 	var query string
+	opts := vectorstore.SearchOptions{
+		Limit:   20,
+		Filters: make(map[string]interface{}),
+	}
+
 	if req.FilePath != "" {
-		query = fmt.Sprintf("file:%s", req.FilePath)
+		query = req.FilePath
+		opts.Filters["file_path"] = req.FilePath
 	} else {
-		query = fmt.Sprintf("ticket:%s", req.TicketID)
+		query = req.TicketID
+		opts.Filters["ticket_id"] = req.TicketID
 	}
 
 	// Search for related documents
@@ -297,10 +304,6 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 		}
 	}
 
-	opts := vectorstore.SearchOptions{
-		Limit: 20,
-	}
-
 	results, err := s.vectorStore.SearchHybrid(ctx, query, queryVec.Vector, opts)
 	if err != nil {
 		return nil, &protocol.Error{
@@ -308,7 +311,6 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 			Message: fmt.Sprintf("search failed: %v", err),
 		}
 	}
-
 
 	// Group results by type and build RelatedItems
 	var relatedPRs, relatedIssues []string
@@ -402,6 +404,7 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 		"status":        true,
 		"force_reindex": true,
 		"reindex_paths": true,
+		"index":         true,
 	}
 
 	if !validActions[req.Action] {
@@ -608,6 +611,84 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 		return IndexControlResponse{
 			Status:  "ok",
 			Message: fmt.Sprintf("Reindexing %d paths", len(req.Paths)),
+		}, nil
+
+	case "index":
+		// Handle single document indexing
+		if req.Content == nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: "content is required for index action",
+			}
+		}
+
+		// Validate content fields
+		if req.Content.Path == "" {
+			return nil, &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: "content.path is required",
+			}
+		}
+		if req.Content.Content == "" {
+			return nil, &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: "content.content is required",
+			}
+		}
+		if req.Content.SourceType == "" {
+			return nil, &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: "content.source_type is required",
+			}
+		}
+
+		// Create metadata for the document
+		metadata := map[string]interface{}{
+			"file_path":   req.Content.Path,
+			"source_type": req.Content.SourceType,
+			"indexed_at":  time.Now().Format(time.RFC3339),
+		}
+
+		// Add line range information if provided
+		if req.Content.StartLine != nil {
+			metadata["start_line"] = *req.Content.StartLine
+		}
+		if req.Content.EndLine != nil {
+			metadata["end_line"] = *req.Content.EndLine
+		}
+
+		// Generate embedding for the content
+		embedding, err := s.embedder.Embed(ctx, req.Content.Content)
+		if err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("failed to generate embedding: %v", err),
+			}
+		}
+
+		// Create document record
+		doc := vectorstore.Document{
+			ID:       req.Content.Path,
+			Content:  req.Content.Content,
+			Vector:   embedding.Vector,
+			Metadata: metadata,
+		}
+
+		// Store in vector store
+		if err := s.vectorStore.Upsert(ctx, doc); err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("failed to store document: %v", err),
+			}
+		}
+
+		return IndexControlResponse{
+			Status:  "ok",
+			Message: fmt.Sprintf("Successfully indexed document: %s", req.Content.Path),
+			Details: map[string]interface{}{
+				"document_id":    req.Content.Path,
+				"content_length": len(req.Content.Content),
+			},
 		}, nil
 
 	default:

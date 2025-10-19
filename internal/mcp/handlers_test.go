@@ -481,6 +481,40 @@ func TestHandleIndexControl_InvalidJSON(t *testing.T) {
 	assert.Equal(t, protocol.InvalidParams, protocolErr.Code)
 }
 
+func TestHandleIndexControl_Index(t *testing.T) {
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	ctx := context.Background()
+
+	content := &IndexContent{
+		Path:       "/test/example.go",
+		Content:    "package test\n\nfunc Example() { println(\"hello\") }",
+		SourceType: "file",
+	}
+
+	req := IndexControlRequest{
+		Action:  "index",
+		Content: content,
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	result, err := server.handleIndexControl(ctx, reqJSON)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	response, ok := result.(IndexControlResponse)
+	require.True(t, ok)
+	assert.Equal(t, "ok", response.Status)
+	assert.Contains(t, response.Message, "Successfully indexed document")
+	assert.NotNil(t, response.Details)
+	assert.Equal(t, "/test/example.go", response.Details["document_id"])
+}
+
 func TestHandleConnectorManagement_List(t *testing.T) {
 	store := vectorstore.NewMemoryStore()
 	embedder := &mockEmbedder{}

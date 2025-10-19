@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ferg-cod3s/conexus/internal/connectors"
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/mcp"
-	"github.com/ferg-cod3s/conexus/internal/connectors"
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
@@ -66,7 +66,9 @@ func TestMCPServerConnection(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector("test-mcp")
+
+			// Use nil metrics to avoid registration issues in tests
+			var metrics *observability.MetricsCollector
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)

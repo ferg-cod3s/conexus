@@ -153,6 +153,180 @@ Found 5 HTTP handlers:
 "Search for configuration loading functions"
 ```
 
+### Project-Specific Installation
+
+For using Conexus with specific projects, you can configure it to work with your existing codebase structure:
+
+#### 1. Per-Project MCP Server Configuration
+
+Create a project-specific MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "conexus-myproject": {
+      "command": "conexus",
+      "args": ["mcp", "--root", "/path/to/your/project"],
+      "env": {
+        "CONEXUS_LOG_LEVEL": "info",
+        "CONEXUS_CONFIG": "/path/to/your/project/conexus.yml"
+      }
+    }
+  }
+}
+```
+
+#### 2. Project Configuration File
+
+Create a `conexus.yml` file in your project root:
+
+```yaml
+# conexus.yml - Project-specific configuration
+project:
+  name: "my-project"
+  description: "Web application backend"
+
+# Codebase settings
+codebase:
+  root: "."
+  include_patterns:
+    - "**/*.go"
+    - "**/*.js"
+    - "**/*.ts"
+    - "**/*.py"
+  exclude_patterns:
+    - "**/node_modules/**"
+    - "**/vendor/**"
+    - "**/dist/**"
+    - "**/.git/**"
+
+# Search configuration
+search:
+  max_results: 50
+  similarity_threshold: 0.7
+  enable_fts: true
+
+# Indexing settings
+indexing:
+  auto_reindex: true
+  reindex_interval: "1h"
+  chunk_size: 1000
+```
+
+#### 3. Docker Integration for Teams
+
+For team environments, use Docker to ensure consistent configuration:
+
+```yaml
+# docker-compose.conexus.yml
+version: '3.8'
+services:
+  conexus:
+    image: conexus:latest
+    container_name: conexus-myproject
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/workspace:ro
+      - ./data:/data
+    environment:
+      - CONEXUS_ROOT_PATH=/workspace
+      - CONEXUS_LOG_LEVEL=info
+      - CONEXUS_CONFIG=/workspace/conexus.yml
+    working_dir: /workspace
+```
+
+```bash
+# Start for your project
+docker-compose -f docker-compose.conexus.yml up -d
+
+# Test the connection
+curl http://localhost:3000/health
+```
+
+#### 4. Project Type Examples
+
+**Node.js Project:**
+```yaml
+codebase:
+  include_patterns:
+    - "**/*.js"
+    - "**/*.ts"
+    - "**/*.json"
+    - "**/*.md"
+  exclude_patterns:
+    - "**/node_modules/**"
+    - "**/coverage/**"
+    - "**/dist/**"
+```
+
+**Python Project:**
+```yaml
+codebase:
+  include_patterns:
+    - "**/*.py"
+    - "**/*.md"
+    - "**/requirements*.txt"
+    - "**/pyproject.toml"
+  exclude_patterns:
+    - "**/__pycache__/**"
+    - "**/venv/**"
+    - "**/env/**"
+    - "**/.pytest_cache/**"
+```
+
+**Go Project:**
+```yaml
+codebase:
+  include_patterns:
+    - "**/*.go"
+    - "**/go.mod"
+    - "**/go.sum"
+    - "**/*.md"
+  exclude_patterns:
+    - "**/vendor/**"
+```
+
+**Monorepo:**
+```yaml
+codebase:
+  include_patterns:
+    - "packages/**/*.ts"
+    - "packages/**/*.js"
+    - "apps/**/*.ts"
+    - "apps/**/*.js"
+  exclude_patterns:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/build/**"
+```
+
+#### 5. Claude Desktop Project Templates
+
+Create reusable templates for different project types:
+
+```json
+{
+  "mcpServers": {
+    "conexus-nodejs": {
+      "command": "conexus",
+      "args": ["mcp", "--root", "$PROJECT_ROOT"],
+      "env": {
+        "CONEXUS_CONFIG": "$PROJECT_ROOT/.conexus/nodejs.yml"
+      }
+    },
+    "conexus-python": {
+      "command": "conexus", 
+      "args": ["mcp", "--root", "$PROJECT_ROOT"],
+      "env": {
+        "CONEXUS_CONFIG": "$PROJECT_ROOT/.conexus/python.yml"
+      }
+    }
+  }
+}
+```
+
 ### Advanced Configuration
 
 For production deployments, custom embedding providers, and advanced search optimization, see the **[MCP Integration Guide](docs/getting-started/mcp-integration-guide.md)**.

@@ -83,7 +83,7 @@ type SentryConfig struct {
 // Default values
 const (
 	DefaultHost             = "0.0.0.0"
-	DefaultPort             = 8080
+	DefaultPort             = 0 // Default to stdio mode for MCP compatibility
 	DefaultDBPath           = "./data/conexus.db"
 	DefaultRootPath         = "."
 	DefaultChunkSize        = 512
@@ -390,9 +390,9 @@ func merge(base, override *Config) *Config {
 
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
-	// Validate server config
-	if c.Server.Port < 1 || c.Server.Port > 65535 {
-		return fmt.Errorf("invalid port: %d (must be 1-65535)", c.Server.Port)
+	// Validate server config - port 0 is allowed for stdio mode
+	if c.Server.Port < 0 || c.Server.Port > 65535 {
+		return fmt.Errorf("invalid port: %d (must be 0-65535, 0 for stdio mode)", c.Server.Port)
 	}
 
 	// Validate database config

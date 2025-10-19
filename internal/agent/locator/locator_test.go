@@ -2,6 +2,7 @@ package locator
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,15 +14,17 @@ func TestLocatorAgent_FileDiscovery(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-001",
 		AgentID:   "codebase-locator",
 		Task: schema.AgentTask{
 			SpecificRequest:    "find all *.go files",
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -65,16 +68,18 @@ func TestLocatorAgent_SymbolSearch(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-002",
 		AgentID:   "codebase-locator",
 		Task: schema.AgentTask{
 			SpecificRequest:    "find function Add",
-			Files:              []string{"/home/f3rg/src/github/conexus/tests/fixtures/simple_function.go"},
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			Files:              []string{filepath.Join(fixturePath, "simple_function.go")},
+			AllowedDirectories: []string{fixturePath},
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -109,15 +114,17 @@ func TestLocatorAgent_OutputValidation(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-003",
 		AgentID:   "codebase-locator",
 		Task: schema.AgentTask{
 			SpecificRequest:    "find all files",
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -160,6 +167,8 @@ func TestLocatorAgent_PermissionBoundaries(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	// Try to access directory outside permissions
 	req := schema.AgentRequest{
 		RequestID: "test-004",
@@ -169,7 +178,7 @@ func TestLocatorAgent_PermissionBoundaries(t *testing.T) {
 			AllowedDirectories: []string{"/tmp/restricted"},
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,

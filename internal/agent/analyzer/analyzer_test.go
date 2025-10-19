@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,16 +15,18 @@ func TestAnalyzerAgent_BasicAnalysis(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-001",
 		AgentID:   "codebase-analyzer",
 		Task: schema.AgentTask{
-			Files:              []string{"/home/f3rg/src/github/conexus/tests/fixtures/simple_function.go"},
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			Files:              []string{filepath.Join(fixturePath, "simple_function.go")},
+			AllowedDirectories: []string{fixturePath},
 			SpecificRequest:    "analyze this file",
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -71,16 +74,18 @@ func TestAnalyzerAgent_CallGraph(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-002",
 		AgentID:   "codebase-analyzer",
 		Task: schema.AgentTask{
-			Files:              []string{"/home/f3rg/src/github/conexus/tests/fixtures/multiple_functions.go"},
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			Files:              []string{filepath.Join(fixturePath, "multiple_functions.go")},
+			AllowedDirectories: []string{fixturePath},
 			SpecificRequest:    "analyze call graph",
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -113,16 +118,18 @@ func TestAnalyzerAgent_StructMethods(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-003",
 		AgentID:   "codebase-analyzer",
 		Task: schema.AgentTask{
-			Files:              []string{"/home/f3rg/src/github/conexus/tests/fixtures/struct_methods.go"},
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			Files:              []string{filepath.Join(fixturePath, "struct_methods.go")},
+			AllowedDirectories: []string{fixturePath},
 			SpecificRequest:    "analyze struct and methods",
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -164,16 +171,18 @@ func TestAnalyzerAgent_ErrorHandling(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-004",
 		AgentID:   "codebase-analyzer",
 		Task: schema.AgentTask{
-			Files:              []string{"/home/f3rg/src/github/conexus/tests/fixtures/error_handling.go"},
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			Files:              []string{filepath.Join(fixturePath, "error_handling.go")},
+			AllowedDirectories: []string{fixturePath},
 			SpecificRequest:    "analyze error handling",
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -206,16 +215,18 @@ func TestAnalyzerAgent_SideEffects(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-005",
 		AgentID:   "codebase-analyzer",
 		Task: schema.AgentTask{
-			Files:              []string{"/home/f3rg/src/github/conexus/tests/fixtures/side_effects.go"},
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			Files:              []string{filepath.Join(fixturePath, "side_effects.go")},
+			AllowedDirectories: []string{fixturePath},
 			SpecificRequest:    "analyze side effects",
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -254,16 +265,18 @@ func TestAnalyzerAgent_EvidenceBacking(t *testing.T) {
 	executor := tool.NewExecutor()
 	agent := New(executor)
 
+	fixturePath, _ := filepath.Abs("../../../../conexus/tests/fixtures")
+
 	req := schema.AgentRequest{
 		RequestID: "test-006",
 		AgentID:   "codebase-analyzer",
 		Task: schema.AgentTask{
-			Files:              []string{"/home/f3rg/src/github/conexus/tests/fixtures/simple_function.go"},
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			Files:              []string{filepath.Join(fixturePath, "simple_function.go")},
+			AllowedDirectories: []string{fixturePath},
 			SpecificRequest:    "analyze with evidence",
 		},
 		Permissions: schema.Permissions{
-			AllowedDirectories: []string{"/home/f3rg/src/github/conexus/tests/fixtures"},
+			AllowedDirectories: []string{fixturePath},
 			ReadOnly:           true,
 			MaxFileSize:        1024 * 1024,
 			MaxExecutionTime:   30,
@@ -365,7 +378,7 @@ func TestIsExported(t *testing.T) {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
 		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-		indexOf(s, substr) >= 0))
+			indexOf(s, substr) >= 0))
 }
 
 func indexOf(s, substr string) int {

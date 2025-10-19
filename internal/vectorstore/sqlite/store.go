@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
@@ -21,6 +23,14 @@ type Store struct {
 // NewStore creates a new SQLite vector store.
 // The path can be ":memory:" for in-memory database or a file path for persistence.
 func NewStore(path string) (*Store, error) {
+	// Create directory for database file if it doesn't exist
+	if path != ":memory:" {
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("create database directory: %w", err)
+		}
+	}
+
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)

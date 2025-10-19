@@ -107,11 +107,21 @@ type DiscussionSummary struct {
 	Summary   string `json:"summary"`
 }
 
+// IndexContent represents content to be indexed
+type IndexContent struct {
+	Path       string `json:"path"`                 // File path
+	Content    string `json:"content"`              // File content
+	SourceType string `json:"source_type"`          // Type of source (file, ticket, etc.)
+	StartLine  *int   `json:"start_line,omitempty"` // Optional start line
+	EndLine    *int   `json:"end_line,omitempty"`   // Optional end line
+}
+
 // IndexControlRequest represents the input for context.index_control tool
 type IndexControlRequest struct {
-	Action     string   `json:"action"`               // "start", "stop", "status", "force_reindex", "reindex_paths"
-	Connectors []string `json:"connectors,omitempty"` // Connectors to use for indexing
-	Paths      []string `json:"paths,omitempty"`      // Specific paths/files to reindex (for reindex_paths action)
+	Action     string        `json:"action"`               // "start", "stop", "status", "force_reindex", "reindex_paths", "index"
+	Connectors []string      `json:"connectors,omitempty"` // Connectors to use for indexing
+	Paths      []string      `json:"paths,omitempty"`      // Specific paths/files to reindex (for reindex_paths action)
+	Content    *IndexContent `json:"content,omitempty"`    // Content to index (for index action)
 }
 
 // IndexControlResponse represents the output of context.index_control tool

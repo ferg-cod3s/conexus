@@ -125,8 +125,9 @@ func main() {
 	// Initialize error handler
 	errorHandler := observability.NewErrorHandler(logger, metrics, cfg.Observability.Sentry.Enabled)
 
-	// Check if we're running in HTTP mode (has PORT env or config)
-	if cfg.Server.Port > 0 {
+	// Check if we're running in HTTP mode (explicit CONEXUS_PORT env var)
+	// Default is stdio mode for MCP compatibility
+	if os.Getenv("CONEXUS_PORT") != "" && cfg.Server.Port > 0 {
 		runHTTPServer(ctx, cfg, vectorStore, connectorStore, embedder, logger, metrics, tracerProvider, idx)
 	} else {
 		// Run in stdio mode (default MCP behavior)

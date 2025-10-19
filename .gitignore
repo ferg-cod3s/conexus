@@ -88,3 +88,4 @@ tests/load/results/*.log
 !tests/load/results/*-analysis.json
 !tests/load/results/LOAD_TEST_ANALYSIS.md
 !tests/load/results/STRESS_TEST_ANALYSIS.md
+*.db
