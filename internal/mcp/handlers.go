@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
@@ -494,7 +495,7 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 
 		// Load ignore patterns
 		ignorePatterns := []string{".git"}
-		if gitignore, err := indexer.LoadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
+		if gitignore, err := loadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
 			ignorePatterns = append(ignorePatterns, gitignore...)
 		}
 
@@ -544,7 +545,7 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 
 		// Load ignore patterns
 		ignorePatterns := []string{".git"}
-		if gitignore, err := indexer.LoadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
+		if gitignore, err := loadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
 			ignorePatterns = append(ignorePatterns, gitignore...)
 		}
 
@@ -588,7 +589,7 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 
 		// Load ignore patterns
 		ignorePatterns := []string{".git"}
-		if gitignore, err := indexer.LoadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
+		if gitignore, err := loadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
 			ignorePatterns = append(ignorePatterns, gitignore...)
 		}
 
@@ -911,4 +912,30 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// loadGitignore loads .gitignore patterns if available.
+func loadGitignore(gitignorePath, rootPath string) ([]string, error) {
+	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	content, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		return nil, fmt.Errorf("read .gitignore: %w", err)
+	}
+
+	var patterns []string
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			// Convert to absolute path for proper matching
+			if !filepath.IsAbs(line) {
+				patterns = append(patterns, line)
+			}
+		}
+	}
+
+	return patterns, nil
 }

@@ -5,10 +5,10 @@ import "encoding/json"
 
 // Tool names exposed by the MCP server
 const (
-	ToolContextSearch              = "context.search"
-	ToolContextGetRelatedInfo      = "context.get_related_info"
-	ToolContextIndexControl        = "context.index_control"
-	ToolContextConnectorManagement = "context.connector_management"
+	ToolContextSearch              = "context_search"
+	ToolContextGetRelatedInfo      = "context_get_related_info"
+	ToolContextIndexControl        = "context_index_control"
+	ToolContextConnectorManagement = "context_connector_management"
 )
 
 // Resource URI scheme

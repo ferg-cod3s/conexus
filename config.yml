@@ -17,3 +17,21 @@ indexer:
 logging:
   level: "info"  # debug, info, warn, error
   format: "json" # json, text
+
+observability:
+  metrics:
+    enabled: false
+    port: 9090
+    path: "/metrics"
+  
+  tracing:
+    enabled: false
+    endpoint: "localhost:4317"
+    sample_rate: 1.0
+  
+  sentry:
+    enabled: true
+    dsn: "https://7e54c8bc81fb554a460d4331e5c23fe0@sentry.fergify.work/15"
+    environment: "production"
+    sample_rate: 1.0
+    release: "0.1.0-alpha"

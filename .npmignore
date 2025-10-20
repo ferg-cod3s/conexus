@@ -1,0 +1,50 @@
+# Exclude source code - only include pre-built binaries
+cmd/
+internal/
+pkg/
+go.mod
+go.sum
+*.go
+
+# Development files
+.git
+.gitignore
+.github
+tests/
+*.test
+coverage.txt
+
+# Documentation (except README)
+docs/
+*.md
+!README.md
+
+# Build artifacts
+*.exe
+conexus
+!bin/conexus-*
+
+# Config and test files
+config.yml
+config.test.yml
+*.json
+!package.json
+*.sh
+!scripts/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project configs
+PROJECT_CONFIGS/
+observability/
+
+# Other
+TODO.md
+CHANGES_SUMMARY.md
+PHASE*.md
+*STATUS.md
+*PLAN.md

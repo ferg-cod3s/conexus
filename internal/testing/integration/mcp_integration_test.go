@@ -158,10 +158,10 @@ func TestMCPToolDiscovery(t *testing.T) {
 
 	// Verify each tool has required fields
 	expectedTools := map[string]bool{
-		"context.search":               false,
-		"context.get_related_info":     false,
-		"context.index_control":        false,
-		"context.connector_management": false,
+		"context_search":               false,
+		"context_get_related_info":     false,
+		"context_index_control":        false,
+		"context_connector_management": false,
 	}
 
 	for _, toolInterface := range tools {
@@ -204,7 +204,7 @@ func TestMCPToolExecution(t *testing.T) {
 	}{
 		{
 			name:     "context_search_basic",
-			toolName: "context.search",
+			toolName: "context_search",
 			args: map[string]interface{}{
 				"query": "authentication implementation",
 				"top_k": 5,
@@ -239,7 +239,7 @@ func TestMCPToolExecution(t *testing.T) {
 		},
 		{
 			name:     "context_search_with_filters",
-			toolName: "context.search",
+			toolName: "context_search",
 			args: map[string]interface{}{
 				"query": "test query",
 				"top_k": 10,
@@ -260,7 +260,7 @@ func TestMCPToolExecution(t *testing.T) {
 		},
 		{
 			name:     "context_get_related_info_file",
-			toolName: "context.get_related_info",
+			toolName: "context_get_related_info",
 			args: map[string]interface{}{
 				"file_path": "/path/to/file.go",
 			},
@@ -281,7 +281,7 @@ func TestMCPToolExecution(t *testing.T) {
 		},
 		{
 			name:     "context_get_related_info_ticket",
-			toolName: "context.get_related_info",
+			toolName: "context_get_related_info",
 			args: map[string]interface{}{
 				"ticket_id": "JIRA-123",
 			},
@@ -298,7 +298,7 @@ func TestMCPToolExecution(t *testing.T) {
 		},
 		{
 			name:     "context_index_control_status",
-			toolName: "context.index_control",
+			toolName: "context_index_control",
 			args: map[string]interface{}{
 				"action": "status",
 			},
@@ -331,7 +331,7 @@ func TestMCPToolExecution(t *testing.T) {
 		},
 		{
 			name:     "context_connector_management_list",
-			toolName: "context.connector_management",
+			toolName: "context_connector_management",
 			args: map[string]interface{}{
 				"action": "list",
 			},
@@ -474,7 +474,7 @@ func TestMCPErrorHandling(t *testing.T) {
 			name:   "missing_required_field_search",
 			method: "tools/call",
 			params: map[string]interface{}{
-				"name": "context.search",
+				"name": "context_search",
 				"arguments": map[string]interface{}{
 					// Missing required "query" field
 					"top_k": 10,
@@ -497,7 +497,7 @@ func TestMCPErrorHandling(t *testing.T) {
 			name:   "missing_file_and_ticket",
 			method: "tools/call",
 			params: map[string]interface{}{
-				"name":      "context.get_related_info",
+				"name":      "context_get_related_info",
 				"arguments": map[string]interface{}{
 					// Missing both file_path and ticket_id
 				},
@@ -509,7 +509,7 @@ func TestMCPErrorHandling(t *testing.T) {
 			name:   "invalid_index_action",
 			method: "tools/call",
 			params: map[string]interface{}{
-				"name": "context.index_control",
+				"name": "context_index_control",
 				"arguments": map[string]interface{}{
 					"action": "invalid_action",
 				},

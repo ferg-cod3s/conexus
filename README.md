@@ -30,22 +30,40 @@ Conexus is an **agentic context engine** that transforms Large Language Models (
 
 ### Prerequisites
 
-- **Go 1.23.4+** ([download](https://go.dev/dl/))
+- **Node.js 18+** or **Bun** (for npm/bunx installation)
 - Git
-- Linux/macOS/Windows with WSL
 
 ### Installation
+
+**Option 1: NPM/Bunx (Recommended - Pre-built Binaries)**
+
+```bash
+# Install globally with npm
+npm install -g @agentic-conexus/mcp
+
+# Or use with bunx (no installation needed)
+bunx @agentic-conexus/mcp
+
+# Or use with npx
+npx @agentic-conexus/mcp
+```
+
+> **Note**: Pre-built binaries are included for:
+> - macOS (Intel & Apple Silicon)
+> - Linux (amd64 & arm64)
+> - Windows (amd64)
+
+**Option 2: From Source (For Development)**
 
 ```bash
 # Clone the repository
 git clone https://github.com/ferg-cod3s/conexus.git
 cd conexus
 
-# Install dependencies
-go mod download
+# Requires Go 1.23.4+ - https://go.dev/dl/
 
-# Build the project
-go build ./cmd/conexus
+# Build from source
+go build -o conexus ./cmd/conexus
 
 # Run tests
 go test ./...
@@ -54,14 +72,14 @@ go test ./...
 ### Basic Usage
 
 ```bash
-# Run the Conexus agent (development)
-./conexus
+# Run the MCP server (stdio mode - default)
+npx @agentic-conexus/mcp
 
-# Run with verbose logging
-./conexus -v
+# Run with environment variables
+CONEXUS_DB_PATH=./data/db.sqlite CONEXUS_LOG_LEVEL=debug npx @agentic-conexus/mcp
 
-# Run specific agent
-./conexus agent locator --pattern "func.*Handler"
+# Run in HTTP mode (for testing)
+CONEXUS_PORT=3000 npx @agentic-conexus/mcp
 ```
 
 ---
@@ -81,45 +99,79 @@ Conexus provides first-class support for the [Model Context Protocol (MCP)](http
 
 ### Quick MCP Setup (<5 minutes)
 
-**1. Install and start Conexus MCP server:**
+**Option 1: NPM/Bunx (Recommended for MCP clients)**
 
 ```bash
-# Install Conexus
-go install github.com/ferg-cod3s/conexus/cmd/conexus@latest
+# Install globally with npm
+npm install -g @ferg-cod3s/conexus
 
-# Start the MCP server (will auto-index current directory)
-conexus mcp --host localhost --port 3000
+# Or use with bunx (no installation needed)
+bunx @ferg-cod3s/conexus
 ```
 
-**2. Configure Claude Desktop:**
-
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Configure in your MCP client (OpenCode, Claude Desktop, etc.):
 
 ```json
 {
   "mcpServers": {
     "conexus": {
-      "command": "conexus",
-      "args": ["mcp", "--root", "/path/to/your/codebase"],
+      "command": "bunx",
+      "args": ["@ferg-cod3s/conexus"],
       "env": {
-        "CONEXUS_LOG_LEVEL": "info"
+        "CONEXUS_DB_PATH": "/path/to/your/project/.conexus/db.sqlite"
       }
     }
   }
 }
 ```
 
-**3. Restart Claude Desktop and test:**
+**Option 2: Go Install (For development)**
+
+```bash
+# Install Conexus
+go install github.com/ferg-cod3s/conexus/cmd/conexus@latest
+
+# Start the MCP server (stdio mode by default)
+conexus
+
+# Or run in HTTP mode
+CONEXUS_PORT=3000 conexus
+```
+
+Configure for stdio mode (recommended for MCP):
+
+```json
+{
+  "mcpServers": {
+    "conexus": {
+      "command": "conexus",
+      "env": {
+        "CONEXUS_DB_PATH": "/path/to/your/project/.conexus/db.sqlite"
+      }
+    }
+  }
+}
+```
+
+**Test the integration:**
+
+In your MCP client (OpenCode, Claude Desktop, etc.):
 
 ```
 You: "Search for HTTP handler functions in this codebase"
 
-Claude: [Uses context.search tool]
+AI Assistant: [Uses context.search tool]
 Found 5 HTTP handlers:
 - HandleRequest in internal/server/handler.go:42-68
 - HandleHealth in internal/server/health.go:15-22
 ...
 ```
+
+**Environment Variables:**
+
+- `CONEXUS_DB_PATH`: Path to SQLite database (default: `~/.conexus/db.sqlite`)
+- `CONEXUS_LOG_LEVEL`: Log level: debug, info, warn, error (default: `info`)
+- `CONEXUS_PORT`: Run in HTTP mode instead of stdio (for development)
 
 ### Available MCP Tools
 

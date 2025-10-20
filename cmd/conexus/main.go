@@ -22,11 +22,12 @@ import (
 	"github.com/ferg-cod3s/conexus/internal/security"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore/sqlite"
+	"github.com/getsentry/sentry-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
 )
 
-const Version = "0.1.0-alpha"
+const Version = "0.1.1-alpha"
 
 func main() {
 	ctx := context.Background()
@@ -39,10 +40,15 @@ func main() {
 	}
 
 	// Initialize logger (replaces old setupLogging)
+	// In stdio mode (MCP), logs must go to stderr to avoid interfering with JSON-RPC
+	logOutput := os.Stdout
+	if os.Getenv("CONEXUS_PORT") == "" || cfg.Server.Port == 0 {
+		logOutput = os.Stderr
+	}
 	logger := observability.NewLogger(observability.LoggerConfig{
 		Level:     cfg.Logging.Level,
 		Format:    cfg.Logging.Format,
-		Output:    os.Stdout,
+		Output:    logOutput,
 		AddSource: true,
 	})
 
@@ -100,6 +106,28 @@ func main() {
 		logger.Info("Tracing disabled")
 	}
 
+	// Initialize Sentry if enabled
+	if cfg.Observability.Sentry.Enabled {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn:              cfg.Observability.Sentry.DSN,
+			Environment:      cfg.Observability.Sentry.Environment,
+			Release:          cfg.Observability.Sentry.Release,
+			TracesSampleRate: cfg.Observability.Sentry.SampleRate,
+			EnableTracing:    true,
+		})
+		if err != nil {
+			logger.Error("Failed to initialize Sentry", "error", err)
+			os.Exit(1)
+		}
+		defer sentry.Flush(2 * time.Second)
+		logger.Info("Sentry enabled",
+			"environment", cfg.Observability.Sentry.Environment,
+			"sample_rate", cfg.Observability.Sentry.SampleRate,
+		)
+	} else {
+		logger.Info("Sentry disabled")
+	}
+
 	// Initialize vector store (SQLite)
 	vectorStore, err := sqlite.NewStore(cfg.Database.Path)
 	if err != nil {
@@ -119,8 +147,8 @@ func main() {
 	// Initialize embedder (mock for now - would be real implementation)
 	embedder := embedding.NewMock(768) // Standard embedding dimension
 
-	// Initialize indexer
-	idx := indexer.NewIndexer("./data/indexer_state.json")
+	// Initialize indexer controller
+	idx := indexer.NewIndexController("./data/indexer_state.json")
 
 	// Initialize error handler
 	errorHandler := observability.NewErrorHandler(logger, metrics, cfg.Observability.Sentry.Enabled)

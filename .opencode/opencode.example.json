@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "conexus": {
+      "command": "bunx",
+      "args": ["@ferg-cod3s/conexus"],
+      "env": {
+        "CONEXUS_DB_PATH": "${workspaceFolder}/.conexus/db.sqlite",
+        "CONEXUS_LOG_LEVEL": "info"
+      }
+    }
+  }
+}

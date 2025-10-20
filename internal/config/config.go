@@ -100,7 +100,7 @@ const (
 	DefaultSentryDSN        = ""
 	DefaultSentryEnv        = "development"
 	DefaultSentrySampleRate = 1.0
-	DefaultSentryRelease    = "0.1.0-alpha"
+	DefaultSentryRelease    = "0.1.1-alpha"
 )
 
 // Valid values for validation

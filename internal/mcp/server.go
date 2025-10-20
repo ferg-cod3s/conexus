@@ -69,6 +69,8 @@ func (s *Server) Handle(method string, params json.RawMessage) (interface{}, err
 	ctx = observability.WithRequestContext(ctx, fmt.Sprintf("mcp_%s_%d", method, time.Now().UnixNano()))
 
 	switch method {
+	case "initialize":
+		return s.handleInitialize(ctx, params)
 	case "tools/list":
 		return s.handleToolsList(ctx)
 	case "tools/call":
@@ -104,6 +106,41 @@ func (s *Server) Close() error {
 		return s.vectorStore.Close()
 	}
 	return nil
+}
+
+// InitializeRequest represents an initialize request
+type InitializeRequest struct {
+	ProtocolVersion string                 `json:"protocolVersion"`
+	Capabilities    map[string]interface{} `json:"capabilities"`
+	ClientInfo      map[string]interface{} `json:"clientInfo"`
+}
+
+// handleInitialize handles MCP protocol initialization
+func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (interface{}, error) {
+	var req InitializeRequest
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &req); err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: fmt.Sprintf("invalid parameters: %v", err),
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"protocolVersion": "2025-06-18",
+		"capabilities": map[string]interface{}{
+			"tools": map[string]interface{}{},
+			"resources": map[string]interface{}{
+				"subscribe":   false,
+				"listChanged": true,
+			},
+		},
+		"serverInfo": map[string]interface{}{
+			"name":    "conexus",
+			"version": "0.1.1-alpha",
+		},
+	}, nil
 }
 
 // handleToolsList returns the list of available tools

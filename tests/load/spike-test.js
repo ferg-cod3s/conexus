@@ -82,7 +82,7 @@ function testFastOperation() {
   const startTime = Date.now();
   
   const payload = createMCPRequest('tools/call', {
-    name: 'context.search',
+    name: 'context_search',
     arguments: {
       query: query,
       max_results: 5,  // Smaller result set for faster responses
@@ -94,7 +94,7 @@ function testFastOperation() {
     payload,
     {
       headers: { 'Content-Type': 'application/json' },
-      tags: { name: 'context.search' },
+      tags: { name: 'context_search' },
       timeout: '10s',
     }
   );

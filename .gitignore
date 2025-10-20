@@ -1,91 +1,51 @@
-# Go build artifacts
-bin/
-*.exe
-*.exe~
+# Binaries
+conexus
+conexus.exe
 *.dll
 *.so
 *.dylib
+
+# Test binary, built with `go test -c`
 *.test
+
+# Output of the go coverage tool
 *.out
+coverage.html
+
+# Dependency directories
+vendor/
 
 # Go workspace file
 go.work
-go.work.sum
 
-# dependencies (bun/node - legacy)
-node_modules
-bun.lock
-package-lock.json
-
-# output
-out
-dist
-*.tgz
-
-# code coverage
-coverage
-*.lcov
-coverage.txt
-*.cover
-
-# logs
-logs
-*.log
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
-
-# caches
-.eslintcache
-.cache
-*.tsbuildinfo
-
-# IntelliJ based IDEs
-.idea
-
-# Finder (MacOS) folder config
-.DS_Store
-
-# Temporary files
-*.tmp
+# IDE
+.idea/
+.vscode/
 *.swp
+*.swo
 *~
 
-# Backup files to ignore
-*.bak
-*.backup*
-*.orig
-*.broken
-*-backup*
-*backup*
-*.backup
+# OS
+.DS_Store
+Thumbs.db
 
-# Built binary at repo root
-/conexus
-
-# Debug and test output files
-test_debug*.go
-test_glob*.go
-test_json*.go
-test_locator*.go
-*_test_result*.txt
-*_results.txt
-integration_*.txt
-full_test*.txt
-*.sh.bak
-test_summary.sh
-create_phase*.sh
-fix_*.sh
-
-# Load test results (large files)
-tests/load/results/*.json
-tests/load/results/*.log
-!tests/load/results/*-analysis.json
-!tests/load/results/LOAD_TEST_ANALYSIS.md
-!tests/load/results/STRESS_TEST_ANALYSIS.md
+# Project specific
+data/
+.conexus/
 *.db
+*.sqlite
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Build artifacts
+dist/
+build/
+
+# Node modules (for npm distribution)
+node_modules/

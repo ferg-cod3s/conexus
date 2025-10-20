@@ -82,10 +82,10 @@ function runMixedWorkload() {
   const operations = [
     // Context search - most expensive operation
     {
-      name: 'context.search',
+      name: 'context_search',
       weight: 0.50,
       params: {
-        name: 'context.search',
+        name: 'context_search',
         arguments: {
           query: 'function implementation',
           max_results: 10,
