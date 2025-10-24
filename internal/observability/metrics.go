@@ -48,13 +48,39 @@ type MetricsCollector struct {
 
 // NewMetricsCollector creates and registers all Prometheus metrics.
 func NewMetricsCollector(namespace string) *MetricsCollector {
+	return NewMetricsCollectorWithRegistry(namespace, prometheus.DefaultRegisterer)
+}
+
+// NewMetricsCollectorWithRegistry creates metrics with a specific registry (for testing).
+func NewMetricsCollectorWithRegistry(namespace string, reg prometheus.Registerer) *MetricsCollector {
 	if namespace == "" {
 		namespace = "conexus"
 	}
 
+	// Helper function to create auto-registered metrics
+	autoCounterVec := func(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
+		return promauto.With(reg).NewCounterVec(opts, labelNames)
+	}
+
+	autoHistogramVec := func(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
+		return promauto.With(reg).NewHistogramVec(opts, labelNames)
+	}
+
+	autoGaugeVec := func(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
+		return promauto.With(reg).NewGaugeVec(opts, labelNames)
+	}
+
+	autoCounter := func(opts prometheus.CounterOpts) prometheus.Counter {
+		return promauto.With(reg).NewCounter(opts)
+	}
+
+	autoGauge := func(opts prometheus.GaugeOpts) prometheus.Gauge {
+		return promauto.With(reg).NewGauge(opts)
+	}
+
 	return &MetricsCollector{
 		// MCP request metrics
-		MCPRequestsTotal: promauto.NewCounterVec(
+		MCPRequestsTotal: autoCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "mcp_requests_total",
@@ -62,7 +88,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"method", "status"},
 		),
-		MCPRequestDuration: promauto.NewHistogramVec(
+		MCPRequestDuration: autoHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "mcp_request_duration_seconds",
@@ -71,7 +97,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"method"},
 		),
-		MCPRequestsInFlight: promauto.NewGaugeVec(
+		MCPRequestsInFlight: autoGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "mcp_requests_in_flight",
@@ -79,7 +105,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"method"},
 		),
-		MCPErrors: promauto.NewCounterVec(
+		MCPErrors: autoCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "mcp_errors_total",
@@ -89,7 +115,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 		),
 
 		// Indexer metrics
-		IndexerOperations: promauto.NewCounterVec(
+		IndexerOperations: autoCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "indexer_operations_total",
@@ -97,7 +123,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"operation", "status"},
 		),
-		IndexerDuration: promauto.NewHistogramVec(
+		IndexerDuration: autoHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "indexer_operation_duration_seconds",
@@ -106,21 +132,21 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"operation"},
 		),
-		IndexedFilesTotal: promauto.NewCounter(
+		IndexedFilesTotal: autoCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "indexed_files_total",
 				Help:      "Total number of files indexed",
 			},
 		),
-		IndexedChunksTotal: promauto.NewCounter(
+		IndexedChunksTotal: autoCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "indexed_chunks_total",
 				Help:      "Total number of chunks indexed",
 			},
 		),
-		IndexerErrorsTotal: promauto.NewCounterVec(
+		IndexerErrorsTotal: autoCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "indexer_errors_total",
@@ -130,7 +156,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 		),
 
 		// Embedding metrics
-		EmbeddingRequests: promauto.NewCounterVec(
+		EmbeddingRequests: autoCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "embedding_requests_total",
@@ -138,7 +164,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"provider", "status"},
 		),
-		EmbeddingDuration: promauto.NewHistogramVec(
+		EmbeddingDuration: autoHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "embedding_duration_seconds",
@@ -147,35 +173,35 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"provider"},
 		),
-		EmbeddingCacheHits: promauto.NewCounter(
+		EmbeddingCacheHits: autoCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "embedding_cache_hits_total",
 				Help:      "Total number of embedding cache hits",
 			},
 		),
-		EmbeddingCacheMisses: promauto.NewCounter(
+		EmbeddingCacheMisses: autoCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "embedding_cache_misses_total",
 				Help:      "Total number of embedding cache misses",
 			},
 		),
-		SearchCacheHits: promauto.NewCounter(
+		SearchCacheHits: autoCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "search_cache_hits_total",
 				Help:      "Total number of search cache hits",
 			},
 		),
-		SearchCacheMisses: promauto.NewCounter(
+		SearchCacheMisses: autoCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "search_cache_misses_total",
 				Help:      "Total number of search cache misses",
 			},
 		),
-		EmbeddingErrorsTotal: promauto.NewCounterVec(
+		EmbeddingErrorsTotal: autoCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "embedding_errors_total",
@@ -185,7 +211,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 		),
 
 		// Vector store metrics
-		VectorSearchRequests: promauto.NewCounterVec(
+		VectorSearchRequests: autoCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "vector_search_requests_total",
@@ -193,7 +219,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"search_type", "status"},
 		),
-		VectorSearchDuration: promauto.NewHistogramVec(
+		VectorSearchDuration: autoHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "vector_search_duration_seconds",
@@ -202,7 +228,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"search_type"},
 		),
-		VectorSearchResults: promauto.NewHistogramVec(
+		VectorSearchResults: autoHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "vector_search_results_count",
@@ -211,7 +237,7 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 			},
 			[]string{"search_type"},
 		),
-		VectorStoreSize: promauto.NewGauge(
+		VectorStoreSize: autoGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "vector_store_size_bytes",
@@ -220,14 +246,14 @@ func NewMetricsCollector(namespace string) *MetricsCollector {
 		),
 
 		// System metrics
-		SystemStartTime: promauto.NewGauge(
+		SystemStartTime: autoGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "system_start_time_seconds",
 				Help:      "Unix timestamp when the system started",
 			},
 		),
-		SystemHealth: promauto.NewGaugeVec(
+		SystemHealth: autoGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "system_health_status",

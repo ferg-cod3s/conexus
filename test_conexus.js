@@ -61,15 +61,25 @@ async function testConexus() {
     // 3. Test connector management
     console.log('🔌 Available Connectors:');
     const connectors = await callMCP('tools/call', { name: 'context_connector_management', arguments: { action: 'list' } });
-    connectors.result.connectors.forEach(conn => {
-      console.log(`  • ${conn.name} (${conn.type}) - ${conn.status}`);
-    });
+    if (connectors.result.connectors && connectors.result.connectors.length > 0) {
+      connectors.result.connectors.forEach(conn => {
+        console.log(`  • ${conn.name} (${conn.type}) - ${conn.status}`);
+      });
+    } else {
+      console.log('  No connectors configured');
+    }
     console.log();
 
     // 4. Test search (returns empty results since no data indexed)
     console.log('🔍 Search Test:');
     const search = await callMCP('tools/call', { name: 'context_search', arguments: { query: 'test query' } });
-    console.log(`  Found ${search.result.totalCount} results in ${search.result.queryTime}ms\n`);
+    console.log(`  Found ${search.result?.totalCount || 0} results in ${search.result?.queryTime || 0}ms`);
+    if (search.result?.results && search.result.results.length > 0) {
+      search.result.results.forEach((result, i) => {
+        console.log(`    ${i+1}. ${result.content.substring(0, 100)}...`);
+      });
+    }
+    console.log();
 
     console.log('✅ All tests completed successfully!');
     console.log('\n💡 Next steps:');

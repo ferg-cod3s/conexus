@@ -148,13 +148,13 @@ func extractPhrases(query string) []string {
 func escapeFTS5Special(s string) string {
 	// Escape characters that have special meaning in FTS5
 	// FTS5 special characters: " ( ) AND OR NOT, plus we handle / and other punctuation
+	// Note: @ is preserved for email addresses and other identifiers
 	replacer := strings.NewReplacer(
 		`"`, `""`, // Double quotes are escaped by doubling
 		`/`, " ", // Replace slashes with spaces to separate path components
 		`(`, " ", // Replace parentheses with spaces
 		`)`, " ", // Replace parentheses with spaces
 		`-`, " ", // Replace hyphens with spaces
-		`.`, " ", // Replace dots with spaces
 	)
 	return replacer.Replace(s)
 }

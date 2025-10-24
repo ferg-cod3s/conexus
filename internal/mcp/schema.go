@@ -9,6 +9,8 @@ const (
 	ToolContextGetRelatedInfo      = "context_get_related_info"
 	ToolContextIndexControl        = "context_index_control"
 	ToolContextConnectorManagement = "context_connector_management"
+	ToolContextExplain             = "context_explain"
+	ToolContextGrep                = "context_grep"
 )
 
 // Resource URI scheme
@@ -42,10 +44,11 @@ type SearchFilters struct {
 
 // WorkContextFilters defines filters based on work context
 type WorkContextFilters struct {
-	ActiveFile    string   `json:"active_file,omitempty"`
-	GitBranch     string   `json:"git_branch,omitempty"`
-	OpenTicketIDs []string `json:"open_ticket_ids,omitempty"`
-	BoostActive   bool     `json:"boost_active,omitempty"` // Boost results related to active file/tickets
+	ActiveFile     string   `json:"active_file,omitempty"`
+	GitBranch      string   `json:"git_branch,omitempty"`
+	OpenTicketIDs  []string `json:"open_ticket_ids,omitempty"`
+	CurrentStoryID string   `json:"current_story_id,omitempty"`
+	BoostActive    bool     `json:"boost_active,omitempty"` // Boost results related to active file/tickets
 }
 
 // DateRange specifies a time range filter
@@ -118,10 +121,11 @@ type IndexContent struct {
 
 // IndexControlRequest represents the input for context.index_control tool
 type IndexControlRequest struct {
-	Action     string        `json:"action"`               // "start", "stop", "status", "force_reindex", "reindex_paths", "index"
-	Connectors []string      `json:"connectors,omitempty"` // Connectors to use for indexing
-	Paths      []string      `json:"paths,omitempty"`      // Specific paths/files to reindex (for reindex_paths action)
-	Content    *IndexContent `json:"content,omitempty"`    // Content to index (for index action)
+	Action      string        `json:"action"`                 // "start", "stop", "status", "force_reindex", "reindex_paths", "index", "sync_github"
+	Connectors  []string      `json:"connectors,omitempty"`   // Connectors to use for indexing
+	ConnectorID string        `json:"connector_id,omitempty"` // Specific connector ID (for sync_github action)
+	Paths       []string      `json:"paths,omitempty"`        // Specific paths/files to reindex (for reindex_paths action)
+	Content     *IndexContent `json:"content,omitempty"`      // Content to index (for index action)
 }
 
 // IndexControlResponse represents the output of context.index_control tool
@@ -167,7 +171,7 @@ type ConnectorManagementRequest struct {
 
 // ConnectorManagementResponse represents the output of context.connector_management tool
 type ConnectorManagementResponse struct {
-	Connectors []ConnectorInfo `json:"connectors,omitempty"`
+	Connectors []ConnectorInfo `json:"connectors"`
 	Status     string          `json:"status,omitempty"`
 	Message    string          `json:"message,omitempty"`
 }
@@ -179,6 +183,53 @@ type ConnectorInfo struct {
 	Name   string                 `json:"name"`
 	Status string                 `json:"status"`
 	Config map[string]interface{} `json:"config"`
+}
+
+// ExplainRequest represents the input for context.explain tool
+type ExplainRequest struct {
+	Target  string `json:"target"`            // The code, function name, or concept to explain
+	Context string `json:"context,omitempty"` // Additional context about what aspect to focus on
+	Depth   string `json:"depth,omitempty"`   // "brief", "detailed", "comprehensive"
+}
+
+// ExplainResponse represents the output of context.explain tool
+type ExplainResponse struct {
+	Explanation string                 `json:"explanation"`
+	Examples    []CodeExample          `json:"examples,omitempty"`
+	Related     []RelatedItem          `json:"related,omitempty"`
+	Complexity  string                 `json:"complexity"` // "simple", "moderate", "complex"
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// CodeExample provides a code example with explanation
+type CodeExample struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Language    string `json:"language"`
+}
+
+// GrepRequest represents the input for context.grep tool
+type GrepRequest struct {
+	Pattern         string `json:"pattern"`                    // The pattern to search for (supports regex)
+	Path            string `json:"path,omitempty"`             // Base directory to search in
+	Include         string `json:"include,omitempty"`          // File pattern to include
+	CaseInsensitive bool   `json:"case_insensitive,omitempty"` // Case insensitive search
+	Context         int    `json:"context,omitempty"`          // Lines of context around matches
+}
+
+// GrepResult represents a single grep match
+type GrepResult struct {
+	File    string `json:"file"`
+	Line    int    `json:"line"`
+	Content string `json:"content"`
+	Match   string `json:"match"`
+}
+
+// GrepResponse represents the output of context.grep tool
+type GrepResponse struct {
+	Results    []GrepResult `json:"results"`
+	TotalCount int          `json:"total_count"`
+	SearchTime float64      `json:"search_time_ms"`
 }
 
 // ToolDefinition represents an MCP tool definition
@@ -310,6 +361,60 @@ func GetToolDefinitions() []ToolDefinition {
 					"connector_config": {"type": "object"}
 				},
 				"required": ["action"]
+			}`),
+		},
+		{
+			Name:        ToolContextExplain,
+			Description: "Provides detailed explanations of code, functions, or concepts found in the codebase. Use this when users need deep understanding of implementation details.",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"target": {
+						"type": "string",
+						"description": "The code, function name, or concept to explain"
+					},
+					"context": {
+						"type": "string",
+						"description": "Additional context about what aspect to focus on"
+					},
+					"depth": {
+						"type": "string",
+						"enum": ["brief", "detailed", "comprehensive"],
+						"default": "detailed"
+					}
+				},
+				"required": ["target"]
+			}`),
+		},
+		{
+			Name:        ToolContextGrep,
+			Description: "Performs fast, exact pattern matching across the codebase using ripgrep. Use this for finding specific strings, function calls, or code patterns.",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"pattern": {
+						"type": "string",
+						"description": "The pattern to search for (supports regex)"
+					},
+					"path": {
+						"type": "string",
+						"description": "Base directory to search in (defaults to current directory)"
+					},
+					"include": {
+						"type": "string",
+						"description": "File pattern to include (e.g., *.go, *.js)"
+					},
+					"case_insensitive": {
+						"type": "boolean",
+						"default": false
+					},
+					"context": {
+						"type": "integer",
+						"default": 3,
+						"description": "Lines of context to show around matches"
+					}
+				},
+				"required": ["pattern"]
 			}`),
 		},
 	}

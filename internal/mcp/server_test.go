@@ -218,8 +218,8 @@ func TestServer_Handle_ToolsList(t *testing.T) {
 	err = json.Unmarshal(resultJSON, &tools)
 	require.NoError(t, err)
 
-	// Verify we have 4 tools
-	assert.Len(t, tools, 4)
+	// Verify we have 6 tools
+	assert.Len(t, tools, 6)
 
 	// Verify tool names
 	toolNames := make(map[string]bool)
@@ -230,6 +230,8 @@ func TestServer_Handle_ToolsList(t *testing.T) {
 	assert.True(t, toolNames[ToolContextGetRelatedInfo])
 	assert.True(t, toolNames[ToolContextIndexControl])
 	assert.True(t, toolNames[ToolContextConnectorManagement])
+	assert.True(t, toolNames[ToolContextExplain])
+	assert.True(t, toolNames[ToolContextGrep])
 }
 
 func TestServer_Handle_ContextSearch(t *testing.T) {

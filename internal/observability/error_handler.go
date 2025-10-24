@@ -256,7 +256,7 @@ func (eh *ErrorHandler) sanitizeErrorMessage(message string) string {
 	// Remove potential sensitive data patterns
 	sensitivePatterns := []string{
 		"password", "token", "key", "secret", "credential",
-		"auth", "bearer", "jwt", "api_key",
+		"bearer", "api_key",
 	}
 
 	lowerMessage := message

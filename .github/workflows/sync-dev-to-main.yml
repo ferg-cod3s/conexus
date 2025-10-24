@@ -1,0 +1,62 @@
+name: Sync Dev to Main
+
+on:
+  push:
+    branches: [ dev ]
+  schedule:
+    # Run daily at 2 AM UTC to keep dev up to date
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Sync Dev to Main
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Check if main needs update
+        id: check
+        run: |
+          git fetch origin main
+          MAIN_BEHIND=$(git rev-list --count origin/main..origin/dev)
+          echo "main is $MAIN_BEHIND commits behind dev"
+          
+          if [ "$MAIN_BEHIND" -gt 0 ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "Main branch needs update from dev"
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "Main branch is up to date"
+          fi
+
+      - name: Merge dev into main
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          git checkout main
+          git pull origin main
+          git merge origin/dev --no-ff -m "Merge dev into main [skip ci]"
+          git push origin main
+
+      - name: Create PR if merge conflicts
+        if: failure()
+        run: |
+          # If merge failed, create a PR to resolve conflicts
+          gh pr create \
+            --title "Sync dev to main - Conflict Resolution Needed" \
+            --body "Automated sync from dev to main failed due to conflicts. Please resolve manually." \
+            --base main \
+            --head dev \
+            --label "sync-conflict"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

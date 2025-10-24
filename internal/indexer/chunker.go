@@ -13,12 +13,15 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/ferg-cod3s/conexus/internal/enrichment"
 )
 
 // CodeChunker implements semantic code chunking for various programming languages.
 type CodeChunker struct {
-	maxChunkSize int // Maximum characters per chunk
-	overlapSize  int // Characters to overlap between chunks
+	maxChunkSize   int // Maximum characters per chunk
+	overlapSize    int // Characters to overlap between chunks
+	storyExtractor *enrichment.StoryExtractor
 }
 
 // NewCodeChunker creates a new code chunker with configurable sizes.
@@ -30,8 +33,9 @@ func NewCodeChunker(maxChunkSize, overlapSize int) *CodeChunker {
 		overlapSize = 200 // Default
 	}
 	return &CodeChunker{
-		maxChunkSize: maxChunkSize,
-		overlapSize:  overlapSize,
+		maxChunkSize:   maxChunkSize,
+		overlapSize:    overlapSize,
+		storyExtractor: enrichment.NewStoryExtractor(),
 	}
 }
 
@@ -65,23 +69,48 @@ func (c *CodeChunker) Supports(fileExtension string) bool {
 func (c *CodeChunker) Chunk(ctx context.Context, content string, filePath string) ([]Chunk, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 
+	var chunks []Chunk
+	var err error
+
 	switch ext {
 	case ".go":
-		return c.chunkGoCode(ctx, content, filePath)
+		chunks, err = c.chunkGoCode(ctx, content, filePath)
 	case ".py":
-		return c.chunkPythonCode(ctx, content, filePath)
+		chunks, err = c.chunkPythonCode(ctx, content, filePath)
 	case ".js", ".jsx", ".ts", ".tsx":
-		return c.chunkJavaScriptCode(ctx, content, filePath)
+		chunks, err = c.chunkJavaScriptCode(ctx, content, filePath)
 	case ".java":
-		return c.chunkJavaCode(ctx, content, filePath)
+		chunks, err = c.chunkJavaCode(ctx, content, filePath)
 	case ".cpp", ".cc", ".cxx", ".c++", ".c":
-		return c.chunkCCode(ctx, content, filePath)
+		chunks, err = c.chunkCCode(ctx, content, filePath)
 	case ".rs":
-		return c.chunkRustCode(ctx, content, filePath)
+		chunks, err = c.chunkRustCode(ctx, content, filePath)
 	default:
 		// Fallback to generic code chunking
-		return c.chunkGenericCode(ctx, content, filePath)
+		chunks, err = c.chunkGenericCode(ctx, content, filePath)
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract story references from content and add to all chunks
+	storyRefs := c.storyExtractor.ExtractStoryReferences(content)
+
+	// Add story references to chunk metadata
+	for i := range chunks {
+		if len(storyRefs["issues"]) > 0 {
+			chunks[i].StoryIDs = storyRefs["issues"]
+		}
+		if len(storyRefs["prs"]) > 0 {
+			chunks[i].PRNumbers = storyRefs["prs"]
+		}
+		if len(storyRefs["branches"]) > 0 {
+			chunks[i].BranchName = storyRefs["branches"][0] // Use first branch reference
+		}
+	}
+
+	return chunks, nil
 }
 
 // chunkGoCode implements semantic chunking for Go code using AST parsing.

@@ -438,9 +438,11 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid port - too low",
-			cfg: &Config{
-				Server: ServerConfig{Port: 0},
-			},
+			cfg: func() *Config {
+				cfg := defaults()
+				cfg.Server.Port = -1
+				return cfg
+			}(),
 			expectError: true,
 			errorMsg:    "invalid port",
 		},

@@ -1,0 +1,84 @@
+# This workflow sets up branch protection rules via GitHub API
+# Note: This requires a personal access token with repo scope
+name: Setup Branch Protection
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  setup-branch-protection:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'ferg-cod3s'
+    
+    steps:
+      - name: Setup branch protection for main
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              await github.rest.repos.updateBranchProtection({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: 'main',
+                required_status_checks: {
+                  strict: true,
+                  contexts: [
+                    'Test',
+                    'Lint',
+                    'Security Scan',
+                    'Build'
+                  ]
+                },
+                enforce_admins: true,
+                required_pull_request_reviews: {
+                  required_approving_review_count: 1,
+                  dismiss_stale_reviews: true,
+                  require_code_owner_reviews: true,
+                  required_review_thread_resolution: true
+                },
+                restrictions: null,
+                allow_force_pushes: false,
+                allow_deletions: false
+              });
+              console.log('Branch protection updated for main');
+            } catch (error) {
+              console.log('Branch protection may already exist or insufficient permissions:', error.message);
+            }
+
+      - name: Setup branch protection for dev
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              await github.rest.repos.updateBranchProtection({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: 'dev',
+                required_status_checks: {
+                  strict: false,
+                  contexts: [
+                    'Test',
+                    'Lint',
+                    'Security Scan',
+                    'Build'
+                  ]
+                },
+                enforce_admins: false,
+                required_pull_request_reviews: {
+                  required_approving_review_count: 0,
+                  dismiss_stale_reviews: false,
+                  require_code_owner_reviews: false,
+                  required_review_thread_resolution: false
+                },
+                restrictions: null,
+                allow_force_pushes: true,
+                allow_deletions: false
+              });
+              console.log('Branch protection updated for dev');
+            } catch (error) {
+              console.log('Branch protection may already exist or insufficient permissions:', error.message);
+            }

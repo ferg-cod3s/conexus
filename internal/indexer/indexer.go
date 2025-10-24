@@ -23,6 +23,13 @@ type Chunk struct {
 	Metadata  map[string]string // Additional metadata (git commit, author, etc.)
 	Hash      string            // Content hash (for deduplication/incremental updates)
 	IndexedAt time.Time         // When this chunk was indexed
+
+	// New fields for story context
+	StoryIDs     []string `json:"story_ids,omitempty"`
+	TicketIDs    []string `json:"ticket_ids,omitempty"`
+	PRNumbers    []string `json:"pr_numbers,omitempty"`
+	DiscussionID string   `json:"discussion_id,omitempty"`
+	BranchName   string   `json:"branch_name,omitempty"`
 }
 
 // ChunkType categorizes the semantic type of a chunk.

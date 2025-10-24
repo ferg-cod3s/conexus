@@ -21,14 +21,15 @@ import (
 
 // Server implements the MCP protocol server
 type Server struct {
-	vectorStore    vectorstore.VectorStore
-	connectorStore connectors.ConnectorStore
-	embedder       embedding.Embedder
-	searchCache    *search.SearchCache
-	metrics        *observability.MetricsCollector
-	errorHandler   *observability.ErrorHandler
-	jsonrpcSrv     *protocol.Server
-	indexer        indexer.IndexController
+	vectorStore      vectorstore.VectorStore
+	connectorStore   connectors.ConnectorStore
+	connectorManager *connectors.ConnectorManager
+	embedder         embedding.Embedder
+	searchCache      *search.SearchCache
+	metrics          *observability.MetricsCollector
+	errorHandler     *observability.ErrorHandler
+	jsonrpcSrv       *protocol.Server
+	indexer          indexer.IndexController
 }
 
 // NewServer creates a new MCP server
@@ -45,14 +46,17 @@ func NewServer(
 	// Initialize search cache (max 100 entries, 5 minute TTL)
 	searchCache := search.NewSearchCache(100, 5*time.Minute)
 
+	connectorManager := connectors.NewConnectorManager(connectorStore)
+
 	s := &Server{
-		vectorStore:    vectorStore,
-		connectorStore: connectorStore,
-		embedder:       embedder,
-		searchCache:    searchCache,
-		metrics:        metrics,
-		errorHandler:   errorHandler,
-		indexer:        indexer,
+		vectorStore:      vectorStore,
+		connectorStore:   connectorStore,
+		connectorManager: connectorManager,
+		embedder:         embedder,
+		searchCache:      searchCache,
+		metrics:          metrics,
+		errorHandler:     errorHandler,
+		indexer:          indexer,
 	}
 
 	// Create JSON-RPC server with this server as handler
@@ -187,6 +191,10 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (i
 		return s.handleIndexControl(ctx, req.Arguments)
 	case ToolContextConnectorManagement:
 		return s.handleConnectorManagement(ctx, req.Arguments)
+	case ToolContextExplain:
+		return s.handleContextExplain(ctx, req.Arguments)
+	case ToolContextGrep:
+		return s.handleContextGrep(ctx, req.Arguments)
 	default:
 		errorCtx := observability.ExtractErrorContext(ctx, "tools/call")
 		errorCtx.ErrorType = "tool_not_found"

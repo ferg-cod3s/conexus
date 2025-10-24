@@ -49,7 +49,7 @@ async function testMCPIntegration() {
     // 1. Index control - check status
     console.log('📊 Index Status:');
     const status = await callMCP('tools/call', { 
-      name: 'context.index_control', 
+      name: 'context_index_control', 
       arguments: { action: 'status' } 
     });
     console.log(`   ✅ ${status.result.message}`);
@@ -58,18 +58,22 @@ async function testMCPIntegration() {
     // 2. Connector management - list available
     console.log('🔌 Available Connectors:');
     const connectors = await callMCP('tools/call', { 
-      name: 'context.connector_management', 
+      name: 'context_connector_management', 
       arguments: { action: 'list' } 
     });
-    connectors.result.connectors.forEach(conn => {
-      console.log(`   ✅ ${conn.name} (${conn.type}) - ${conn.status}`);
-    });
+    if (connectors.result.connectors && connectors.result.connectors.length > 0) {
+      connectors.result.connectors.forEach(conn => {
+        console.log(`   ✅ ${conn.name} (${conn.type}) - ${conn.status}`);
+      });
+    } else {
+      console.log('   ℹ️  No connectors configured');
+    }
     console.log();
 
     // 3. Search capability (placeholder for now)
     console.log('🔍 Code Search:');
     const search = await callMCP('tools/call', { 
-      name: 'context.search', 
+      name: 'context_search', 
       arguments: { query: 'function definitions' } 
     });
     console.log(`   ✅ Search executed (${search.result.totalCount || 0} results found)`);
@@ -78,7 +82,7 @@ async function testMCPIntegration() {
     // 4. Related info lookup
     console.log('📋 Related Information:');
     const related = await callMCP('tools/call', { 
-      name: 'context.get_related_info', 
+      name: 'context_get_related_info', 
       arguments: { file_path: 'main.go' } 
     });
     console.log(`   ✅ Related info query processed`);
@@ -87,7 +91,7 @@ async function testMCPIntegration() {
     console.log('🎉 MCP Integration Test Complete!');
     console.log('\n💡 Ready for Claude Code / OpenCode integration');
     console.log('   Copy claude-mcp-config.json to ~/.claude/mcp.json');
-    console.log('   Then use: /mcp conexus tools/call context.index_control {"action": "status"}');
+    console.log('   Then use: /mcp conexus tools/call context_index_control {"action": "status"}');
 
   } catch (error) {
     console.error('❌ Integration test failed:', error.message);

@@ -16,6 +16,13 @@ type Document struct {
 	Metadata  map[string]interface{} // Arbitrary metadata (file path, language, etc.)
 	CreatedAt time.Time              // When the document was stored
 	UpdatedAt time.Time              // Last update timestamp
+
+	// New fields for story context
+	StoryIDs     []string `json:"story_ids,omitempty"`
+	TicketIDs    []string `json:"ticket_ids,omitempty"`
+	PRNumbers    []string `json:"pr_numbers,omitempty"`
+	DiscussionID string   `json:"discussion_id,omitempty"`
+	BranchName   string   `json:"branch_name,omitempty"`
 }
 
 // SearchResult represents a single search result with relevance score.

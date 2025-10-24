@@ -3,6 +3,9 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -729,6 +732,215 @@ func TestHandleConnectorManagement_InvalidJSON(t *testing.T) {
 	protocolErr, ok := err.(*protocol.Error)
 	require.True(t, ok)
 	assert.Equal(t, protocol.InvalidParams, protocolErr.Code)
+}
+
+func TestHandleContextExplain_Success(t *testing.T) {
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	ctx := context.Background()
+
+	// Add test documents
+	now := time.Now()
+	docs := []vectorstore.Document{
+		{
+			ID:      "func-1",
+			Content: "func AuthenticateUser(username, password string) error {\n\t// Validate credentials\n\tif username == \"\" || password == \"\" {\n\t\treturn errors.New(\"invalid credentials\")\n\t}\n\treturn nil\n}",
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type":   "file",
+				"file_path":     "auth.go",
+				"chunk_type":    "function",
+				"function_name": "AuthenticateUser",
+				"language":      "go",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:      "struct-1",
+			Content: "type User struct {\n\tID       int    `json:\"id\"`\n\tUsername string `json:\"username\"`\n\tEmail    string `json:\"email\"`\n}",
+			Vector:  make(embedding.Vector, 384),
+			Metadata: map[string]interface{}{
+				"source_type": "file",
+				"file_path":   "models.go",
+				"chunk_type":  "struct",
+				"type_name":   "User",
+				"language":    "go",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+
+	for _, doc := range docs {
+		err := store.Upsert(ctx, doc)
+		require.NoError(t, err)
+	}
+
+	// Create explain request
+	req := ExplainRequest{
+		Target:  "user authentication",
+		Context: "how users log in",
+		Depth:   "detailed",
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// Execute explain
+	result, err := server.handleContextExplain(ctx, reqJSON)
+
+	// Verify
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	resp, ok := result.(ExplainResponse)
+	require.True(t, ok)
+
+	assert.NotEmpty(t, resp.Explanation)
+	assert.Contains(t, resp.Explanation, "AuthenticateUser")
+	assert.Contains(t, resp.Explanation, "User")
+	assert.Equal(t, "moderate", resp.Complexity) // Based on our assessment logic
+	assert.NotNil(t, resp.Examples)
+	assert.NotNil(t, resp.Related)
+	assert.NotNil(t, resp.Metadata)
+}
+
+func TestHandleContextExplain_MissingTarget(t *testing.T) {
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	ctx := context.Background()
+
+	// Create request with missing target
+	req := ExplainRequest{
+		Context: "some context",
+		Depth:   "brief",
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// Execute explain
+	_, err = server.handleContextExplain(ctx, reqJSON)
+
+	// Verify error
+	assert.Error(t, err)
+	protocolErr, ok := err.(*protocol.Error)
+	require.True(t, ok)
+	assert.Equal(t, protocol.InvalidParams, protocolErr.Code)
+	assert.Contains(t, protocolErr.Message, "target is required")
+}
+
+func TestHandleContextGrep_Success(t *testing.T) {
+	// Create a temporary test file
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.go")
+	testContent := `package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Hello, World!")
+}
+
+func authenticateUser(username, password string) error {
+	if username == "admin" && password == "secret" {
+		return nil
+	}
+	return fmt.Errorf("invalid credentials")
+}`
+
+	err := os.WriteFile(testFile, []byte(testContent), 0644)
+	require.NoError(t, err)
+
+	// Verify file was created correctly
+	content, err := os.ReadFile(testFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "func")
+
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	ctx := context.Background()
+
+	// Create grep request with absolute path
+	absPath, err := filepath.Abs(tempDir)
+	require.NoError(t, err)
+
+	req := GrepRequest{
+		Pattern:         "func",
+		Path:            absPath,
+		Include:         "*",
+		CaseInsensitive: false,
+		Context:         2,
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// Execute grep
+	result, err := server.handleContextGrep(ctx, reqJSON)
+
+	// Verify
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	resp, ok := result.(GrepResponse)
+	require.True(t, ok)
+
+	// Debug output
+	t.Logf("Search time: %f ms", resp.SearchTime)
+	t.Logf("Total results: %d", resp.TotalCount)
+	for i, res := range resp.Results {
+		t.Logf("Result %d: File=%s, Line=%d, Match=%s", i, res.File, res.Line, res.Match)
+	}
+
+	assert.Greater(t, resp.TotalCount, 0)
+	assert.Greater(t, resp.SearchTime, float64(0))
+
+	// Check that we found the function
+	found := false
+	for _, grepResult := range resp.Results {
+		if strings.Contains(grepResult.Content, "func") {
+			found = true
+			assert.Equal(t, testFile, grepResult.File)
+			assert.Contains(t, grepResult.Match, "func")
+			break
+		}
+	}
+	assert.True(t, found, "Should have found func pattern")
+}
+
+func TestHandleContextGrep_MissingPattern(t *testing.T) {
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	ctx := context.Background()
+
+	// Create request with missing pattern
+	req := GrepRequest{
+		Path:    ".",
+		Include: "*.go",
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// Execute grep
+	_, err = server.handleContextGrep(ctx, reqJSON)
+
+	// Verify error
+	assert.Error(t, err)
+	protocolErr, ok := err.(*protocol.Error)
+	require.True(t, ok)
+	assert.Equal(t, protocol.InvalidParams, protocolErr.Code)
+	assert.Contains(t, protocolErr.Message, "pattern is required")
 }
 
 func TestMinFunction(t *testing.T) {
