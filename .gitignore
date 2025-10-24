@@ -28,12 +28,19 @@ go.work
 # OS
 .DS_Store
 Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Project specific
 data/
 .conexus/
 *.db
 *.sqlite
+*.sqlite3
 
 # Environment
 .env
@@ -42,10 +49,42 @@ data/
 
 # Logs
 *.log
+logs/
 
 # Build artifacts
 dist/
 build/
+tmp/
+temp/
 
 # Node modules (for npm distribution)
 node_modules/
+
+# Profiling and performance
+*.prof
+cpu.prof
+mem.prof
+*.pprof
+
+# Backup and temporary files
+*.bak
+*.backup
+*.tmp
+*.cache
+*.old
+
+# Local development
+.local/
+local/
+*.local
+
+# Test artifacts
+test-results/
+coverage/
+*.cover
+
+# Docker
+.dockerignore.bak
+
+# Package manager
+go.sum.backup

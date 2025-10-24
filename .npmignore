@@ -13,11 +13,14 @@ go.sum
 tests/
 *.test
 coverage.txt
+coverage/
 
-# Documentation (except README)
+# Documentation (except README and essential docs)
 docs/
 *.md
 !README.md
+!LICENSE
+!AGENTS.md
 
 # Build artifacts
 *.exe
@@ -27,8 +30,10 @@ conexus
 # Config and test files
 config.yml
 config.test.yml
+config.example.yml
 *.json
 !package.json
+!package-lock.json
 *.sh
 !scripts/
 
@@ -37,14 +42,53 @@ config.test.yml
 .idea/
 *.swp
 *.swo
+*.bak
+*.backup
 
-# Project configs
+# Project configs and internal files
 PROJECT_CONFIGS/
 observability/
+.dockerignore
+.golangci.yml
+.npmignore
 
-# Other
+# Development and planning files
 TODO.md
 CHANGES_SUMMARY.md
 PHASE*.md
 *STATUS.md
 *PLAN.md
+BRANCH_STRATEGY.md
+PERFORMANCE_BASELINE.md
+PUBLISHING.md
+
+# Environment and local files
+.env*
+*.local
+.local/
+
+# Logs and profiling
+*.log
+*.prof
+*.pprof
+logs/
+
+# Test files
+test_*.js
+*_test.go
+integration/
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+
+# Temporary and cache files
+*.tmp
+*.cache
+tmp/
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+._*
