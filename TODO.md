@@ -1,8 +1,8 @@
 # Conexus Project TODOs
 
 **Current Phase**: Phase 8 - MCP Protocol Completeness & Feature Enhancement  
-**Last Updated**: 2025-10-24  
-**Status**: ✅ COMPLETE - All 6 MCP tools fully implemented and tested
+**Last Updated**: 2025-10-25  
+**Status**: 🚨 BLOCKED - Critical MCP compliance issue found (Issue #71)
 
 ---
 
@@ -18,6 +18,14 @@
 3. Add connector management with database persistence
 4. Ensure comprehensive testing and documentation
 
+### 🔴 CRITICAL FINDING: MCP Compliance Issue
+
+**Issue #71**: MCP Tool Naming Convention Violation - Migration to Dot Notation Required
+- **Status**: 🚨 IMMEDIATE ACTION REQUIRED
+- **Impact**: Non-compliance with MCP specification
+- **Evidence**: `docs/research/MCP_PATTERNS_RESEARCH.md`
+- **Action**: Must migrate from `context_search` to `context.search` pattern
+
 **See `PHASE8-PLAN.md` for complete details**
 
 ---
@@ -25,6 +33,14 @@
 ## 📋 Phase 8 Task List
 
 ### High Priority (Must-Have for v0.2.0)
+
+#### **Task 8.0: Fix MCP Tool Naming Convention Violation** (4-6 hours) 🚨 **NEW**
+- **Issue**: #71
+- **Status**: 📋 **IMMEDIATE ACTION REQUIRED**
+- **Priority**: 🔴 CRITICAL
+- **Description**: Migrate from underscore notation (`context_search`) to dot notation (`context.search`) for MCP compliance
+- **Acceptance**: All tools use dot notation, documentation matches implementation, tests pass
+- **Files to Update**: `internal/mcp/schema.go`, all test files, documentation examples
 
 #### **Task 8.1: Implement `context.get_related_info`** (5-7 hours)
 - **Issue**: #56
@@ -150,7 +166,7 @@
 - ✅ Phase 5: Search & Retrieval - COMPLETE
 - ✅ Phase 6: Testing & Quality - COMPLETE
 - ✅ Phase 7: Production Readiness - COMPLETE (v0.1.0-mvp)
-- ✅ Phase 8: MCP Completeness - COMPLETE (v0.2.0-ready)
+- 🚨 Phase 8: MCP Completeness - BLOCKED by Issue #71 (MCP compliance violation)
 
 ---
 
@@ -162,6 +178,7 @@
 - [x] All tests passing (251+ tests)
 - [x] 0 security vulnerabilities maintained
 - [x] Updated documentation for all new features
+- [🚨] **Task 8.0 complete (MCP naming compliance) - BLOCKS RELEASE**
 
 ### Should-Have (v0.2.0 or v0.2.1)
 - [ ] Task 8.4 complete (code-aware chunking)
@@ -178,20 +195,23 @@
 
 ## 🚀 Immediate Next Actions
 
-1. **Start Task 8.8** - Set up GitHub project management
+**🚨 CRITICAL PRIORITY - Issue #71**
+
+1. **Start Task 8.0** - Fix MCP Tool Naming Convention Violation
+   - Update `internal/mcp/schema.go` constants to use dot notation
+   - Update all test files to use new tool names
+   - Update documentation examples to match implementation
+   - Test with Claude Desktop and other MCP clients
+   - ~4-6 hours (BLOCKS v0.2.0 release)
+
+2. **Continue Task 8.8** - Set up GitHub project management
    - Create feature branches
    - Set up draft PRs
    - ~1-3 hours
 
-2. **Start Task 8.1** - Implement `context.get_related_info`
-   - Create `internal/mcp/related_info.go`
-   - Integrate with vectorstore
-   - ~5-7 hours
-
-3. **Complete Task 8.2** - Finish connector management
-   - Add SQLite persistence
-   - Implement full CRUD
-   - ~4-5 hours
+3. **Complete Task 8.3** - Implement MCP resources endpoints
+   - Add `resources/list` and `resources/read` tools
+   - ~5-6 hours
 
 4. **Continue with remaining tasks** - Follow Phase 8 plan
    - See `PHASE8-PLAN.md` for detailed timeline
