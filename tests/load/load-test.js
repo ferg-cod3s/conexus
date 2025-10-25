@@ -110,7 +110,7 @@ function testContextSearch() {
   const startTime = Date.now();
   
   const response = sendMCPRequest('tools/call', {
-    name: 'context.search',
+    name: 'context_search',
     arguments: {
       query: query,
       max_results: 10,
@@ -156,7 +156,7 @@ function testGetRelatedInfo() {
   const startTime = Date.now();
   
   const response = sendMCPRequest('tools/call', {
-    name: 'context.get_related_info',
+    name: 'context_get_related_info',
     arguments: {
       query: query,
       max_depth: 2,
@@ -193,7 +193,7 @@ function testIndexControlStatus() {
   const startTime = Date.now();
   
   const response = sendMCPRequest('tools/call', {
-    name: 'context.index_control',
+    name: 'context_index_control',
     arguments: {
       action: 'status',
     },
@@ -227,7 +227,7 @@ function testIndexControlStatus() {
 // Test scenario: Connector Management List (5% of traffic)
 function testConnectorManagementList() {
   const response = sendMCPRequest('tools/call', {
-    name: 'context.connector_management',
+    name: 'context_connector_management',
     arguments: {
       action: 'list',
     },

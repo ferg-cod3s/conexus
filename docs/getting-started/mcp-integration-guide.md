@@ -65,7 +65,7 @@ Performs semantic search across your codebase, discussions, and documents.
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "context.search",
+    "name": "context_search",
     "arguments": {
       "query": "how does authentication work",
       "work_context": {
@@ -134,7 +134,7 @@ Retrieves information directly related to a file or ticket.
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "context.get_related_info",
+    "name": "context_get_related_info",
     "arguments": {
       "file_path": "internal/mcp/server.go"
     }
@@ -187,7 +187,7 @@ Controls indexing operations.
   "id": 3,
   "method": "tools/call",
   "params": {
-    "name": "context.index_control",
+    "name": "context_index_control",
     "arguments": {
       "action": "status"
     }
@@ -232,7 +232,7 @@ Manages data source connectors.
   "id": 4,
   "method": "tools/call",
   "params": {
-    "name": "context.connector_management",
+    "name": "context_connector_management",
     "arguments": {
       "action": "list"
     }
@@ -339,7 +339,7 @@ const request = {
   id: 1,
   method: 'tools/call',
   params: {
-    name: 'context.search',
+    name: 'context_search',
     arguments: {
       query: 'authentication implementation',
       top_k: 5
@@ -376,7 +376,7 @@ request = {
     'id': 1,
     'method': 'tools/call',
     'params': {
-        'name': 'context.search',
+        'name': 'context_search',
         'arguments': {
             'query': 'error handling patterns',
             'top_k': 10

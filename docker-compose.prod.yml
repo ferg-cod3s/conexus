@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  conexus:
+    image: conexus:latest
+    container_name: conexus-prod
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persistent database storage
+      - conexus-data:/data
+      # Optional: Mount your codebase for indexing (read-only)
+      # - /path/to/your/code:/data/codebase:ro
+    environment:
+      # Server configuration
+      - CONEXUS_HOST=0.0.0.0
+      - CONEXUS_PORT=8080
+      
+      # Database configuration
+      - CONEXUS_DB_PATH=/data/conexus.db
+      
+      # Codebase path (mount your codebase to /data/codebase)
+      - CONEXUS_ROOT_PATH=/data/codebase
+      
+      # Logging configuration
+      - CONEXUS_LOG_LEVEL=info
+      - CONEXUS_LOG_FORMAT=json
+      
+      # Performance settings
+      - CONEXUS_CHUNK_SIZE=512
+      - CONEXUS_CHUNK_OVERLAP=50
+      
+      # Optional: Embedding provider (defaults to mock embeddings)
+      # - CONEXUS_EMBEDDING_PROVIDER=openai
+      # - CONEXUS_EMBEDDING_MODEL=text-embedding-3-small
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - conexus-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+  # Optional: Reverse proxy with Nginx for production
+  nginx:
+    image: nginx:alpine
+    container_name: conexus-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - conexus
+    networks:
+      - conexus-network
+
+networks:
+  conexus-network:
+    driver: bridge
+
+volumes:
+  conexus-data:
+    driver: local

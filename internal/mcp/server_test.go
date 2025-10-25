@@ -294,3 +294,197 @@ func TestServer_Handle_UnknownMethod(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, protocol.MethodNotFound, protocolErr.Code)
 }
+
+func TestServer_Serve(t *testing.T) {
+	reader := strings.NewReader("")
+	writer := &bytes.Buffer{}
+	store := vectorstore.NewMemoryStore()
+	connectorStore := newMockConnectorStore()
+	embedder := &mockEmbedder{}
+	mockIdx := &mockIndexer{}
+
+	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+
+	// Test Serve - it should return nil for now (placeholder implementation)
+	err := server.Serve()
+	assert.NoError(t, err)
+}
+
+func TestServer_HandleInitialize(t *testing.T) {
+	reader := strings.NewReader("")
+	writer := &bytes.Buffer{}
+	store := vectorstore.NewMemoryStore()
+	connectorStore := newMockConnectorStore()
+	embedder := &mockEmbedder{}
+	mockIdx := &mockIndexer{}
+
+	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+
+	ctx := context.Background()
+
+	// Create initialize request
+	req := map[string]interface{}{
+		"protocolVersion": "2024-11-05",
+		"capabilities": map[string]interface{}{
+			"tools": map[string]interface{}{},
+		},
+		"clientInfo": map[string]interface{}{
+			"name":    "test-client",
+			"version": "1.0.0",
+		},
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// Test handleInitialize
+	result, err := server.handleInitialize(ctx, json.RawMessage(reqJSON))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	// Verify response structure
+	response, ok := result.(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "2025-06-18", response["protocolVersion"])
+	assert.Contains(t, response, "capabilities")
+	assert.Contains(t, response, "serverInfo")
+}
+
+func TestServer_HandleResourcesList(t *testing.T) {
+	reader := strings.NewReader("")
+	writer := &bytes.Buffer{}
+	store := vectorstore.NewMemoryStore()
+	connectorStore := newMockConnectorStore()
+	embedder := &mockEmbedder{}
+	mockIdx := &mockIndexer{}
+
+	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+
+	ctx := context.Background()
+
+	// Test handleResourcesList
+	result, err := server.handleResourcesList(ctx, json.RawMessage("{}"))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	// Verify response structure
+	response, ok := result.(map[string]interface{})
+	require.True(t, ok)
+	assert.Contains(t, response, "resources")
+}
+
+func TestServer_HandleResourcesRead(t *testing.T) {
+	reader := strings.NewReader("")
+	writer := &bytes.Buffer{}
+	store := vectorstore.NewMemoryStore()
+	connectorStore := newMockConnectorStore()
+	embedder := &mockEmbedder{}
+	mockIdx := &mockIndexer{}
+
+	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+
+	ctx := context.Background()
+
+	// Add a test document to the vector store
+	now := time.Now()
+	doc := vectorstore.Document{
+		ID:      "test-doc",
+		Content: "test content",
+		Vector:  make(embedding.Vector, 384),
+		Metadata: map[string]interface{}{
+			"source_type": "file",
+			"file_path":   "test.txt",
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	err := store.Upsert(ctx, doc)
+	require.NoError(t, err)
+
+	// Create read request with correct URI format
+	req := map[string]interface{}{
+		"uri": "engine://file/test.txt",
+	}
+
+	reqJSON, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// Test handleResourcesRead
+	result, err := server.handleResourcesRead(ctx, json.RawMessage(reqJSON))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	// Verify response structure
+	response, ok := result.(map[string]interface{})
+	require.True(t, ok)
+	assert.Contains(t, response, "contents")
+}
+
+func TestServer_ValidateFilePath(t *testing.T) {
+	reader := strings.NewReader("")
+	writer := &bytes.Buffer{}
+	store := vectorstore.NewMemoryStore()
+	connectorStore := newMockConnectorStore()
+	embedder := &mockEmbedder{}
+	mockIdx := &mockIndexer{}
+
+	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+
+	tests := []struct {
+		name        string
+		filePath    string
+		expectError bool
+	}{
+		{"relative file path", "path/to/file.txt", false},
+		{"path traversal attempt", "../../../etc/passwd", true},
+		{"absolute path", "/absolute/path/file.go", true},
+		{"relative path", "relative/path/file.go", false},
+		{"empty path", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := server.validateFilePath(tt.filePath)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestServer_GetMimeType(t *testing.T) {
+	reader := strings.NewReader("")
+	writer := &bytes.Buffer{}
+	store := vectorstore.NewMemoryStore()
+	connectorStore := newMockConnectorStore()
+	embedder := &mockEmbedder{}
+	mockIdx := &mockIndexer{}
+
+	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+
+	tests := []struct {
+		name     string
+		filePath string
+		expected string
+	}{
+		{"go file", "main.go", "text/x-go"},
+		{"javascript file", "app.js", "application/javascript"},
+		{"typescript file", "app.ts", "application/typescript"},
+		{"json file", "config.json", "application/json"},
+		{"text file", "readme.txt", "text/plain"},
+		{"unknown file", "unknown.xyz", "text/plain"},
+		{"no extension", "Makefile", "text/plain"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := server.getMimeType(tt.filePath)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

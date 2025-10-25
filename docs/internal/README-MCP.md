@@ -51,13 +51,13 @@ You should see the 4 Conexus tools listed.
 
 ```bash
 # Check index status
-/mcp conexus tools/call context.index_control {"action": "status"}
+/mcp conexus tools/call context_index_control {"action": "status"}
 
 # List connectors
-/mcp conexus tools/call context.connector_management {"action": "list"}
+/mcp conexus tools/call context_connector_management {"action": "list"}
 
 # Search code (when indexing is implemented)
-/mcp conexus tools/call context.search {"query": "function definitions"}
+/mcp conexus tools/call context_search {"query": "function definitions"}
 ```
 
 ## OpenCode Integration
@@ -95,17 +95,17 @@ Use the MCP tools through OpenCode's interface.
 
 1. **Index your codebase** (when implemented):
    ```
-   /mcp conexus tools/call context.index_control {"action": "start"}
+   /mcp conexus tools/call context_index_control {"action": "start"}
    ```
 
 2. **Search for code patterns**:
    ```
-   /mcp conexus tools/call context.search {"query": "authentication logic"}
+   /mcp conexus tools/call context_search {"query": "authentication logic"}
    ```
 
 3. **Find related information**:
    ```
-   /mcp conexus tools/call context.get_related_info {"file_path": "auth.go"}
+   /mcp conexus tools/call context_get_related_info {"file_path": "auth.go"}
    ```
 
 ### Debugging & Troubleshooting
@@ -146,7 +146,7 @@ Use the MCP tools through OpenCode's interface.
 **Problem**: Search returns no results
 **Solution**:
 1. Confirm codebase is indexed
-2. Check index status: `/mcp conexus tools/call context.index_control {"action": "status"}`
+2. Check index status: `/mcp conexus tools/call context_index_control {"action": "status"}`
 
 ## Advanced Configuration
 

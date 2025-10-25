@@ -181,7 +181,7 @@ docker run --rm -v $(pwd)/data:/data alpine fsck -f /data/conexus.db
 # Test working tools
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context.index_control","arguments":{"action":"status"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context_index_control","arguments":{"action":"status"}}}'
 
 # Should return: {"status":"ok","message":"Index contains X documents",...}
 ```
@@ -201,7 +201,7 @@ curl -X POST http://localhost:8080/mcp \
 # Check index status
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context.index_control","arguments":{"action":"status"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context_index_control","arguments":{"action":"status"}}}'
 
 # If 0 documents, re-index
 # Mount codebase and trigger indexing

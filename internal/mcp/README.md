@@ -371,7 +371,7 @@ Retrieve file content or directory listings by path.
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "context.search",
+    "name": "context_search",
     "arguments": {
       "query": "authentication",
       "top_k": 10
@@ -456,7 +456,7 @@ curl -X POST http://localhost:8080/mcp \
     "id": 1,
     "method": "tools/call",
     "params": {
-      "name": "context.search",
+      "name": "context_search",
       "arguments": {
         "query": "authentication middleware",
         "top_k": 5
@@ -557,7 +557,7 @@ See `docs/getting-started/mcp-integration-guide.md` for full integration test in
 ## Troubleshooting
 
 ### "Method not found" error
-- Check tool name spelling (e.g., `context.search` not `search`)
+- Check tool name spelling (e.g., `context_search` not `search`)
 - Verify server is running and initialized
 
 ### Empty search results

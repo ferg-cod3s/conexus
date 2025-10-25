@@ -12,7 +12,7 @@ import (
 )
 
 type Connector struct {
-	client *github.Client
+	client GitHubClientInterface
 	config *Config
 }
 
@@ -65,7 +65,8 @@ func NewConnector(config *Config) (*Connector, error) {
 		&oauth2.Token{AccessToken: config.Token},
 	)
 	tc := oauth2.NewClient(context.Background(), ts)
-	client := github.NewClient(tc)
+	githubClient := github.NewClient(tc)
+	client := NewRealGitHubClient(githubClient)
 
 	return &Connector{
 		client: client,
@@ -86,7 +87,7 @@ func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
 	var allIssues []Issue
 
 	for {
-		issues, resp, err := gc.client.Issues.ListByRepo(ctx, owner, repo, opts)
+		issues, resp, err := gc.client.ListIssuesByRepo(ctx, owner, repo, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch issues: %w", err)
 		}
@@ -149,7 +150,7 @@ func (gc *Connector) SyncPullRequests(ctx context.Context) ([]PullRequest, error
 	var allPRs []PullRequest
 
 	for {
-		prs, resp, err := gc.client.PullRequests.List(ctx, owner, repo, opts)
+		prs, resp, err := gc.client.ListPullRequests(ctx, owner, repo, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch pull requests: %w", err)
 		}

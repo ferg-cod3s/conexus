@@ -1,0 +1,61 @@
+{
+  "name": "@agentic-conexus/mcp",
+  "version": "0.1.1-alpha",
+  "description": "MCP server for context-aware AI assistants with semantic search and codebase understanding",
+  "main": "bin/conexus.js",
+  "bin": {
+    "conexus": "./bin/conexus.js"
+  },
+  "scripts": {
+    "build:all": "bash scripts/build-binaries.sh",
+    "prepublishOnly": "npm run build:all",
+    "test": "go test ./...",
+    "test:integration": "go test ./internal/testing/integration/...",
+    "lint": "golangci-lint run",
+    "start": "node bin/conexus.js"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE",
+    "config.example.yml",
+    "docs/"
+  ],
+  "keywords": [
+    "mcp",
+    "context-engine",
+    "semantic-search",
+    "ai",
+    "code-analysis",
+    "vector-database",
+    "sqlite",
+    "golang"
+  ],
+  "author": "Ferg <ferg@fergify.work>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ferg-cod3s/conexus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ferg-cod3s/conexus/issues"
+  },
+  "homepage": "https://github.com/ferg-cod3s/conexus#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

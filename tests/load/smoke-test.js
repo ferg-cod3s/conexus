@@ -67,7 +67,7 @@ export default function () {
     id: 2,
     method: 'tools/call',
     params: {
-      name: 'context.search',
+      name: 'context_search',
       arguments: {
         query: 'test function',
         top_k: 10,

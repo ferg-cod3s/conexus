@@ -31,14 +31,14 @@ const (
 
 // Engine orchestrates workflow execution
 type Engine struct {
-	executor Executor
+	executor  Executor
 	validator *Validator
 }
 
 // NewEngine creates a new workflow engine
 func NewEngine(executor Executor) *Engine {
 	return &Engine{
-		executor: executor,
+		executor:  executor,
 		validator: NewValidator(),
 	}
 }
@@ -65,7 +65,7 @@ func (e *Engine) Execute(ctx context.Context, wf *Workflow) (*ExecutionResult, e
 // executeSequential runs workflow steps one after another
 func (e *Engine) executeSequential(ctx context.Context, wf *Workflow) (*ExecutionResult, error) {
 	result := &ExecutionResult{
-		WorkflowID: wf.ID,
+		WorkflowID:  wf.ID,
 		StepResults: make([]*StepResult, 0, len(wf.Steps)),
 	}
 
@@ -108,7 +108,7 @@ func (e *Engine) executeSequential(ctx context.Context, wf *Workflow) (*Executio
 // executeParallel runs all workflow steps concurrently
 func (e *Engine) executeParallel(ctx context.Context, wf *Workflow) (*ExecutionResult, error) {
 	result := &ExecutionResult{
-		WorkflowID: wf.ID,
+		WorkflowID:  wf.ID,
 		StepResults: make([]*StepResult, len(wf.Steps)),
 	}
 
@@ -121,8 +121,14 @@ func (e *Engine) executeParallel(ctx context.Context, wf *Workflow) (*ExecutionR
 		go func(idx int, s *Step) {
 			defer wg.Done()
 
-			// Execute step
-			stepResult, err := e.executor.ExecuteStep(ctx, s, result)
+			// Create a local copy of the current result for this goroutine
+			localResult := &ExecutionResult{
+				WorkflowID:  result.WorkflowID,
+				StepResults: make([]*StepResult, 0),
+			}
+
+			// Execute step with local result to avoid races
+			stepResult, err := e.executor.ExecuteStep(ctx, s, localResult)
 
 			mu.Lock()
 			result.StepResults[idx] = stepResult
@@ -148,7 +154,7 @@ func (e *Engine) executeParallel(ctx context.Context, wf *Workflow) (*ExecutionR
 // executeConditional runs workflow steps based on conditions
 func (e *Engine) executeConditional(ctx context.Context, wf *Workflow) (*ExecutionResult, error) {
 	result := &ExecutionResult{
-		WorkflowID: wf.ID,
+		WorkflowID:  wf.ID,
 		StepResults: make([]*StepResult, 0),
 	}
 

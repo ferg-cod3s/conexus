@@ -94,10 +94,10 @@ function runMixedWorkload() {
     },
     // Get related info - expensive operation
     {
-      name: 'context.get_related_info',
+      name: 'context_get_related_info',
       weight: 0.30,
       params: {
-        name: 'context.get_related_info',
+        name: 'context_get_related_info',
         arguments: {
           query: 'error handling',
           max_depth: 2,
@@ -106,10 +106,10 @@ function runMixedWorkload() {
     },
     // Index control - lightweight operation
     {
-      name: 'context.index_control',
+      name: 'context_index_control',
       weight: 0.15,
       params: {
-        name: 'context.index_control',
+        name: 'context_index_control',
         arguments: {
           action: 'status',
         },
@@ -117,10 +117,10 @@ function runMixedWorkload() {
     },
     // Connector management - lightweight operation
     {
-      name: 'context.connector_management',
+      name: 'context_connector_management',
       weight: 0.05,
       params: {
-        name: 'context.connector_management',
+        name: 'context_connector_management',
         arguments: {
           action: 'list',
         },

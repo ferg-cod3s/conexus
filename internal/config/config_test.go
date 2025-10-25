@@ -672,6 +672,548 @@ func TestContains(t *testing.T) {
 	assert.False(t, contains([]string{}, "a"))
 }
 
+func TestDefault(t *testing.T) {
+	cfg := Default()
+
+	// Test that it returns the same as defaults()
+	expectedDefaults := defaults()
+	assert.Equal(t, expectedDefaults, cfg)
+
+	// Test specific values
+	assert.Equal(t, DefaultHost, cfg.Server.Host)
+	assert.Equal(t, DefaultPort, cfg.Server.Port)
+	assert.Equal(t, DefaultDBPath, cfg.Database.Path)
+	assert.Equal(t, DefaultRootPath, cfg.Indexer.RootPath)
+	assert.Equal(t, DefaultChunkSize, cfg.Indexer.ChunkSize)
+	assert.Equal(t, DefaultChunkOverlap, cfg.Indexer.ChunkOverlap)
+	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
+	assert.Equal(t, DefaultLogFormat, cfg.Logging.Format)
+}
+
+func TestLoadEnv_Observability(t *testing.T) {
+	// Test observability environment variables
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected *Config
+	}{
+		{
+			name: "metrics enabled",
+			envVars: map[string]string{
+				"CONEXUS_METRICS_ENABLED": "true",
+				"CONEXUS_METRICS_PORT":    "9090",
+				"CONEXUS_METRICS_PATH":    "/custom/metrics",
+			},
+			expected: &Config{
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{
+						Enabled: true,
+						Port:    9090,
+						Path:    "/custom/metrics",
+					},
+					Tracing: TracingConfig{
+						Enabled:    DefaultTracingEnabled,
+						Endpoint:   DefaultTracingEndpoint,
+						SampleRate: DefaultSampleRate,
+					},
+					Sentry: SentryConfig{
+						Enabled:     DefaultSentryEnabled,
+						DSN:         DefaultSentryDSN,
+						Environment: DefaultSentryEnv,
+						SampleRate:  DefaultSentrySampleRate,
+						Release:     DefaultSentryRelease,
+					},
+				},
+			},
+		},
+		{
+			name: "tracing enabled",
+			envVars: map[string]string{
+				"CONEXUS_TRACING_ENABLED":     "true",
+				"CONEXUS_TRACING_ENDPOINT":    "http://custom:4318",
+				"CONEXUS_TRACING_SAMPLE_RATE": "0.5",
+			},
+			expected: &Config{
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{
+						Enabled: DefaultMetricsEnabled,
+						Port:    DefaultMetricsPort,
+						Path:    DefaultMetricsPath,
+					},
+					Tracing: TracingConfig{
+						Enabled:    true,
+						Endpoint:   "http://custom:4318",
+						SampleRate: 0.5,
+					},
+					Sentry: SentryConfig{
+						Enabled:     DefaultSentryEnabled,
+						DSN:         DefaultSentryDSN,
+						Environment: DefaultSentryEnv,
+						SampleRate:  DefaultSentrySampleRate,
+						Release:     DefaultSentryRelease,
+					},
+				},
+			},
+		},
+		{
+			name: "sentry enabled",
+			envVars: map[string]string{
+				"CONEXUS_SENTRY_ENABLED":     "true",
+				"CONEXUS_SENTRY_DSN":         "https://test@sentry.io/123",
+				"CONEXUS_SENTRY_ENVIRONMENT": "production",
+				"CONEXUS_SENTRY_SAMPLE_RATE": "0.8",
+				"CONEXUS_SENTRY_RELEASE":     "v1.0.0",
+			},
+			expected: &Config{
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{
+						Enabled: DefaultMetricsEnabled,
+						Port:    DefaultMetricsPort,
+						Path:    DefaultMetricsPath,
+					},
+					Tracing: TracingConfig{
+						Enabled:    DefaultTracingEnabled,
+						Endpoint:   DefaultTracingEndpoint,
+						SampleRate: DefaultSampleRate,
+					},
+					Sentry: SentryConfig{
+						Enabled:     true,
+						DSN:         "https://test@sentry.io/123",
+						Environment: "production",
+						SampleRate:  0.8,
+						Release:     "v1.0.0",
+					},
+				},
+			},
+		},
+		{
+			name: "invalid boolean values ignored",
+			envVars: map[string]string{
+				"CONEXUS_METRICS_ENABLED": "invalid",
+				"CONEXUS_TRACING_ENABLED": "not-a-bool",
+				"CONEXUS_SENTRY_ENABLED":  "maybe",
+			},
+			expected: &Config{
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{
+						Enabled: DefaultMetricsEnabled, // unchanged
+						Port:    DefaultMetricsPort,
+						Path:    DefaultMetricsPath,
+					},
+					Tracing: TracingConfig{
+						Enabled:    DefaultTracingEnabled, // unchanged
+						Endpoint:   DefaultTracingEndpoint,
+						SampleRate: DefaultSampleRate,
+					},
+					Sentry: SentryConfig{
+						Enabled:     DefaultSentryEnabled, // unchanged
+						DSN:         DefaultSentryDSN,
+						Environment: DefaultSentryEnv,
+						SampleRate:  DefaultSentrySampleRate,
+						Release:     DefaultSentryRelease,
+					},
+				},
+			},
+		},
+		{
+			name: "invalid float values ignored",
+			envVars: map[string]string{
+				"CONEXUS_TRACING_SAMPLE_RATE": "not-a-float",
+				"CONEXUS_SENTRY_SAMPLE_RATE":  "invalid",
+			},
+			expected: &Config{
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{
+						Enabled: DefaultMetricsEnabled,
+						Port:    DefaultMetricsPort,
+						Path:    DefaultMetricsPath,
+					},
+					Tracing: TracingConfig{
+						Enabled:    DefaultTracingEnabled,
+						Endpoint:   DefaultTracingEndpoint,
+						SampleRate: DefaultSampleRate, // unchanged
+					},
+					Sentry: SentryConfig{
+						Enabled:     DefaultSentryEnabled,
+						DSN:         DefaultSentryDSN,
+						Environment: DefaultSentryEnv,
+						SampleRate:  DefaultSentrySampleRate, // unchanged
+						Release:     DefaultSentryRelease,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear environment
+			clearEnv(t)
+
+			// Set test env vars
+			for k, v := range tt.envVars {
+				os.Setenv(k, v)
+			}
+			t.Cleanup(func() { clearEnv(t) })
+
+			cfg := defaults()
+			result := loadEnv(cfg)
+
+			assert.Equal(t, tt.expected.Observability, result.Observability)
+		})
+	}
+}
+
+func TestMerge_Observability(t *testing.T) {
+	base := &Config{
+		Observability: ObservabilityConfig{
+			Metrics: MetricsConfig{
+				Enabled: false,
+				Port:    9090,
+				Path:    "/metrics",
+			},
+			Tracing: TracingConfig{
+				Enabled:    false,
+				Endpoint:   "http://localhost:4318",
+				SampleRate: 0.1,
+			},
+			Sentry: SentryConfig{
+				Enabled:     false,
+				DSN:         "",
+				Environment: "development",
+				SampleRate:  1.0,
+				Release:     "v0.1.0",
+			},
+		},
+	}
+
+	override := &Config{
+		Observability: ObservabilityConfig{
+			Metrics: MetricsConfig{
+				Enabled: true,      // override
+				Port:    8080,      // override
+				Path:    "/custom", // override
+			},
+			Tracing: TracingConfig{
+				Enabled:    true,                 // override
+				Endpoint:   "http://custom:4318", // override
+				SampleRate: 0.5,                  // override
+			},
+			Sentry: SentryConfig{
+				Enabled:     true,                         // override
+				DSN:         "https://test@sentry.io/123", // override
+				Environment: "production",                 // override
+				SampleRate:  0.8,                          // override
+				Release:     "v1.0.0",                     // override
+			},
+		},
+	}
+
+	result := merge(base, override)
+
+	// All observability values should be overridden
+	assert.True(t, result.Observability.Metrics.Enabled)
+	assert.Equal(t, 8080, result.Observability.Metrics.Port)
+	assert.Equal(t, "/custom", result.Observability.Metrics.Path)
+
+	assert.True(t, result.Observability.Tracing.Enabled)
+	assert.Equal(t, "http://custom:4318", result.Observability.Tracing.Endpoint)
+	assert.Equal(t, 0.5, result.Observability.Tracing.SampleRate)
+
+	assert.True(t, result.Observability.Sentry.Enabled)
+	assert.Equal(t, "https://test@sentry.io/123", result.Observability.Sentry.DSN)
+	assert.Equal(t, "production", result.Observability.Sentry.Environment)
+	assert.Equal(t, 0.8, result.Observability.Sentry.SampleRate)
+	assert.Equal(t, "v1.0.0", result.Observability.Sentry.Release)
+}
+
+func TestValidate_Observability(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         *Config
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid observability disabled",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{Enabled: false},
+					Tracing: TracingConfig{Enabled: false},
+					Sentry:  SentryConfig{Enabled: false},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "valid metrics enabled",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{
+						Enabled: true,
+						Port:    9090,
+						Path:    "/metrics",
+					},
+					Tracing: TracingConfig{Enabled: false},
+					Sentry:  SentryConfig{Enabled: false},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid metrics port",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{
+						Enabled: true,
+						Port:    0, // invalid
+						Path:    "/metrics",
+					},
+					Tracing: TracingConfig{Enabled: false},
+					Sentry:  SentryConfig{Enabled: false},
+				},
+			},
+			expectError: true,
+			errorMsg:    "invalid metrics port",
+		},
+		{
+			name: "empty metrics path when enabled",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{
+						Enabled: true,
+						Port:    9090,
+						Path:    "", // invalid
+					},
+					Tracing: TracingConfig{Enabled: false},
+					Sentry:  SentryConfig{Enabled: false},
+				},
+			},
+			expectError: true,
+			errorMsg:    "metrics path cannot be empty",
+		},
+		{
+			name: "valid tracing enabled",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{Enabled: false},
+					Tracing: TracingConfig{
+						Enabled:    true,
+						Endpoint:   "http://localhost:4318",
+						SampleRate: 0.1,
+					},
+					Sentry: SentryConfig{Enabled: false},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty tracing endpoint when enabled",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{Enabled: false},
+					Tracing: TracingConfig{
+						Enabled:  true,
+						Endpoint: "", // invalid
+					},
+					Sentry: SentryConfig{Enabled: false},
+				},
+			},
+			expectError: true,
+			errorMsg:    "tracing endpoint cannot be empty",
+		},
+		{
+			name: "invalid tracing sample rate",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{Enabled: false},
+					Tracing: TracingConfig{
+						Enabled:    true,
+						Endpoint:   "http://localhost:4318",
+						SampleRate: 1.5, // invalid
+					},
+					Sentry: SentryConfig{Enabled: false},
+				},
+			},
+			expectError: true,
+			errorMsg:    "tracing sample rate must be between 0 and 1",
+		},
+		{
+			name: "valid sentry enabled",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{Enabled: false},
+					Tracing: TracingConfig{Enabled: false},
+					Sentry: SentryConfig{
+						Enabled:     true,
+						DSN:         "https://test@sentry.io/123",
+						Environment: "production",
+						SampleRate:  0.8,
+						Release:     "v1.0.0",
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty sentry DSN when enabled",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{Enabled: false},
+					Tracing: TracingConfig{Enabled: false},
+					Sentry: SentryConfig{
+						Enabled: true,
+						DSN:     "", // invalid
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "sentry DSN cannot be empty",
+		},
+		{
+			name: "invalid sentry sample rate",
+			cfg: &Config{
+				Server:   ServerConfig{Port: 8080},
+				Database: DatabaseConfig{Path: "/db"},
+				Indexer: IndexerConfig{
+					RootPath:     ".",
+					ChunkSize:    512,
+					ChunkOverlap: 50,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+				},
+				Observability: ObservabilityConfig{
+					Metrics: MetricsConfig{Enabled: false},
+					Tracing: TracingConfig{Enabled: false},
+					Sentry: SentryConfig{
+						Enabled:    true,
+						DSN:        "https://test@sentry.io/123",
+						SampleRate: 1.5, // invalid
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "sentry sample rate must be between 0 and 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 // Helper to clear all CONEXUS_* env vars
 func clearEnv(t *testing.T) {
 	vars := []string{
@@ -684,6 +1226,17 @@ func clearEnv(t *testing.T) {
 		"CONEXUS_LOG_LEVEL",
 		"CONEXUS_LOG_FORMAT",
 		"CONEXUS_CONFIG_FILE",
+		"CONEXUS_METRICS_ENABLED",
+		"CONEXUS_METRICS_PORT",
+		"CONEXUS_METRICS_PATH",
+		"CONEXUS_TRACING_ENABLED",
+		"CONEXUS_TRACING_ENDPOINT",
+		"CONEXUS_TRACING_SAMPLE_RATE",
+		"CONEXUS_SENTRY_ENABLED",
+		"CONEXUS_SENTRY_DSN",
+		"CONEXUS_SENTRY_ENVIRONMENT",
+		"CONEXUS_SENTRY_SAMPLE_RATE",
+		"CONEXUS_SENTRY_RELEASE",
 	}
 	for _, v := range vars {
 		os.Unsetenv(v)

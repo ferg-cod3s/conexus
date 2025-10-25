@@ -15,14 +15,20 @@ This guide provides step-by-step instructions for deploying the Agentic Context 
 
 1. **Clone and setup**:
 ```bash
-git clone <repository-url>
+git clone https://github.com/ferg-cod3s/conexus.git
 cd conexus
 ```
 
-2. **Start with Docker Compose**:
+2. **Build and deploy**:
 ```bash
+# Build the Docker image
+docker build -t conexus:latest .
+
 # Basic deployment
 docker-compose up -d
+
+# Production deployment with automated script
+./scripts/deploy.sh
 
 # With observability stack
 docker-compose -f docker-compose.yml -f docker-compose.observability.yml up -d
@@ -36,7 +42,7 @@ curl http://localhost:8080/health
 # Test MCP tools
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context.index_control","arguments":{"action":"status"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context_index_control","arguments":{"action":"status"}}}'
 ```
 
 ## Production Deployment

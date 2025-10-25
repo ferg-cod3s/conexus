@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ferg-cod3s/conexus/internal/connectors"
+	"github.com/ferg-cod3s/conexus/internal/connectors/github"
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
@@ -941,6 +943,140 @@ func TestHandleContextGrep_MissingPattern(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, protocol.InvalidParams, protocolErr.Code)
 	assert.Contains(t, protocolErr.Message, "pattern is required")
+}
+
+func TestApplyWorkContextBoosting(t *testing.T) {
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	now := time.Now()
+
+	// Create test results
+	results := []vectorstore.SearchResult{
+		{
+			Document: vectorstore.Document{
+				ID:      "doc-1",
+				Content: "authentication implementation",
+				Vector:  make(embedding.Vector, 384),
+				Metadata: map[string]interface{}{
+					"source_type": "file",
+					"file_path":   "src/auth/handler.go",
+				},
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			Score: 0.8,
+		},
+		{
+			Document: vectorstore.Document{
+				ID:      "doc-2",
+				Content: "login handler code",
+				Vector:  make(embedding.Vector, 384),
+				Metadata: map[string]interface{}{
+					"source_type": "github_pr",
+					"pr_number":   "123",
+				},
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			Score: 0.7,
+		},
+		{
+			Document: vectorstore.Document{
+				ID:      "doc-3",
+				Content: "unrelated content",
+				Vector:  make(embedding.Vector, 384),
+				Metadata: map[string]interface{}{
+					"source_type": "slack",
+				},
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			Score: 0.6,
+		},
+	}
+
+	// Test with work context that boosts active file
+	workContext := &WorkContextFilters{
+		ActiveFile:  "src/auth/handler.go",
+		BoostActive: true,
+	}
+
+	boosted := server.applyWorkContextBoosting(results, workContext)
+
+	// The active file should be boosted (higher score)
+	assert.Greater(t, boosted[0].Score, boosted[1].Score)
+	assert.Equal(t, "doc-1", boosted[0].Document.ID) // auth file should be first
+}
+
+func TestExtractStoryIDsFromIssue(t *testing.T) {
+	tests := []struct {
+		name     string
+		issue    github.Issue
+		expected []string
+	}{
+		{
+			name: "issue with story IDs",
+			issue: github.Issue{
+				Title:       "Fix authentication bug #123",
+				Description: "Related to PROJ-456 and JIRA-789",
+				Number:      42,
+			},
+			expected: []string{"123", "456", "789"},
+		},
+		{
+			name: "issue without story IDs",
+			issue: github.Issue{
+				Title:       "Fix authentication bug",
+				Description: "No story references here",
+				Number:      43,
+			},
+			expected: nil,
+		},
+		{
+			name: "issue with labels",
+			issue: github.Issue{
+				Title:       "Fix bug",
+				Description: "Related to PROJ-456",
+				Number:      44,
+				Labels:      []string{"story: PROJ-123", "bug: PROJ-456"},
+			},
+			expected: []string{"456", "PROJ-123", "PROJ-456"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractStoryIDsFromIssue(tt.issue)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSyncGitHubData(t *testing.T) {
+	store := vectorstore.NewMemoryStore()
+	embedder := &mockEmbedder{}
+	server := NewServer(nil, nil, store, newMockConnectorStore(), embedder, nil, nil, &mockIndexer{})
+
+	ctx := context.Background()
+
+	// Create a mock GitHub connector
+	connector := &connectors.Connector{
+		ID:   "github-test",
+		Type: "github",
+		Config: map[string]interface{}{
+			"repo_url": "https://github.com/owner/repo",
+		},
+	}
+
+	// Test sync - this will use the mock implementation
+	issues, prs, err := server.syncGitHubData(ctx, connector)
+
+	// Verify results (function returns empty slices for now)
+	assert.NoError(t, err)
+	assert.NotNil(t, issues)
+	assert.NotNil(t, prs)
 }
 
 func TestMinFunction(t *testing.T) {

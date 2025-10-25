@@ -1,6 +1,6 @@
 # Conexus Project Documentation
 
-This directory contains comprehensive documentation for the **Conexus (Agentic Context Engine)** project - an open-source RAG system for AI coding assistants.
+This directory contains comprehensive documentation for **Conexus** - an open-source MCP (Model Context Protocol) server that provides AI assistants with intelligent codebase context.
 
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/License-FSL--1.1--MIT-blue.svg)](https://fsl.software/)
 

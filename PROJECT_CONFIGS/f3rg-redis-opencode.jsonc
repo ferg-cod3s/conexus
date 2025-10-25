@@ -3,7 +3,7 @@
   "mcp": {
     "conexus": {
       "type": "local",
-      "command": ["bunx", "@agentic-conexus/mcp"],
+      "command": ["../bin/conexus-darwin-arm64"],
       "enabled": true,
       "environment": {
         "CONEXUS_PORT": "0",
