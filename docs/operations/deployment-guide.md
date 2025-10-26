@@ -42,7 +42,7 @@ curl http://localhost:8080/health
 # Test MCP tools
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context_index_control","arguments":{"action":"status"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context.index_control","arguments":{"action":"status"}}}'
 ```
 
 ## Production Deployment

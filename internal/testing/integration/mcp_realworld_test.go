@@ -97,7 +97,7 @@ func callMCPTool(t *testing.T, toolName string, args map[string]interface{}) (ma
 
 	// Create tool call request
 	toolCallReq := map[string]interface{}{
-		"name":      toolName,
+		"name":      "context.index_control",
 		"arguments": json.RawMessage(argsJSON),
 	}
 
@@ -149,8 +149,17 @@ func callMCPTool(t *testing.T, toolName string, args map[string]interface{}) (ma
 
 	// Parse response
 	responseData := writer.Bytes()
+	t.Logf("Response data: %s", string(responseData))
+	if len(responseData) == 0 {
+		t.Fatal("No response data received")
+	}
 	var response protocol.Response
 	err = json.Unmarshal(responseData, &response)
+	require.NoError(t, err)
+	t.Logf("Response result: %s", string(response.Result))
+
+	var result map[string]interface{}
+	err = json.Unmarshal(response.Result, &result)
 	require.NoError(t, err)
 
 	if response.Error != nil {
@@ -198,7 +207,7 @@ func TestMCPRealWorldDataValidation(t *testing.T) {
 		require.NoError(t, err)
 
 		toolCallReq := map[string]interface{}{
-			"name":      "context_search",
+			"name":      "context.search",
 			"arguments": json.RawMessage(argsJSON),
 		}
 
@@ -273,7 +282,7 @@ func TestMCPRealWorldDataValidation(t *testing.T) {
 		require.NoError(t, err)
 
 		toolCallReq := map[string]interface{}{
-			"name":      "context_index_control",
+			"name":      "context.search",
 			"arguments": json.RawMessage(argsJSON),
 		}
 
@@ -346,7 +355,7 @@ func TestMCPRealWorldDataValidation(t *testing.T) {
 		require.NoError(t, err)
 
 		toolCallReq := map[string]interface{}{
-			"name":      "context_get_related_info",
+			"name":      "context.get_related_info",
 			"arguments": json.RawMessage(argsJSON),
 		}
 
@@ -437,7 +446,7 @@ func TestMCPEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		toolCallReq := map[string]interface{}{
-			"name":      "context_search",
+			"name":      "context.search",
 			"arguments": json.RawMessage(argsJSON),
 		}
 
@@ -499,7 +508,7 @@ func TestMCPEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		toolCallReq := map[string]interface{}{
-			"name":      "context_get_related_info",
+			"name":      "context.get_related_info",
 			"arguments": json.RawMessage(argsJSON),
 		}
 
@@ -565,7 +574,7 @@ func TestMCPEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		toolCallReq := map[string]interface{}{
-			"name":      "context_search",
+			"name":      "context.search",
 			"arguments": json.RawMessage(argsJSON),
 		}
 

@@ -439,7 +439,7 @@ Conexus uses **structured JSON logging**:
   "timestamp": "2025-10-16T10:30:45Z",
   "level": "info",
   "message": "MCP request completed",
-  "method": "context_search",
+  "method": "context.search",
   "duration_ms": 42.5,
   "results": 10,
   "trace_id": "abc123..."
