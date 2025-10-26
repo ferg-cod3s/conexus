@@ -27,7 +27,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const Version = "0.1.1-alpha"
+const Version = "0.1.2-alpha"
 
 func main() {
 	ctx := context.Background()

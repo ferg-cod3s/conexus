@@ -166,10 +166,6 @@ func callMCPTool(t *testing.T, toolName string, args map[string]interface{}) (ma
 		t.Fatalf("Tool call error: %s", response.Error.Message)
 	}
 
-	var result map[string]interface{}
-	err = json.Unmarshal(response.Result, &result)
-	require.NoError(t, err)
-
 	return result, &response
 }
 

@@ -1,5 +1,11 @@
 # AGENTS.md - Development Guide for AI Agents
 
+## 📚 Related Documentation
+
+- **[Versioning Criteria](docs/VERSIONING_CRITERIA.md)** - When and how to bump versions
+- **[Contributing Guide](docs/contributing/contributing-guide.md)** - How to contribute to Conexus
+- **[Testing Strategy](docs/contributing/testing-strategy.md)** - Testing requirements and best practices
+
 ## Build/Lint/Test Commands
 
 ### Core Commands

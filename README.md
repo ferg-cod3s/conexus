@@ -1,6 +1,6 @@
 # Conexus - MCP Server for Context-Aware AI Assistants
 
-**Version**: 0.1.1-alpha  
+**Version**: 0.1.2-alpha  
 **Status**: ✅ MCP Server Ready  
 **Go Version**: 1.23.4
 
@@ -971,91 +971,12 @@ conexus/
 
 ### Contributing
 
-1. **Fork the repository**
-2. **Create a feature branch**
-3. **Add tests for new functionality**
-4. **Ensure all tests pass**: `go test ./...`
-5. **Follow the code style**: `golangci-lint run`
-6. **Update documentation**
-7. **Submit a pull request**
-
-### Adding New MCP Tools
-
-1. **Define the tool** in `internal/mcp/schema.go`
-2. **Implement the handler** in `internal/mcp/handlers.go`
-3. **Add integration tests** in `internal/testing/integration/`
-4. **Update documentation** in `docs/getting-started/mcp-integration-guide.md`
-
-See **[Contributing Guide](docs/contributing/contributing-guide.md)** for detailed guidelines.
-
----
-
-## 📊 Current Status
-
-### MCP Server Status (✅ Production Ready)
-
-- ✅ **Core MCP Server**: JSON-RPC 2.0 implementation with stdio transport
-- ✅ **Search Engine**: Hybrid vector + BM25 semantic search
-- ✅ **Indexing System**: Incremental file indexing with real-time updates
-- ✅ **Vector Store**: SQLite-backed vector embeddings
-- ✅ **MCP Tools**: 4 tools for search, context, indexing, and management
-- ✅ **Testing**: Comprehensive test suite with integration tests
-
-### Test Results
-
-```
-✅ All integration tests passing
-✅ MCP protocol compliance verified
-✅ Search performance: <11ms average response time
-✅ Memory efficiency: 58MB for 10K files
-✅ Cross-platform compatibility: macOS, Linux, Windows
-✅ NPM package ready: @agentic-conexus/mcp
-```
-
-### Recent Releases
-
-- **v0.1.1-alpha**: Current release with MCP server functionality
-- **v0.1.0-alpha**: Initial MCP server implementation
-- **Future versions**: Multi-agent architecture and enterprise features
-
----
-
-## 🛣️ Roadmap
-
-### Near Term (MCP Server Focus)
-
-- ⏳ **Enhanced Connectors**: GitHub, Jira, Slack integrations
-- ⏳ **Advanced Search**: Code relationships and dependency mapping
-- ⏳ **Performance**: Improved caching and faster indexing
-- ⏳ **UI/UX**: Better error messages and debugging tools
-
-### Medium Term (Advanced Features)
-
-- ⏳ **Multi-Agent Architecture**: Specialized analysis agents
-- ⏳ **Evidence Validation**: Complete traceability for results
-- ⏳ **Workflow Orchestration**: Complex multi-step analysis
-- ⏳ **Custom Tools**: User-defined analysis tools
-
-### Long Term (Enterprise)
-
-- ⏳ **Team Features**: Multi-tenant support and collaboration
-- ⏳ **Advanced Security**: Authentication, authorization, audit logs
-- ⏳ **Cloud Deployment**: Distributed processing and scaling
-- ⏳ **Enterprise Integrations**: SSO, compliance, governance
-
-### Community Contributions
-
-We welcome community contributions! See the **[Contributing Guide](docs/contributing/contributing-guide.md)** to get involved.
-
----
-
-## 🤝 Contributing
-
 We welcome contributions! Please see:
-
 - **[Contributing Guide](docs/contributing/contributing-guide.md)** - How to contribute
 - **[Testing Strategy](docs/contributing/testing-strategy.md)** - Testing requirements
-- **[Code Style](CLAUDE.md)** - Coding conventions
+- **[Versioning Criteria](docs/VERSIONING_CRITERIA.md)** - When and how to bump versions
+- **[Development Guide](AGENTS.md)** - Build, test, and development commands
+- **[AI Assistant Guide](CLAUDE.md)** - Guidelines for AI development assistants
 
 ### Quick Contribution Checklist
 
