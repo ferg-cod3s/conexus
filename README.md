@@ -1,8 +1,8 @@
 # Conexus - MCP Server for Context-Aware AI Assistants
 
-**Version**: 0.1.2-alpha  
-**Status**: ✅ MCP Server Ready  
-**Go Version**: 1.23.4
+**Version**: 0.1.5-alpha
+**Status**: ✅ MCP Server Ready
+**Go Version**: 1.24.0
 
 [![Go Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)]()
