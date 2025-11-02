@@ -12,10 +12,10 @@
         "--server"
       ],
       "environment": {
-        "COOLIFY_API_URL": "https://coolify.fergify.work",
-        "COOLIFY_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***",
-        "COOLIFY_API_TOKEN": "***REMOVED_FOR_SECURITY***",
-        "COOLIFY_BASE_URL": "https://coolify.fergify.work"
+        "COOLIFY_API_URL": "https://your-coolify-instance.com",
+        "COOLIFY_ACCESS_TOKEN": "YOUR_COOLIFY_ACCESS_TOKEN",
+        "COOLIFY_API_TOKEN": "YOUR_COOLIFY_API_TOKEN",
+        "COOLIFY_BASE_URL": "https://your-coolify-instance.com"
       },
       "enabled": true
     },
@@ -33,7 +33,7 @@
       "type": "remote",
       "url": "https://mcp.context7.com/mcp",
       "headers": {
-      	"CONTEXT7_API_KEY": "***REMOVED_FOR_SECURITY***"
+      	"CONTEXT7_API_KEY": "YOUR_CONTEXT7_API_KEY"
       },
       "enabled": true
     },
@@ -44,7 +44,7 @@
 	 "@socketsecurity/mcp@latest"
       ],
       "environment": {
-      	"SOCKET_API_KEY": "***REMOVED_FOR_SECURITY***"
+      	"SOCKET_API_KEY": "YOUR_SOCKET_API_KEY"
       },
       "enabled": true
     },
@@ -64,14 +64,14 @@
       "command": [
         "npx",
         "@sentry/mcp-server@latest",
-        "--access-token=***REMOVED_FOR_SECURITY***",
-        "--host=sentry.fergify.work",
-	"--organization=unfergettable-designs"
+        "--access-token=YOUR_SENTRY_ACCESS_TOKEN",
+        "--host=your-sentry-host.com",
+	"--organization=your-organization-slug"
       ],
       "environment": {
-	"SENTRY_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***",
-	"HOST": "sentry.fergify.work",
-	"ORGANIZATION": "unfergettable-designs"
+	"SENTRY_ACCESS_TOKEN": "YOUR_SENTRY_ACCESS_TOKEN",
+	"HOST": "your-sentry-host.com",
+	"ORGANIZATION": "your-organization-slug"
       },
       "enabled": true
     },
@@ -83,11 +83,11 @@
         "--rm",
         "-i",
         "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN=***REMOVED_FOR_SECURITY***",
+        "GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "environment": {
-	"GITHUB_PERSONAL_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***"
+	"GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_TOKEN"
       },
       "enabled": true
     },
