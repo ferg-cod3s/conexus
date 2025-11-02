@@ -13,8 +13,8 @@
       ],
       "environment": {
         "COOLIFY_API_URL": "https://coolify.fergify.work",
-        "COOLIFY_ACCESS_TOKEN": "1|WoN76CL40WTMQWCM1YHcAGvjQ7LNRpqXQz8G74Jk7cf39acd",
-        "COOLIFY_API_TOKEN": "1|WoN76CL40WTMQWCM1YHcAGvjQ7LNRpqXQz8G74Jk7cf39acd",
+        "COOLIFY_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***",
+        "COOLIFY_API_TOKEN": "***REMOVED_FOR_SECURITY***",
         "COOLIFY_BASE_URL": "https://coolify.fergify.work"
       },
       "enabled": true
@@ -66,7 +66,7 @@
         "@sentry/mcp-server@latest"
       ],
       "environment": {
-        "SENTRY_ACCESS_TOKEN": "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",
+        "SENTRY_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***",
         "SENTRY_HOST": "sentry.fergify.work",
         "ORGANIZATION": "unfergettable-designs"
       },
@@ -83,7 +83,7 @@
         "ghcr.io/github/github-mcp-server"
       ],
       "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "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"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***"
       },
       "enabled": true
     },
