@@ -4,6 +4,71 @@
 
 Conexus implements the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) to enable AI assistants like Claude to access your codebase context, discussions, and project knowledge. This guide covers how to integrate Conexus with MCP-compatible clients.
 
+## MCP Configuration Setup
+
+### Important: Never Commit Secrets
+
+**⚠️ SECURITY WARNING**: Never commit API keys, tokens, or secrets to version control. MCP configuration files containing secrets should be added to `.gitignore`.
+
+### Configuration File Structure
+
+MCP clients like OpenCode, Claude Desktop, and Cursor use JSON/JSONC configuration files to define MCP servers. These files typically contain:
+
+- Server command and arguments
+- Environment variables (including secrets)
+- Server-specific configuration
+
+### Setting Up Configuration
+
+1. **Copy the example configuration**:
+   ```bash
+   cp opencode-config.example.jsonc opencode-config.jsonc
+   ```
+
+2. **Edit the configuration** with your actual API keys and settings:
+   ```jsonc
+   {
+     "$schema": "https://opencode.ai/config.json",
+     "model": "opencode/code-supernova",
+     "small_model": "opencode/grok-code",
+     "mcp": {
+       "conexus": {
+         "type": "local",
+         "command": ["bunx", "@aagentic-conexus/mcp"],
+         "environment": {
+           "CONEXUS_DB_PATH": "./conexus/data/conexus.db"
+         },
+         "enabled": true
+       }
+       // Add other MCP servers as needed
+     }
+   }
+   ```
+
+3. **Add to .gitignore** (already done):
+   ```
+   # OpenCode MCP Configuration
+   opencode*.jsonc
+   !opencode-config.example.jsonc
+   ```
+
+### Client-Specific Setup
+
+#### OpenCode
+- Configuration file: `opencode-config.jsonc` in project root
+- Automatically loads when present
+- Supports multiple MCP servers
+
+#### Claude Desktop
+- Configuration file: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Manual restart required after changes
+- Single configuration file for all MCP servers
+
+#### Cursor
+- Configuration file: `.cursor/mcp.json` in project root
+- Project-specific configuration
+- Hot-reload support
+
 ## Quick Start
 
 ### 1. Start the Conexus Server
