@@ -1,0 +1,106 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/code-supernova",
+  "small_model": "opencode/grok-code",
+  "mcp": {
+    "Coolify": {
+      "type": "local",
+      "command": [
+      	"bunx",
+        "-y",
+        "@felixallistar/coolify-mcp",
+        "--server"
+      ],
+      "environment": {
+        "COOLIFY_API_URL": "https://coolify.fergify.work",
+        "COOLIFY_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***",
+        "COOLIFY_API_TOKEN": "***REMOVED_FOR_SECURITY***",
+        "COOLIFY_BASE_URL": "https://coolify.fergify.work"
+      },
+      "enabled": true
+    },
+   "Playwright": {
+      "type": "local",
+      "command": [
+	"bunx",
+        "-y",
+        "@playwright/mcp@latest"
+      ],
+      "environment": {},
+      "enabled": true
+    },
+    "Context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+      	"CONTEXT7_API_KEY": "***REMOVED_FOR_SECURITY***"
+      },
+      "enabled": true
+    },
+    "Socket": {
+      "type": "local",
+      "command": [
+	 "bunx",
+	 "@socketsecurity/mcp@latest"
+      ],
+      "environment": {
+      	"SOCKET_API_KEY": "***REMOVED_FOR_SECURITY***"
+      },
+      "enabled": true
+    },
+    "Chrome-DevTools": {
+      "type": "local",
+      "command": [
+	"bunx",
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl=http://127.0.0.1:9222"
+      ],
+      "environment": {},
+      "enabled": true
+    },
+   "sentry": {
+      "type": "local",
+      "command": [
+        "npx",
+        "@sentry/mcp-server@latest",
+        "--access-token=***REMOVED_FOR_SECURITY***",
+        "--host=sentry.fergify.work",
+	"--organization=unfergettable-designs"
+      ],
+      "environment": {
+	"SENTRY_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***",
+	"HOST": "sentry.fergify.work",
+	"ORGANIZATION": "unfergettable-designs"
+      },
+      "enabled": true
+    },
+    "github": {
+      "type": "local",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN=***REMOVED_FOR_SECURITY***",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "environment": {
+	"GITHUB_PERSONAL_ACCESS_TOKEN": "***REMOVED_FOR_SECURITY***"
+      },
+      "enabled": true
+    },
+   "conexus": {
+      "type": "local",
+      "command": [
+        "bunx",
+        "@aagentic-conexus/mcp"
+      ],
+      "environment": {
+        "CONEXUS_DB_PATH": "./conexus/data/conexus.db"
+      },
+      "enabled": true
+    }
+  }
+}
