@@ -44,7 +44,7 @@
         "@socketsecurity/mcp@latest"
       ],
       "environment": {
-        "SOCKET_API_KEY": "sktsec_IfAg2PXg4KQ0pbnwTPLs9RmeUQSFOARzTHSvAJe66S5z_api"
+        "SOCKET_API_KEY": "***REMOVED_FOR_SECURITY***"
       },
       "enabled": true
     },
