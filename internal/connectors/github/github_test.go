@@ -299,6 +299,8 @@ func TestSyncIssues(t *testing.T) {
 			Repository:   "owner/repo",
 			SyncInterval: 5 * time.Minute,
 		},
+		status:    &SyncStatus{},
+		rateLimit: &RateLimitInfo{},
 	}
 
 	// Test SyncIssues
@@ -379,6 +381,8 @@ func TestSyncPullRequests(t *testing.T) {
 			Repository:   "owner/repo",
 			SyncInterval: 5 * time.Minute,
 		},
+		status:    &SyncStatus{},
+		rateLimit: &RateLimitInfo{},
 	}
 
 	// Test SyncPullRequests
@@ -453,6 +457,8 @@ func TestSyncPullRequestsWithNoBody(t *testing.T) {
 			Repository:   "owner/repo",
 			SyncInterval: 5 * time.Minute,
 		},
+		status:    &SyncStatus{},
+		rateLimit: &RateLimitInfo{},
 	}
 
 	// Test SyncPullRequests

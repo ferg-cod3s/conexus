@@ -241,6 +241,7 @@ var (
 		},
 		Capabilities: []string{
 			"error_analysis",
+			"debug_analysis",
 			"stack_trace_analysis",
 			"log_analysis",
 			"bug_detection",

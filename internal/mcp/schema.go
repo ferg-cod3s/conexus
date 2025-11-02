@@ -1,7 +1,10 @@
 // Package mcp implements the Model Context Protocol server for Conexus.
 package mcp
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Tool names exposed by the MCP server
 const (
@@ -11,6 +14,8 @@ const (
 	ToolContextConnectorManagement = "context.connector_management"
 	ToolContextExplain             = "context.explain"
 	ToolContextGrep                = "context.grep"
+	ToolGitHubSyncStatus           = "github.sync_status"
+	ToolGitHubSyncTrigger          = "github.sync_trigger"
 )
 
 // Resource URI scheme
@@ -232,6 +237,69 @@ type GrepResponse struct {
 	SearchTime float64      `json:"search_time_ms"`
 }
 
+// GitHubSyncStatusRequest represents input for github.sync_status tool
+type GitHubSyncStatusRequest struct {
+	ConnectorID string `json:"connector_id,omitempty"` // Optional, if empty returns status for all connectors
+}
+
+// GitHubSyncStatusResponse represents output of github.sync_status tool
+type GitHubSyncStatusResponse struct {
+	Status      string                 `json:"status"` // "ok", "error"
+	Message     string                 `json:"message"`
+	SyncStatus  *SyncStatus            `json:"sync_status,omitempty"`
+	ConnectorID string                 `json:"connector_id,omitempty"`
+	Details     map[string]interface{} `json:"details,omitempty"`
+}
+
+// GitHubSyncTriggerRequest represents input for github.sync_trigger tool
+type GitHubSyncTriggerRequest struct {
+	ConnectorID string `json:"connector_id"`    // Required
+	Force       bool   `json:"force,omitempty"` // Force sync even if recently synced
+}
+
+// GitHubSyncTriggerResponse represents output of github.sync_trigger tool
+type GitHubSyncTriggerResponse struct {
+	Status      string                 `json:"status"` // "ok", "error"
+	Message     string                 `json:"message"`
+	JobID       string                 `json:"job_id,omitempty"`
+	ConnectorID string                 `json:"connector_id"`
+	Details     map[string]interface{} `json:"details,omitempty"`
+}
+
+// SyncStatus represents the sync status for a connector
+type SyncStatus struct {
+	IsRunning           bool           `json:"is_running"`
+	ActiveJobs          []*SyncJob     `json:"active_jobs"`
+	CompletedJobs       []*SyncJob     `json:"completed_jobs"`
+	LastSyncTime        *time.Time     `json:"last_sync_time,omitempty"`
+	TotalSyncs          int            `json:"total_syncs"`
+	SuccessfulSyncs     int            `json:"successful_syncs"`
+	FailedSyncs         int            `json:"failed_syncs"`
+	CurrentSyncProgress float64        `json:"current_sync_progress,omitempty"` // 0.0 to 1.0
+	RateLimit           *RateLimitInfo `json:"rate_limit,omitempty"`
+}
+
+// SyncJob represents a sync job
+type SyncJob struct {
+	ID             string     `json:"id"`
+	ConnectorID    string     `json:"connector_id"`
+	Type           string     `json:"type"`
+	Status         string     `json:"status"` // "running", "completed", "failed"
+	StartedAt      time.Time  `json:"started_at"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+	Progress       float64    `json:"progress"` // 0.0 to 1.0
+	TotalItems     int        `json:"total_items"`
+	ProcessedItems int        `json:"processed_items"`
+	Error          string     `json:"error,omitempty"`
+}
+
+// RateLimitInfo represents GitHub API rate limit information
+type RateLimitInfo struct {
+	Limit     int       `json:"limit"`
+	Remaining int       `json:"remaining"`
+	Reset     time.Time `json:"reset"`
+}
+
 // ToolDefinition represents an MCP tool definition
 type ToolDefinition struct {
 	Name        string          `json:"name"`
@@ -388,7 +456,7 @@ func GetToolDefinitions() []ToolDefinition {
 		},
 		{
 			Name:        ToolContextGrep,
-			Description: "Performs fast, exact pattern matching across the codebase using ripgrep. Use this for finding specific strings, function calls, or code patterns.",
+			Description: "Performs fast, exact pattern matching across codebase using ripgrep. Use this for finding specific strings, function calls, or code patterns.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
 				"properties": {
@@ -415,6 +483,38 @@ func GetToolDefinitions() []ToolDefinition {
 					}
 				},
 				"required": ["pattern"]
+			}`),
+		},
+		{
+			Name:        ToolGitHubSyncStatus,
+			Description: "Get GitHub synchronization status for connectors",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "GitHub connector ID (optional, returns status for all if not provided)"
+					}
+				}
+			}`),
+		},
+		{
+			Name:        ToolGitHubSyncTrigger,
+			Description: "Trigger manual GitHub synchronization for a specific connector",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "GitHub connector ID to sync"
+					},
+					"force": {
+						"type": "boolean",
+						"default": false,
+						"description": "Force sync even if recently synced"
+					}
+				},
+				"required": ["connector_id"]
 			}`),
 		},
 	}

@@ -714,29 +714,33 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 			}
 		}
 
-		// Get connector configuration
-		connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+		// Sync GitHub issues and PRs using the connector manager
+		issues, err := s.connectorManager.SyncGitHubIssues(ctx, req.ConnectorID)
 		if err != nil {
 			return nil, &protocol.Error{
 				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get connector: %v", err),
+				Message: fmt.Sprintf("failed to sync GitHub issues: %v", err),
 			}
 		}
 
-		// Sync GitHub issues and PRs using the GitHub connector
-		issues, prs, syncErr := s.syncGitHubData(ctx, connector)
-		if syncErr != nil {
+		prs, err := s.connectorManager.SyncGitHubPullRequests(ctx, req.ConnectorID)
+		if err != nil {
 			return nil, &protocol.Error{
 				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to sync GitHub data: %v", syncErr),
+				Message: fmt.Sprintf("failed to sync GitHub PRs: %v", err),
 			}
 		}
 
 		// Convert issues to documents and store them
 		for _, issue := range issues {
+			content := fmt.Sprintf("%s\n\n%s", issue.Title, issue.Description)
+			if content == "" {
+				content = issue.Title
+			}
+
 			doc := vectorstore.Document{
 				ID:      fmt.Sprintf("github-issue-%d", issue.Number),
-				Content: fmt.Sprintf("%s\n\n%s", issue.Title, issue.Description),
+				Content: content,
 				Metadata: map[string]interface{}{
 					"source_type":  "github_issue",
 					"issue_number": issue.Number,
@@ -744,12 +748,12 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 					"state":        issue.State,
 					"labels":       issue.Labels,
 					"assignee":     issue.Assignee,
-					"created_at":   issue.CreatedAt,
-					"updated_at":   issue.UpdatedAt,
+					"created_at":   issue.CreatedAt.Format(time.RFC3339),
+					"updated_at":   issue.UpdatedAt.Format(time.RFC3339),
+					"connector_id": req.ConnectorID,
 				},
 				CreatedAt: issue.CreatedAt,
 				UpdatedAt: issue.UpdatedAt,
-				StoryIDs:  extractStoryIDsFromIssue(issue),
 			}
 
 			// Generate embedding
@@ -769,9 +773,14 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 
 		// Convert PRs to documents and store them
 		for _, pr := range prs {
+			content := fmt.Sprintf("%s\n\n%s", pr.Title, pr.Description)
+			if content == "" {
+				content = pr.Title
+			}
+
 			doc := vectorstore.Document{
 				ID:      fmt.Sprintf("github-pr-%d", pr.Number),
-				Content: fmt.Sprintf("%s\n\n%s", pr.Title, pr.Description),
+				Content: content,
 				Metadata: map[string]interface{}{
 					"source_type":   "github_pr",
 					"pr_number":     pr.Number,
@@ -779,13 +788,16 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 					"state":         pr.State,
 					"labels":        pr.Labels,
 					"assignee":      pr.Assignee,
-					"created_at":    pr.CreatedAt,
-					"updated_at":    pr.UpdatedAt,
+					"created_at":    pr.CreatedAt.Format(time.RFC3339),
+					"updated_at":    pr.UpdatedAt.Format(time.RFC3339),
 					"linked_issues": pr.LinkedIssues,
+					"connector_id":  req.ConnectorID,
+					"merged":        pr.Merged,
+					"head_branch":   pr.HeadBranch,
+					"base_branch":   pr.BaseBranch,
 				},
 				CreatedAt: pr.CreatedAt,
 				UpdatedAt: pr.UpdatedAt,
-				StoryIDs:  pr.LinkedIssues,
 				PRNumbers: []string{fmt.Sprintf("%d", pr.Number)},
 			}
 
@@ -1611,6 +1623,226 @@ func (s *Server) summarizeContent(content string, maxLength int) string {
 	}
 
 	return summary
+}
+
+// handleGitHubSyncStatus implements the github.sync_status tool
+func (s *Server) handleGitHubSyncStatus(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req GitHubSyncStatusRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Get all connectors or specific connector
+	var connectorList []*connectors.Connector
+	var err error
+
+	if req.ConnectorID != "" {
+		connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+		if err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("failed to get connector: %v", err),
+			}
+		}
+		connectorList = []*connectors.Connector{connector}
+	} else {
+		connectorList, err = s.connectorStore.List(ctx)
+		if err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("failed to list connectors: %v", err),
+			}
+		}
+	}
+
+	// Collect sync status for all GitHub connectors
+	var githubConnectors []map[string]interface{}
+	for _, connector := range connectorList {
+		if connector.Type == "github" {
+			// Get sync status from connector
+			if conn, err := s.connectorManager.GetConnector(ctx, connector.ID); err == nil {
+				if githubConn, ok := conn.(*github.Connector); ok {
+					syncStatus := githubConn.GetSyncStatus()
+					rateLimit := githubConn.GetRateLimit()
+
+					githubConnectors = append(githubConnectors, map[string]interface{}{
+						"connector_id":   connector.ID,
+						"connector_name": connector.Name,
+						"sync_status":    syncStatus,
+						"rate_limit":     rateLimit,
+					})
+				}
+			}
+		}
+	}
+
+	if len(githubConnectors) == 0 {
+		return GitHubSyncStatusResponse{
+			Status:  "ok",
+			Message: "No GitHub connectors found",
+			Details: map[string]interface{}{
+				"github_connectors": githubConnectors,
+			},
+		}, nil
+	}
+
+	return GitHubSyncStatusResponse{
+		Status:  "ok",
+		Message: fmt.Sprintf("Retrieved status for %d GitHub connector(s)", len(githubConnectors)),
+		Details: map[string]interface{}{
+			"github_connectors": githubConnectors,
+		},
+	}, nil
+}
+
+// handleGitHubSyncTrigger implements the github.sync_trigger tool
+func (s *Server) handleGitHubSyncTrigger(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req GitHubSyncTriggerRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+
+	// Check if connector exists and is GitHub type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "github" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a GitHub connector", req.ConnectorID),
+		}
+	}
+
+	// Generate job ID for tracking
+	jobID := fmt.Sprintf("github-sync-%s-%d", req.ConnectorID, time.Now().Unix())
+
+	// Start sync in background
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
+		// Sync issues
+		issues, err := s.connectorManager.SyncGitHubIssues(ctx, req.ConnectorID)
+		if err != nil {
+			s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_sync_issues"))
+			return
+		}
+
+		// Sync pull requests
+		prs, err := s.connectorManager.SyncGitHubPullRequests(ctx, req.ConnectorID)
+		if err != nil {
+			s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_sync_prs"))
+			return
+		}
+
+		// Store issues in vector store
+		for _, issue := range issues {
+			content := fmt.Sprintf("%s\n\n%s", issue.Title, issue.Description)
+			if content == "" {
+				content = issue.Title
+			}
+
+			doc := vectorstore.Document{
+				ID:      fmt.Sprintf("github-issue-%d", issue.Number),
+				Content: content,
+				Metadata: map[string]interface{}{
+					"source_type":  "github_issue",
+					"issue_number": issue.Number,
+					"title":        issue.Title,
+					"state":        issue.State,
+					"labels":       issue.Labels,
+					"assignee":     issue.Assignee,
+					"created_at":   issue.CreatedAt.Format(time.RFC3339),
+					"updated_at":   issue.UpdatedAt.Format(time.RFC3339),
+					"connector_id": req.ConnectorID,
+				},
+				CreatedAt: issue.CreatedAt,
+				UpdatedAt: issue.UpdatedAt,
+			}
+
+			// Generate embedding
+			embedding, err := s.embedder.Embed(ctx, doc.Content)
+			if err != nil {
+				continue // Skip if embedding fails
+			}
+			doc.Vector = embedding.Vector
+
+			if err := s.vectorStore.Upsert(ctx, doc); err != nil {
+				s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_store_issue"))
+			}
+		}
+
+		// Store PRs in vector store
+		for _, pr := range prs {
+			content := fmt.Sprintf("%s\n\n%s", pr.Title, pr.Description)
+			if content == "" {
+				content = pr.Title
+			}
+
+			doc := vectorstore.Document{
+				ID:      fmt.Sprintf("github-pr-%d", pr.Number),
+				Content: content,
+				Metadata: map[string]interface{}{
+					"source_type":   "github_pr",
+					"pr_number":     pr.Number,
+					"title":         pr.Title,
+					"state":         pr.State,
+					"labels":        pr.Labels,
+					"assignee":      pr.Assignee,
+					"created_at":    pr.CreatedAt.Format(time.RFC3339),
+					"updated_at":    pr.UpdatedAt.Format(time.RFC3339),
+					"linked_issues": pr.LinkedIssues,
+					"connector_id":  req.ConnectorID,
+					"merged":        pr.Merged,
+					"head_branch":   pr.HeadBranch,
+					"base_branch":   pr.BaseBranch,
+				},
+				CreatedAt: pr.CreatedAt,
+				UpdatedAt: pr.UpdatedAt,
+				PRNumbers: []string{fmt.Sprintf("%d", pr.Number)},
+			}
+
+			// Generate embedding
+			embedding, err := s.embedder.Embed(ctx, doc.Content)
+			if err != nil {
+				continue // Skip if embedding fails
+			}
+			doc.Vector = embedding.Vector
+
+			if err := s.vectorStore.Upsert(ctx, doc); err != nil {
+				s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_store_pr"))
+			}
+		}
+	}()
+
+	return GitHubSyncTriggerResponse{
+		Status:      "ok",
+		Message:     fmt.Sprintf("GitHub sync started for connector %s", req.ConnectorID),
+		JobID:       jobID,
+		ConnectorID: req.ConnectorID,
+		Details: map[string]interface{}{
+			"force": req.Force,
+		},
+	}, nil
 }
 
 // getStringFromMetadata safely extracts string from metadata

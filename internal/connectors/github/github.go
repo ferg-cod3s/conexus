@@ -2,9 +2,15 @@ package github
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/go-github/v45/github"
@@ -12,8 +18,13 @@ import (
 )
 
 type Connector struct {
-	client GitHubClientInterface
-	config *Config
+	client        GitHubClientInterface
+	config        *Config
+	rateLimit     *RateLimitInfo
+	rateLimitMu   sync.RWMutex
+	status        *SyncStatus
+	statusMu      sync.RWMutex
+	webhookSecret []byte
 }
 
 type Config struct {
@@ -36,16 +47,60 @@ type Issue struct {
 }
 
 type PullRequest struct {
-	ID           int64     `json:"id"`
-	Number       int       `json:"number"`
-	Title        string    `json:"title"`
-	Description  string    `json:"description"`
-	State        string    `json:"state"`
-	Labels       []string  `json:"labels"`
-	Assignee     string    `json:"assignee"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	LinkedIssues []string  `json:"linked_issues"`
+	ID           int64      `json:"id"`
+	Number       int        `json:"number"`
+	Title        string     `json:"title"`
+	Description  string     `json:"description"`
+	State        string     `json:"state"`
+	Labels       []string   `json:"labels"`
+	Assignee     string     `json:"assignee"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	LinkedIssues []string   `json:"linked_issues"`
+	Merged       bool       `json:"merged"`
+	MergedAt     *time.Time `json:"merged_at"`
+	HeadBranch   string     `json:"head_branch"`
+	BaseBranch   string     `json:"base_branch"`
+	ReviewCount  int        `json:"review_count"`
+	Additions    int        `json:"additions"`
+	Deletions    int        `json:"deletions"`
+	ChangedFiles int        `json:"changed_files"`
+}
+
+type Discussion struct {
+	ID          int64     `json:"id"`
+	Number      int       `json:"number"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	State       string    `json:"state"`
+	Author      string    `json:"author"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	AnswerCount int       `json:"answer_count"`
+	Locked      bool      `json:"locked"`
+}
+
+type WebhookEvent struct {
+	Type      string      `json:"type"`
+	Action    string      `json:"action"`
+	Payload   interface{} `json:"payload"`
+	Timestamp time.Time   `json:"timestamp"`
+}
+
+type RateLimitInfo struct {
+	Limit     int       `json:"limit"`
+	Remaining int       `json:"remaining"`
+	Reset     time.Time `json:"reset"`
+}
+
+type SyncStatus struct {
+	LastSync         time.Time      `json:"last_sync"`
+	TotalIssues      int            `json:"total_issues"`
+	TotalPRs         int            `json:"total_prs"`
+	TotalDiscussions int            `json:"total_discussions"`
+	SyncInProgress   bool           `json:"sync_in_progress"`
+	Error            string         `json:"error,omitempty"`
+	RateLimit        *RateLimitInfo `json:"rate_limit,omitempty"`
 }
 
 func NewConnector(config *Config) (*Connector, error) {
@@ -68,13 +123,34 @@ func NewConnector(config *Config) (*Connector, error) {
 	githubClient := github.NewClient(tc)
 	client := NewRealGitHubClient(githubClient)
 
-	return &Connector{
-		client: client,
-		config: config,
-	}, nil
+	connector := &Connector{
+		client:        client,
+		config:        config,
+		rateLimit:     &RateLimitInfo{},
+		status:        &SyncStatus{},
+		webhookSecret: []byte(config.WebhookSecret),
+	}
+
+	// Initialize rate limit info
+	if err := connector.updateRateLimit(context.Background()); err != nil {
+		log.Printf("Warning: Failed to get initial rate limit: %v", err)
+	}
+
+	return connector, nil
 }
 
 func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
+	// Update sync status
+	gc.statusMu.Lock()
+	gc.status.SyncInProgress = true
+	gc.statusMu.Unlock()
+
+	// Check rate limit before starting
+	if err := gc.WaitForRateLimit(ctx); err != nil {
+		gc.updateSyncStatus(0, 0, 0, err)
+		return nil, err
+	}
+
 	owner, repo := parseRepository(gc.config.Repository)
 
 	opts := &github.IssueListByRepoOptions{
@@ -89,6 +165,7 @@ func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
 	for {
 		issues, resp, err := gc.client.ListIssuesByRepo(ctx, owner, repo, opts)
 		if err != nil {
+			gc.updateSyncStatus(0, 0, 0, err)
 			return nil, fmt.Errorf("failed to fetch issues: %w", err)
 		}
 
@@ -128,6 +205,15 @@ func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
 			}
 		}
 
+		// Update rate limit info from response headers
+		if resp != nil {
+			gc.rateLimitMu.Lock()
+			gc.rateLimit.Limit = resp.Rate.Limit
+			gc.rateLimit.Remaining = resp.Rate.Remaining
+			gc.rateLimit.Reset = resp.Rate.Reset.Time
+			gc.rateLimitMu.Unlock()
+		}
+
 		if resp.NextPage == 0 {
 			break
 		}
@@ -138,6 +224,11 @@ func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
 }
 
 func (gc *Connector) SyncPullRequests(ctx context.Context) ([]PullRequest, error) {
+	// Check rate limit before starting
+	if err := gc.WaitForRateLimit(ctx); err != nil {
+		return nil, err
+	}
+
 	owner, repo := parseRepository(gc.config.Repository)
 
 	opts := &github.PullRequestListOptions{
@@ -182,6 +273,16 @@ func (gc *Connector) SyncPullRequests(ctx context.Context) ([]PullRequest, error
 				updatedAt = *pr.UpdatedAt
 			}
 
+			mergedAt := pr.MergedAt
+			headBranch := ""
+			baseBranch := ""
+			if pr.Head != nil {
+				headBranch = pr.Head.GetRef()
+			}
+			if pr.Base != nil {
+				baseBranch = pr.Base.GetRef()
+			}
+
 			allPRs = append(allPRs, PullRequest{
 				ID:           pr.GetID(),
 				Number:       pr.GetNumber(),
@@ -193,7 +294,24 @@ func (gc *Connector) SyncPullRequests(ctx context.Context) ([]PullRequest, error
 				CreatedAt:    createdAt,
 				UpdatedAt:    updatedAt,
 				LinkedIssues: linkedIssues,
+				Merged:       pr.GetMerged(),
+				MergedAt:     mergedAt,
+				HeadBranch:   headBranch,
+				BaseBranch:   baseBranch,
+				ReviewCount:  pr.GetReviewComments(),
+				Additions:    pr.GetAdditions(),
+				Deletions:    pr.GetDeletions(),
+				ChangedFiles: pr.GetChangedFiles(),
 			})
+		}
+
+		// Update rate limit info from response headers
+		if resp != nil {
+			gc.rateLimitMu.Lock()
+			gc.rateLimit.Limit = resp.Rate.Limit
+			gc.rateLimit.Remaining = resp.Rate.Remaining
+			gc.rateLimit.Reset = resp.Rate.Reset.Time
+			gc.rateLimitMu.Unlock()
 		}
 
 		if resp.NextPage == 0 {
@@ -235,4 +353,206 @@ func extractIssueReferences(text string) []string {
 	}
 
 	return issues
+}
+
+// SyncDiscussions syncs GitHub discussions
+func (gc *Connector) SyncDiscussions(ctx context.Context) ([]Discussion, error) {
+	owner, repo := parseRepository(gc.config.Repository)
+
+	// GitHub Discussions API requires GraphQL, but for now we'll use REST API for categories
+	// Note: Full discussions sync would require GraphQL API integration
+	opts := &github.ListOptions{PerPage: 100}
+
+	var allDiscussions []Discussion
+
+	// Since GitHub Discussions API is limited in REST, we'll return empty for now
+	// In a real implementation, you'd use GraphQL:
+	// query($owner: String!, $repo: String!) {
+	//   repository(owner: $owner, name: $repo) {
+	//     discussions(first: 100) {
+	//       nodes { ... }
+	//     }
+	//   }
+	// }
+
+	_ = opts // Suppress unused warning
+	_ = owner
+	_ = repo
+
+	return allDiscussions, nil
+}
+
+// GetRateLimit returns current rate limit information
+func (gc *Connector) GetRateLimit() *RateLimitInfo {
+	gc.rateLimitMu.RLock()
+	defer gc.rateLimitMu.RUnlock()
+
+	if gc.rateLimit != nil {
+		return &RateLimitInfo{
+			Limit:     gc.rateLimit.Limit,
+			Remaining: gc.rateLimit.Remaining,
+			Reset:     gc.rateLimit.Reset,
+		}
+	}
+	return &RateLimitInfo{}
+}
+
+// GetSyncStatus returns current sync status
+func (gc *Connector) GetSyncStatus() *SyncStatus {
+	gc.statusMu.RLock()
+	defer gc.statusMu.RUnlock()
+
+	return &SyncStatus{
+		LastSync:         gc.status.LastSync,
+		TotalIssues:      gc.status.TotalIssues,
+		TotalPRs:         gc.status.TotalPRs,
+		TotalDiscussions: gc.status.TotalDiscussions,
+		SyncInProgress:   gc.status.SyncInProgress,
+		Error:            gc.status.Error,
+		RateLimit:        gc.GetRateLimit(),
+	}
+}
+
+// VerifyWebhookSignature verifies GitHub webhook signature
+func (gc *Connector) VerifyWebhookSignature(payload []byte, signature string) bool {
+	if len(gc.webhookSecret) == 0 {
+		return true // No secret configured, skip verification
+	}
+
+	expectedSignature := "sha256=" + gc.generateHMAC(payload)
+	return hmac.Equal([]byte(signature), []byte(expectedSignature))
+}
+
+// generateHMAC generates HMAC-SHA256 signature
+func (gc *Connector) generateHMAC(payload []byte) string {
+	h := hmac.New(sha256.New, gc.webhookSecret)
+	h.Write(payload)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// ParseWebhookEvent parses incoming webhook payload
+func (gc *Connector) ParseWebhookEvent(payload []byte, eventType string) (*WebhookEvent, error) {
+	var event interface{}
+
+	switch eventType {
+	case "issues":
+		var issueEvent github.IssuesEvent
+		if err := json.Unmarshal(payload, &issueEvent); err != nil {
+			return nil, fmt.Errorf("failed to parse issues event: %w", err)
+		}
+		event = issueEvent
+
+	case "pull_request":
+		var prEvent github.PullRequestEvent
+		if err := json.Unmarshal(payload, &prEvent); err != nil {
+			return nil, fmt.Errorf("failed to parse pull request event: %w", err)
+		}
+		event = prEvent
+
+	case "discussion":
+		var discussionEvent github.DiscussionEvent
+		if err := json.Unmarshal(payload, &discussionEvent); err != nil {
+			return nil, fmt.Errorf("failed to parse discussion event: %w", err)
+		}
+		event = discussionEvent
+
+	default:
+		// For unknown event types, store as raw JSON
+		var rawEvent map[string]interface{}
+		if err := json.Unmarshal(payload, &rawEvent); err != nil {
+			return nil, fmt.Errorf("failed to parse event: %w", err)
+		}
+		event = rawEvent
+	}
+
+	return &WebhookEvent{
+		Type:      eventType,
+		Action:    gc.extractAction(event),
+		Payload:   event,
+		Timestamp: time.Now(),
+	}, nil
+}
+
+// extractAction extracts the action from webhook event
+func (gc *Connector) extractAction(event interface{}) string {
+	if eventMap, ok := event.(map[string]interface{}); ok {
+		if action, exists := eventMap["action"]; exists {
+			if actionStr, ok := action.(string); ok {
+				return actionStr
+			}
+		}
+	}
+	return "unknown"
+}
+
+// updateRateLimit updates rate limit information from GitHub API
+func (gc *Connector) updateRateLimit(ctx context.Context) error {
+	rateLimits, _, err := gc.client.GetRateLimits(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get rate limits: %w", err)
+	}
+
+	gc.rateLimitMu.Lock()
+	defer gc.rateLimitMu.Unlock()
+
+	if rateLimits.Core != nil {
+		gc.rateLimit = &RateLimitInfo{
+			Limit:     rateLimits.Core.Limit,
+			Remaining: rateLimits.Core.Remaining,
+			Reset:     rateLimits.Core.Reset.Time,
+		}
+	} else {
+		// Fallback to defaults
+		gc.rateLimit = &RateLimitInfo{
+			Limit:     5000, // Default for authenticated requests
+			Remaining: 5000,
+			Reset:     time.Now().Add(time.Hour),
+		}
+	}
+
+	return nil
+}
+
+// updateSyncStatus updates the sync status
+func (gc *Connector) updateSyncStatus(totalIssues, totalPRs, totalDiscussions int, err error) {
+	gc.statusMu.Lock()
+	defer gc.statusMu.Unlock()
+
+	gc.status.LastSync = time.Now()
+	gc.status.TotalIssues = totalIssues
+	gc.status.TotalPRs = totalPRs
+	gc.status.TotalDiscussions = totalDiscussions
+	gc.status.SyncInProgress = false
+
+	if err != nil {
+		gc.status.Error = err.Error()
+	} else {
+		gc.status.Error = ""
+	}
+}
+
+// WaitForRateLimit waits if rate limit is exceeded
+func (gc *Connector) WaitForRateLimit(ctx context.Context) error {
+	gc.rateLimitMu.RLock()
+	rateLimit := gc.rateLimit
+	gc.rateLimitMu.RUnlock()
+
+	if rateLimit.Remaining > 10 { // Keep some buffer
+		return nil
+	}
+
+	now := time.Now()
+	if rateLimit.Reset.After(now) {
+		waitTime := rateLimit.Reset.Sub(now)
+		log.Printf("Rate limit exceeded, waiting %v for reset", waitTime)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(waitTime):
+			return nil
+		}
+	}
+
+	return nil
 }

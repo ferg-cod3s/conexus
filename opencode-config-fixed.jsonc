@@ -1,0 +1,104 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/big-pickle",
+  "small_model": "opencode/grok-code",
+  "mcp": {
+    "Coolify": {
+      "type": "local",
+      "command": [
+        "bunx",
+        "-y",
+        "@felixallistar/coolify-mcp",
+        "--server"
+      ],
+      "environment": {
+        "COOLIFY_API_URL": "https://coolify.fergify.work",
+        "COOLIFY_ACCESS_TOKEN": "1|WoN76CL40WTMQWCM1YHcAGvjQ7LNRpqXQz8G74Jk7cf39acd",
+        "COOLIFY_API_TOKEN": "1|WoN76CL40WTMQWCM1YHcAGvjQ7LNRpqXQz8G74Jk7cf39acd",
+        "COOLIFY_BASE_URL": "https://coolify.fergify.work"
+      },
+      "enabled": true
+    },
+    "Playwright": {
+      "type": "local",
+      "command": [
+        "bunx",
+        "-y",
+        "@playwright/mcp@latest"
+      ],
+      "environment": {},
+      "enabled": true
+    },
+    "Context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "ctx7sk-b9edf875-c47d-46a3-b15d-d240714fdd0ei"
+      },
+      "enabled": true
+    },
+    "Socket": {
+      "type": "local",
+      "command": [
+        "bunx",
+        "@socketsecurity/mcp@latest"
+      ],
+      "environment": {
+        "SOCKET_API_KEY": "sktsec_IfAg2PXg4KQ0pbnwTPLs9RmeUQSFOARzTHSvAJe66S5z_api"
+      },
+      "enabled": true
+    },
+    "chrome-devtools": {
+      "type": "local",
+      "command": [
+        "bunx",
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl=http://127.0.0.1:9222"
+      ],
+      "environment": {},
+      "enabled": true
+    },
+    "sentry": {
+      "type": "local",
+      "command": [
+        "npx",
+        "@sentry/mcp-server@latest"
+      ],
+      "environment": {
+        "SENTRY_ACCESS_TOKEN": "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",
+        "SENTRY_HOST": "sentry.fergify.work",
+        "ORGANIZATION": "unfergettable-designs"
+      },
+      "enabled": true
+    },
+    "github": {
+      "type": "local",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "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"
+      },
+      "enabled": true
+    },
+    "conexus": {
+      "type": "local",
+      "command": [
+        "bunx",
+        "@agentic-conexus/mcp"
+      ],
+      "environment": {
+        "CONEXUS_DB_PATH": "/Users/johnferguson/Github/conexus/data/conexus.db",
+        "CONEXUS_ROOT_PATH": "/Users/johnferguson/Github/conexus",
+        "CONEXUS_LOG_LEVEL": "info"
+      },
+      "enabled": true
+    }
+  }
+}

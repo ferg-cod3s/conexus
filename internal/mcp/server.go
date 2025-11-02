@@ -142,7 +142,7 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 		},
 		"serverInfo": map[string]interface{}{
 			"name":    "conexus",
-			"version": "0.1.1-alpha",
+			"version": "0.1.2-alpha",
 		},
 	}, nil
 }
@@ -195,6 +195,10 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (i
 		return s.handleContextExplain(ctx, req.Arguments)
 	case ToolContextGrep:
 		return s.handleContextGrep(ctx, req.Arguments)
+	case ToolGitHubSyncStatus:
+		return s.handleGitHubSyncStatus(ctx, req.Arguments)
+	case ToolGitHubSyncTrigger:
+		return s.handleGitHubSyncTrigger(ctx, req.Arguments)
 	default:
 		errorCtx := observability.ExtractErrorContext(ctx, "tools/call")
 		errorCtx.ErrorType = "tool_not_found"
@@ -479,7 +483,11 @@ func (s *Server) getMimeType(filePath string) string {
 		return "text/html"
 	case ".css":
 		return "text/css"
+	case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp":
+		return "image/png" // Using png as representative for images
+	case ".pdf":
+		return "application/pdf"
 	default:
-		return "text/plain"
+		return "application/octet-stream"
 	}
 }

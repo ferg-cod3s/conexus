@@ -1,6 +1,6 @@
 {
   "name": "@agentic-conexus/mcp",
-  "version": "0.1.1-alpha",
+  "version": "0.2.0-alpha",
   "description": "MCP server for context-aware AI assistants with semantic search and codebase understanding",
   "main": "bin/conexus.js",
   "bin": {

@@ -19,6 +19,9 @@ func TestDefaults(t *testing.T) {
 	assert.Equal(t, DefaultRootPath, cfg.Indexer.RootPath)
 	assert.Equal(t, DefaultChunkSize, cfg.Indexer.ChunkSize)
 	assert.Equal(t, DefaultChunkOverlap, cfg.Indexer.ChunkOverlap)
+	assert.Equal(t, DefaultEmbeddingProvider, cfg.Embedding.Provider)
+	assert.Equal(t, DefaultEmbeddingModel, cfg.Embedding.Model)
+	assert.Equal(t, DefaultEmbeddingDimensions, cfg.Embedding.Dimensions)
 	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
 	assert.Equal(t, DefaultLogFormat, cfg.Logging.Format)
 }
@@ -54,9 +57,54 @@ func TestLoadEnv(t *testing.T) {
 					ChunkSize:    1024,
 					ChunkOverlap: 100,
 				},
+				Embedding: EmbeddingConfig{
+					Provider:   DefaultEmbeddingProvider,
+					Model:      DefaultEmbeddingModel,
+					Dimensions: DefaultEmbeddingDimensions,
+					Config:     make(map[string]interface{}),
+				},
 				Logging: LoggingConfig{
 					Level:  "debug",
 					Format: "text",
+				},
+				Auth: AuthConfig{
+					Enabled:     DefaultAuthEnabled,
+					Issuer:      DefaultAuthIssuer,
+					Audience:    DefaultAuthAudience,
+					TokenExpiry: DefaultAuthTokenExpiry,
+				},
+				Security: SecurityConfig{
+					CSP: CSPConfig{
+						Enabled: DefaultSecurityCSPEnabled,
+						Default: []string{"'none'"},
+						Script:  []string{"'self'"},
+						Style:   []string{"'self'"},
+						Image:   []string{"'self'"},
+						Font:    []string{"'self'"},
+						Connect: []string{"'self'"},
+						Media:   []string{"'none'"},
+						Object:  []string{"'none'"},
+						Frame:   []string{"'none'"},
+					},
+					HSTS: HSTSConfig{
+						Enabled:           DefaultSecurityHSTSEnabled,
+						MaxAge:            DefaultSecurityHSTSMaxAge,
+						IncludeSubdomains: true,
+						Preload:           false,
+					},
+					XFrameOptions:       "DENY",
+					XContentTypeOptions: "nosniff",
+					ReferrerPolicy:      "strict-origin-when-cross-origin",
+					PermissionsPolicy:   "camera=(), microphone=(), geolocation=(), payment=()",
+				},
+				CORS: CORSConfig{
+					Enabled:          DefaultCORSEnabled,
+					AllowedOrigins:   []string{},
+					AllowedMethods:   []string{"GET", "POST"},
+					AllowedHeaders:   []string{"Content-Type", "Authorization"},
+					ExposedHeaders:   []string{},
+					AllowCredentials: false,
+					MaxAge:           DefaultCORSMaxAge,
 				},
 				Observability: ObservabilityConfig{
 					Metrics: MetricsConfig{
@@ -98,9 +146,54 @@ func TestLoadEnv(t *testing.T) {
 					ChunkSize:    DefaultChunkSize,
 					ChunkOverlap: DefaultChunkOverlap,
 				},
+				Embedding: EmbeddingConfig{
+					Provider:   DefaultEmbeddingProvider,
+					Model:      DefaultEmbeddingModel,
+					Dimensions: DefaultEmbeddingDimensions,
+					Config:     make(map[string]interface{}),
+				},
 				Logging: LoggingConfig{
 					Level:  "warn",
 					Format: DefaultLogFormat,
+				},
+				Auth: AuthConfig{
+					Enabled:     DefaultAuthEnabled,
+					Issuer:      DefaultAuthIssuer,
+					Audience:    DefaultAuthAudience,
+					TokenExpiry: DefaultAuthTokenExpiry,
+				},
+				Security: SecurityConfig{
+					CSP: CSPConfig{
+						Enabled: DefaultSecurityCSPEnabled,
+						Default: []string{"'none'"},
+						Script:  []string{"'self'"},
+						Style:   []string{"'self'"},
+						Image:   []string{"'self'"},
+						Font:    []string{"'self'"},
+						Connect: []string{"'self'"},
+						Media:   []string{"'none'"},
+						Object:  []string{"'none'"},
+						Frame:   []string{"'none'"},
+					},
+					HSTS: HSTSConfig{
+						Enabled:           DefaultSecurityHSTSEnabled,
+						MaxAge:            DefaultSecurityHSTSMaxAge,
+						IncludeSubdomains: true,
+						Preload:           false,
+					},
+					XFrameOptions:       "DENY",
+					XContentTypeOptions: "nosniff",
+					ReferrerPolicy:      "strict-origin-when-cross-origin",
+					PermissionsPolicy:   "camera=(), microphone=(), geolocation=(), payment=()",
+				},
+				CORS: CORSConfig{
+					Enabled:          DefaultCORSEnabled,
+					AllowedOrigins:   []string{},
+					AllowedMethods:   []string{"GET", "POST"},
+					AllowedHeaders:   []string{"Content-Type", "Authorization"},
+					ExposedHeaders:   []string{},
+					AllowCredentials: false,
+					MaxAge:           DefaultCORSMaxAge,
 				},
 				Observability: ObservabilityConfig{
 					Metrics: MetricsConfig{
@@ -139,9 +232,54 @@ func TestLoadEnv(t *testing.T) {
 					ChunkSize:    DefaultChunkSize,
 					ChunkOverlap: DefaultChunkOverlap,
 				},
+				Embedding: EmbeddingConfig{
+					Provider:   DefaultEmbeddingProvider,
+					Model:      DefaultEmbeddingModel,
+					Dimensions: DefaultEmbeddingDimensions,
+					Config:     make(map[string]interface{}),
+				},
 				Logging: LoggingConfig{
 					Level:  DefaultLogLevel,
 					Format: DefaultLogFormat,
+				},
+				Auth: AuthConfig{
+					Enabled:     DefaultAuthEnabled,
+					Issuer:      DefaultAuthIssuer,
+					Audience:    DefaultAuthAudience,
+					TokenExpiry: DefaultAuthTokenExpiry,
+				},
+				Security: SecurityConfig{
+					CSP: CSPConfig{
+						Enabled: DefaultSecurityCSPEnabled,
+						Default: []string{"'none'"},
+						Script:  []string{"'self'"},
+						Style:   []string{"'self'"},
+						Image:   []string{"'self'"},
+						Font:    []string{"'self'"},
+						Connect: []string{"'self'"},
+						Media:   []string{"'none'"},
+						Object:  []string{"'none'"},
+						Frame:   []string{"'none'"},
+					},
+					HSTS: HSTSConfig{
+						Enabled:           DefaultSecurityHSTSEnabled,
+						MaxAge:            DefaultSecurityHSTSMaxAge,
+						IncludeSubdomains: true,
+						Preload:           false,
+					},
+					XFrameOptions:       "DENY",
+					XContentTypeOptions: "nosniff",
+					ReferrerPolicy:      "strict-origin-when-cross-origin",
+					PermissionsPolicy:   "camera=(), microphone=(), geolocation=(), payment=()",
+				},
+				CORS: CORSConfig{
+					Enabled:          DefaultCORSEnabled,
+					AllowedOrigins:   []string{},
+					AllowedMethods:   []string{"GET", "POST"},
+					AllowedHeaders:   []string{"Content-Type", "Authorization"},
+					ExposedHeaders:   []string{},
+					AllowCredentials: false,
+					MaxAge:           DefaultCORSMaxAge,
 				},
 				Observability: ObservabilityConfig{
 					Metrics: MetricsConfig{
@@ -184,9 +322,54 @@ func TestLoadEnv(t *testing.T) {
 					ChunkSize:    DefaultChunkSize,    // unchanged
 					ChunkOverlap: DefaultChunkOverlap, // unchanged
 				},
+				Embedding: EmbeddingConfig{
+					Provider:   DefaultEmbeddingProvider,
+					Model:      DefaultEmbeddingModel,
+					Dimensions: DefaultEmbeddingDimensions,
+					Config:     make(map[string]interface{}),
+				},
 				Logging: LoggingConfig{
 					Level:  DefaultLogLevel,
 					Format: DefaultLogFormat,
+				},
+				Auth: AuthConfig{
+					Enabled:     DefaultAuthEnabled,
+					Issuer:      DefaultAuthIssuer,
+					Audience:    DefaultAuthAudience,
+					TokenExpiry: DefaultAuthTokenExpiry,
+				},
+				Security: SecurityConfig{
+					CSP: CSPConfig{
+						Enabled: DefaultSecurityCSPEnabled,
+						Default: []string{"'none'"},
+						Script:  []string{"'self'"},
+						Style:   []string{"'self'"},
+						Image:   []string{"'self'"},
+						Font:    []string{"'self'"},
+						Connect: []string{"'self'"},
+						Media:   []string{"'none'"},
+						Object:  []string{"'none'"},
+						Frame:   []string{"'none'"},
+					},
+					HSTS: HSTSConfig{
+						Enabled:           DefaultSecurityHSTSEnabled,
+						MaxAge:            DefaultSecurityHSTSMaxAge,
+						IncludeSubdomains: true,
+						Preload:           false,
+					},
+					XFrameOptions:       "DENY",
+					XContentTypeOptions: "nosniff",
+					ReferrerPolicy:      "strict-origin-when-cross-origin",
+					PermissionsPolicy:   "camera=(), microphone=(), geolocation=(), payment=()",
+				},
+				CORS: CORSConfig{
+					Enabled:          DefaultCORSEnabled,
+					AllowedOrigins:   []string{},
+					AllowedMethods:   []string{"GET", "POST"},
+					AllowedHeaders:   []string{"Content-Type", "Authorization"},
+					ExposedHeaders:   []string{},
+					AllowCredentials: false,
+					MaxAge:           DefaultCORSMaxAge,
 				},
 				Observability: ObservabilityConfig{
 					Metrics: MetricsConfig{
@@ -268,6 +451,7 @@ logging:
 					ChunkSize:    1024,
 					ChunkOverlap: 100,
 				},
+				Embedding: EmbeddingConfig{},
 				Logging: LoggingConfig{
 					Level:  "debug",
 					Format: "text",
@@ -308,6 +492,7 @@ logging:
 					ChunkSize:    1024,
 					ChunkOverlap: 100,
 				},
+				Embedding: EmbeddingConfig{},
 				Logging: LoggingConfig{
 					Level:  "debug",
 					Format: "text",
@@ -327,6 +512,9 @@ logging:
 				Server: ServerConfig{
 					Port: 3000,
 				},
+				Database:  DatabaseConfig{},
+				Indexer:   IndexerConfig{},
+				Embedding: EmbeddingConfig{},
 				Logging: LoggingConfig{
 					Level: "warn",
 				},
@@ -686,6 +874,9 @@ func TestDefault(t *testing.T) {
 	assert.Equal(t, DefaultRootPath, cfg.Indexer.RootPath)
 	assert.Equal(t, DefaultChunkSize, cfg.Indexer.ChunkSize)
 	assert.Equal(t, DefaultChunkOverlap, cfg.Indexer.ChunkOverlap)
+	assert.Equal(t, DefaultEmbeddingProvider, cfg.Embedding.Provider)
+	assert.Equal(t, DefaultEmbeddingModel, cfg.Embedding.Model)
+	assert.Equal(t, DefaultEmbeddingDimensions, cfg.Embedding.Dimensions)
 	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
 	assert.Equal(t, DefaultLogFormat, cfg.Logging.Format)
 }
@@ -1237,6 +1428,22 @@ func clearEnv(t *testing.T) {
 		"CONEXUS_SENTRY_ENVIRONMENT",
 		"CONEXUS_SENTRY_SAMPLE_RATE",
 		"CONEXUS_SENTRY_RELEASE",
+		"CONEXUS_SECURITY_CSP_ENABLED",
+		"CONEXUS_SECURITY_HSTS_ENABLED",
+		"CONEXUS_SECURITY_HSTS_MAX_AGE",
+		"CONEXUS_SECURITY_HSTS_INCLUDE_SUBDOMAINS",
+		"CONEXUS_SECURITY_HSTS_PRELOAD",
+		"CONEXUS_SECURITY_X_FRAME_OPTIONS",
+		"CONEXUS_SECURITY_X_CONTENT_TYPE_OPTIONS",
+		"CONEXUS_SECURITY_REFERRER_POLICY",
+		"CONEXUS_SECURITY_PERMISSIONS_POLICY",
+		"CONEXUS_CORS_ENABLED",
+		"CONEXUS_CORS_ALLOWED_ORIGINS",
+		"CONEXUS_CORS_ALLOWED_METHODS",
+		"CONEXUS_CORS_ALLOWED_HEADERS",
+		"CONEXUS_CORS_EXPOSED_HEADERS",
+		"CONEXUS_CORS_ALLOW_CREDENTIALS",
+		"CONEXUS_CORS_MAX_AGE",
 	}
 	for _, v := range vars {
 		os.Unsetenv(v)

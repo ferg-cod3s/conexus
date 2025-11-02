@@ -10,6 +10,7 @@ import (
 type GitHubClientInterface interface {
 	ListIssuesByRepo(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error)
 	ListPullRequests(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error)
+	GetRateLimits(ctx context.Context) (*github.RateLimits, *github.Response, error)
 }
 
 // RealGitHubClient wraps the actual GitHub client
@@ -29,10 +30,15 @@ func (r *RealGitHubClient) ListPullRequests(ctx context.Context, owner string, r
 	return r.client.PullRequests.List(ctx, owner, repo, opts)
 }
 
+func (r *RealGitHubClient) GetRateLimits(ctx context.Context) (*github.RateLimits, *github.Response, error) {
+	return r.client.RateLimits(ctx)
+}
+
 // MockGitHubClient implements GitHubClientInterface for testing
 type MockGitHubClient struct {
 	ListIssuesByRepoFunc func(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error)
 	ListPullRequestsFunc func(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error)
+	GetRateLimitsFunc    func(ctx context.Context) (*github.RateLimits, *github.Response, error)
 }
 
 func (m *MockGitHubClient) ListIssuesByRepo(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error) {
@@ -47,4 +53,11 @@ func (m *MockGitHubClient) ListPullRequests(ctx context.Context, owner string, r
 		return m.ListPullRequestsFunc(ctx, owner, repo, opts)
 	}
 	return nil, nil, nil
+}
+
+func (m *MockGitHubClient) GetRateLimits(ctx context.Context) (*github.RateLimits, *github.Response, error) {
+	if m.GetRateLimitsFunc != nil {
+		return m.GetRateLimitsFunc(ctx)
+	}
+	return &github.RateLimits{}, &github.Response{}, nil
 }

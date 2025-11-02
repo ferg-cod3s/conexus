@@ -278,7 +278,7 @@ func TestMCPRealWorldDataValidation(t *testing.T) {
 		require.NoError(t, err)
 
 		toolCallReq := map[string]interface{}{
-			"name":      "context.search",
+			"name":      "context.index_control",
 			"arguments": json.RawMessage(argsJSON),
 		}
 

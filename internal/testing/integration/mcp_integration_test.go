@@ -193,7 +193,7 @@ func TestMCPToolDiscovery(t *testing.T) {
 
 	tools, ok := result["tools"].([]interface{})
 	require.True(t, ok, "Result should contain 'tools' array")
-	assert.Len(t, tools, 6, "Should discover 6 MCP tools")
+	assert.Len(t, tools, 8, "Should discover 8 MCP tools")
 
 	// Verify each tool has required fields
 	expectedTools := map[string]bool{
@@ -203,6 +203,8 @@ func TestMCPToolDiscovery(t *testing.T) {
 		"context.connector_management": false,
 		"context.explain":              false,
 		"context.grep":                 false,
+		"github.sync_status":           false,
+		"github.sync_trigger":          false,
 	}
 
 	for _, toolInterface := range tools {

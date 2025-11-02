@@ -20,6 +20,7 @@ Conexus is a **Model Context Protocol (MCP) server** that provides AI assistants
 - 🔍 **Semantic Search**: Hybrid vector + keyword search across your codebase
 - 📁 **File Context**: Intelligent file relationships and project structure understanding
 - ⚡ **Fast Performance**: Sub-second context retrieval with intelligent caching
+- 🛡️ **Security First**: Rate limiting, security headers, and input validation
 - 🛠️ **Easy Integration**: Works with Claude Desktop, Cursor, and other MCP clients
 - 🧪 **Well Tested**: Comprehensive test suite with real-world validation
 
@@ -580,7 +581,63 @@ export CONEXUS_PORT=3000
 
 # Project root to index
 export CONEXUS_ROOT_PATH=/path/to/project
+
+# Rate Limiting Configuration
+export CONEXUS_RATE_LIMIT_ENABLED=true
+export CONEXUS_RATE_LIMIT_ALGORITHM=sliding_window  # sliding_window|token_bucket
+export CONEXUS_RATE_LIMIT_DEFAULT_REQUESTS=100      # requests per window
+export CONEXUS_RATE_LIMIT_DEFAULT_WINDOW=1m         # time window
+export CONEXUS_RATE_LIMIT_HEALTH_REQUESTS=1000      # health endpoint limit
+export CONEXUS_RATE_LIMIT_WEBHOOK_REQUESTS=10000    # webhook endpoint limit
+export CONEXUS_RATE_LIMIT_AUTH_REQUESTS=1000        # authenticated requests limit
+# Redis support for distributed rate limiting
+export CONEXUS_RATE_LIMIT_REDIS_ENABLED=true
+export CONEXUS_RATE_LIMIT_REDIS_ADDR=localhost:6379
+export CONEXUS_RATE_LIMIT_REDIS_PASSWORD=your-password
+
+# HTTPS/TLS Configuration (for HTTP mode)
+export CONEXUS_TLS_ENABLED=true
+export CONEXUS_TLS_CERT_FILE=/path/to/cert.pem
+export CONEXUS_TLS_KEY_FILE=/path/to/key.pem
+# Or for Let's Encrypt auto-cert:
+export CONEXUS_TLS_AUTO_CERT=true
+export CONEXUS_TLS_AUTO_CERT_DOMAINS="yourdomain.com,www.yourdomain.com"
+export CONEXUS_TLS_AUTO_CERT_EMAIL="admin@yourdomain.com"
 ```
+
+### HTTPS/TLS Security
+
+Conexus supports HTTPS with automatic TLS certificate management:
+
+#### Development (Self-Signed Certificates)
+```bash
+# Generate self-signed certificates for development
+./scripts/generate-dev-certs.sh localhost ./data/tls
+
+# Configure environment
+export CONEXUS_TLS_ENABLED=true
+export CONEXUS_TLS_CERT_FILE=./data/tls/cert.pem
+export CONEXUS_TLS_KEY_FILE=./data/tls/key.pem
+```
+
+#### Production (Let's Encrypt)
+```bash
+export CONEXUS_TLS_AUTO_CERT=true
+export CONEXUS_TLS_AUTO_CERT_DOMAINS="yourdomain.com,api.yourdomain.com"
+export CONEXUS_TLS_AUTO_CERT_EMAIL="admin@yourdomain.com"
+```
+
+#### Manual Certificates
+```bash
+export CONEXUS_TLS_CERT_FILE=/etc/ssl/certs/yourdomain.crt
+export CONEXUS_TLS_KEY_FILE=/etc/ssl/private/yourdomain.key
+```
+
+**Security Features:**
+- TLS 1.2+ only (configurable)
+- Secure cipher suites by default
+- HTTP to HTTPS automatic redirection
+- HSTS headers for enhanced security
 
 ### MCP Client Configuration
 
@@ -779,6 +836,10 @@ volumes:
 - Minimal attack surface (Alpine base)
 - Read-only config option
 - Health check monitoring
+- **Security Headers**: CSP, HSTS, X-Frame-Options, X-Content-Type-Options
+- **CORS Protection**: Configurable cross-origin request handling
+- **Rate Limiting**: Configurable request throttling with Redis support
+- **Input Validation**: Comprehensive request sanitization
 
 ### MCP Server Endpoints
 

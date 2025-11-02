@@ -41,6 +41,12 @@ type MetricsCollector struct {
 	VectorSearchResults  *prometheus.HistogramVec
 	VectorStoreSize      prometheus.Gauge
 
+	// Rate limiting metrics
+	RateLimitRequests  *prometheus.CounterVec
+	RateLimitHits      *prometheus.CounterVec
+	RateLimitDuration  *prometheus.HistogramVec
+	RateLimitRemaining *prometheus.GaugeVec
+
 	// System metrics
 	SystemStartTime prometheus.Gauge
 	SystemHealth    *prometheus.GaugeVec
@@ -245,6 +251,41 @@ func NewMetricsCollectorWithRegistry(namespace string, reg prometheus.Registerer
 			},
 		),
 
+		// Rate limiting metrics
+		RateLimitRequests: autoCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "rate_limit_requests_total",
+				Help:      "Total number of rate limit checks by limiter type and result",
+			},
+			[]string{"limiter_type", "result"},
+		),
+		RateLimitHits: autoCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "rate_limit_hits_total",
+				Help:      "Total number of rate limit hits by limiter type",
+			},
+			[]string{"limiter_type"},
+		),
+		RateLimitDuration: autoHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "rate_limit_duration_seconds",
+				Help:      "Rate limit check duration in seconds",
+				Buckets:   []float64{.001, .005, .01, .025, .05, .1},
+			},
+			[]string{"limiter_type"},
+		),
+		RateLimitRemaining: autoGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "rate_limit_remaining_requests",
+				Help:      "Number of remaining requests for rate limited clients",
+			},
+			[]string{"limiter_type", "identifier"},
+		),
+
 		// System metrics
 		SystemStartTime: autoGauge(
 			prometheus.GaugeOpts{
@@ -356,4 +397,19 @@ func (m *MetricsCollector) SetComponentHealth(component string, healthy bool) {
 		value = 1.0
 	}
 	m.SystemHealth.WithLabelValues(component).Set(value)
+}
+
+// RecordRateLimit records metrics for a rate limit check.
+func (m *MetricsCollector) RecordRateLimit(limiterType, result string, duration time.Duration) {
+	m.RateLimitRequests.WithLabelValues(limiterType, result).Inc()
+	m.RateLimitDuration.WithLabelValues(limiterType).Observe(duration.Seconds())
+
+	if result == "hit" {
+		m.RateLimitHits.WithLabelValues(limiterType).Inc()
+	}
+}
+
+// UpdateRateLimitRemaining updates the remaining requests gauge.
+func (m *MetricsCollector) UpdateRateLimitRemaining(limiterType, identifier string, remaining int64) {
+	m.RateLimitRemaining.WithLabelValues(limiterType, identifier).Set(float64(remaining))
 }

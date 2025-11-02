@@ -1,6 +1,41 @@
 # Conexus Configuration Example
 # Copy this to config.yml and customize as needed
 # Environment variables take precedence over file config
+#
+# Environment Variables:
+# Server: CONEXUS_HOST, CONEXUS_PORT
+# Database: CONEXUS_DB_PATH
+# Indexer: CONEXUS_ROOT_PATH, CONEXUS_CHUNK_SIZE, CONEXUS_CHUNK_OVERLAP
+# Logging: CONEXUS_LOG_LEVEL, CONEXUS_LOG_FORMAT
+# Security: CONEXUS_SECURITY_CSP_ENABLED, CONEXUS_SECURITY_HSTS_ENABLED,
+#          CONEXUS_SECURITY_HSTS_MAX_AGE, CONEXUS_SECURITY_HSTS_INCLUDE_SUBDOMAINS,
+#          CONEXUS_SECURITY_HSTS_PRELOAD, CONEXUS_SECURITY_X_FRAME_OPTIONS,
+#          CONEXUS_SECURITY_X_CONTENT_TYPE_OPTIONS, CONEXUS_SECURITY_REFERRER_POLICY,
+#          CONEXUS_SECURITY_PERMISSIONS_POLICY
+# CORS: CONEXUS_CORS_ENABLED, CONEXUS_CORS_ALLOWED_ORIGINS (comma-separated),
+#       CONEXUS_CORS_ALLOWED_METHODS (comma-separated),
+#       CONEXUS_CORS_ALLOWED_HEADERS (comma-separated),
+#       CONEXUS_CORS_EXPOSED_HEADERS (comma-separated),
+#       CONEXUS_CORS_ALLOW_CREDENTIALS, CONEXUS_CORS_MAX_AGE
+# TLS: CONEXUS_TLS_ENABLED, CONEXUS_TLS_CERT_FILE, CONEXUS_TLS_KEY_FILE,
+#      CONEXUS_TLS_AUTO_CERT, CONEXUS_TLS_AUTO_CERT_DOMAINS (comma-separated),
+#      CONEXUS_TLS_AUTO_CERT_EMAIL, CONEXUS_TLS_AUTO_CERT_CACHE_DIR,
+#      CONEXUS_TLS_MIN_VERSION, CONEXUS_TLS_CIPHER_SUITES (comma-separated),
+#      CONEXUS_TLS_CURVE_PREFERENCES (comma-separated), CONEXUS_TLS_HTTP_REDIRECT_PORT
+# Observability: CONEXUS_METRICS_ENABLED, CONEXUS_METRICS_PORT, CONEXUS_METRICS_PATH,
+#                CONEXUS_TRACING_ENABLED, CONEXUS_TRACING_ENDPOINT, CONEXUS_TRACING_SAMPLE_RATE,
+#                CONEXUS_SENTRY_ENABLED, CONEXUS_SENTRY_DSN, CONEXUS_SENTRY_ENVIRONMENT,
+#                CONEXUS_SENTRY_SAMPLE_RATE, CONEXUS_SENTRY_RELEASE
+# Rate Limiting: CONEXUS_RATE_LIMIT_ENABLED, CONEXUS_RATE_LIMIT_ALGORITHM,
+#                CONEXUS_RATE_LIMIT_REDIS_ENABLED, CONEXUS_RATE_LIMIT_REDIS_ADDR,
+#                CONEXUS_RATE_LIMIT_REDIS_PASSWORD, CONEXUS_RATE_LIMIT_REDIS_DB,
+#                CONEXUS_RATE_LIMIT_REDIS_KEY_PREFIX, CONEXUS_RATE_LIMIT_DEFAULT_REQUESTS,
+#                CONEXUS_RATE_LIMIT_DEFAULT_WINDOW, CONEXUS_RATE_LIMIT_HEALTH_REQUESTS,
+#                CONEXUS_RATE_LIMIT_HEALTH_WINDOW, CONEXUS_RATE_LIMIT_WEBHOOK_REQUESTS,
+#                CONEXUS_RATE_LIMIT_WEBHOOK_WINDOW, CONEXUS_RATE_LIMIT_AUTH_REQUESTS,
+#                CONEXUS_RATE_LIMIT_AUTH_WINDOW, CONEXUS_RATE_LIMIT_BURST_MULTIPLIER,
+#                CONEXUS_RATE_LIMIT_CLEANUP_INTERVAL, CONEXUS_RATE_LIMIT_SKIP_PATHS,
+#                CONEXUS_RATE_LIMIT_SKIP_IPS, CONEXUS_RATE_LIMIT_TRUSTED_PROXIES
 
 server:
   host: "0.0.0.0"
@@ -14,9 +49,90 @@ indexer:
   chunk_size: 512
   chunk_overlap: 50
 
+embedding:
+  provider: "mock"  # mock, anthropic
+  model: "mock-768"
+  dimensions: 768
+  config: {}  # Provider-specific configuration
+  # For anthropic provider:
+  # config:
+  #   api_key: "your-anthropic-api-key"  # Or use ANTHROPIC_API_KEY env var
+
 logging:
   level: "info"  # debug, info, warn, error
   format: "json" # json, text
+
+security:
+  csp:
+    enabled: true
+    default: ["'none'"]
+    script: ["'self'"]
+    style: ["'self'"]
+    image: ["'self'"]
+    font: ["'self'"]
+    connect: ["'self'"]
+    media: ["'none'"]
+    object: ["'none'"]
+    frame: ["'none'"]
+    # report: "https://your-csp-report-endpoint.com"
+  hsts:
+    enabled: true
+    max_age: 31536000  # 1 year
+    include_subdomains: true
+    preload: false
+  x_frame_options: "DENY"
+  x_content_type_options: "nosniff"
+  referrer_policy: "strict-origin-when-cross-origin"
+  permissions_policy: "camera=(), microphone=(), geolocation=(), payment=()"
+
+cors:
+  enabled: false  # Disabled by default for security
+  allowed_origins: []  # Add specific origins when enabled
+  allowed_methods: ["GET", "POST"]
+  allowed_headers: ["Content-Type", "Authorization"]
+  exposed_headers: []
+  allow_credentials: false
+  max_age: 86400  # 24 hours
+
+tls:
+   enabled: false  # Enable for HTTPS
+   cert_file: ""  # Path to certificate file (for manual certs)
+   key_file: ""  # Path to private key file (for manual certs)
+   auto_cert: false  # Enable Let's Encrypt auto-cert
+   auto_cert_domains: []  # Domains for auto-cert (e.g., ["example.com", "www.example.com"])
+   auto_cert_email: ""  # Email for Let's Encrypt notifications
+   auto_cert_cache_dir: "./data/tls-cache"  # Cache directory for auto-cert
+   min_version: "1.2"  # Minimum TLS version (1.0, 1.1, 1.2, 1.3)
+   cipher_suites: []  # Custom cipher suites (leave empty for secure defaults)
+   curve_preferences: []  # Custom curve preferences (leave empty for secure defaults)
+   http_redirect_port: 80  # Port for HTTP to HTTPS redirect
+
+rate_limit:
+   enabled: true  # Enable rate limiting
+   algorithm: "sliding_window"  # sliding_window or token_bucket
+   redis:
+     enabled: false  # Enable Redis for distributed rate limiting
+     addr: "localhost:6379"  # Redis server address
+     password: ""  # Redis password (leave empty if no auth)
+     db: 0  # Redis database number
+     key_prefix: "conexus_ratelimit"  # Redis key prefix
+   default:  # Default rate limits for all endpoints
+     requests: 100  # Requests per window
+     window: "1m"  # Time window (Go duration format)
+   health:  # Rate limits for health check endpoints
+     requests: 1000
+     window: "1m"
+   webhook:  # Rate limits for webhook endpoints
+     requests: 10000
+     window: "1m"
+   auth:  # Rate limits for authenticated endpoints
+     requests: 1000
+     window: "1m"
+   burst_multiplier: 1.2  # Burst capacity multiplier (for token bucket)
+   cleanup_interval: "5m"  # Cleanup interval for in-memory limiter
+   skip_paths: []  # Paths to skip rate limiting (e.g., ["/metrics"])
+   skip_ips: []  # IPs to skip rate limiting
+   trusted_proxies: []  # Trusted proxy CIDR ranges (e.g., ["10.0.0.0/8"])
 
 observability:
   metrics:
