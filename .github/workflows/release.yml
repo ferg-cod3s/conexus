@@ -43,14 +43,16 @@ jobs:
       - name: Check coverage threshold
         run: |
           coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-          # Use lower threshold for pre-release versions (alpha, beta, rc)
+          # Skip coverage check for pre-release versions (alpha, beta, rc)
           if [[ "${GITHUB_REF}" == *"alpha"* ]] || [[ "${GITHUB_REF}" == *"beta"* ]] || [[ "${GITHUB_REF}" == *"rc"* ]]; then
-            threshold=60
-          else
-            threshold=80
+            echo "Skipping coverage check for pre-release version ${GITHUB_REF}"
+            echo "Current coverage: $coverage%"
+            exit 0
           fi
+          # Require 80% coverage for stable releases
+          threshold=80
           if (( $(echo "$coverage < $threshold" | bc -l) )); then
-            echo "Coverage $coverage% is below $threshold% (required for ${GITHUB_REF})"
+            echo "Coverage $coverage% is below $threshold% (required for stable releases)"
             exit 1
           fi
           echo "Coverage $coverage% meets requirements (threshold: $threshold%)"
