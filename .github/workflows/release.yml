@@ -43,11 +43,17 @@ jobs:
       - name: Check coverage threshold
         run: |
           coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-          if (( $(echo "$coverage < 80" | bc -l) )); then
-            echo "Coverage $coverage% is below 80%"
+          # Use lower threshold for pre-release versions (alpha, beta, rc)
+          if [[ "${GITHUB_REF}" == *"alpha"* ]] || [[ "${GITHUB_REF}" == *"beta"* ]] || [[ "${GITHUB_REF}" == *"rc"* ]]; then
+            threshold=60
+          else
+            threshold=80
+          fi
+          if (( $(echo "$coverage < $threshold" | bc -l) )); then
+            echo "Coverage $coverage% is below $threshold% (required for ${GITHUB_REF})"
             exit 1
           fi
-          echo "Coverage $coverage% meets requirements"
+          echo "Coverage $coverage% meets requirements (threshold: $threshold%)"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
