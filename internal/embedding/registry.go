@@ -113,13 +113,14 @@ func (r *Registry) Clear() {
 }
 
 func init() {
-	// Register the mock provider by default
+	// Register the mock provider (MVP - only provider available)
 	if err := Register(&MockProvider{}); err != nil {
 		panic(fmt.Sprintf("failed to register mock provider: %v", err))
 	}
 
-	// Register the Anthropic provider
-	if err := Register(&AnthropicProvider{}); err != nil {
-		panic(fmt.Sprintf("failed to register anthropic provider: %v", err))
-	}
+	// Anthropic provider moved to post-MVP (Phase 6)
+	// TODO: Re-enable when Anthropic releases embedding API
+	// if err := Register(&AnthropicProvider{}); err != nil {
+	//     panic(fmt.Sprintf("failed to register anthropic provider: %v", err))
+	// }
 }

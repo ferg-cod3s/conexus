@@ -100,10 +100,25 @@ func (idx *DefaultIndexer) Index(ctx context.Context, opts IndexOptions) ([]Chun
 			return fmt.Errorf("path validation failed for %s: %w", relPath, err)
 		}
 
-		// For now, always create a single chunk for the whole file
-		// TODO: Implement proper chunking
-		chunk := idx.createSingleChunk(string(content), relPath, info)
-		chunks = append(chunks, chunk)
+		// Find appropriate chunker
+		chunker := idx.findChunker(path)
+		if chunker == nil {
+			// No chunker available, create a single chunk for the whole file
+			chunk := idx.createSingleChunk(string(content), relPath, info)
+			chunks = append(chunks, chunk)
+			return nil
+		}
+
+		// Chunk the file
+		fileChunks, err := chunker.Chunk(ctx, string(content), relPath)
+		if err != nil {
+			// If chunking fails, fall back to single chunk
+			chunk := idx.createSingleChunk(string(content), relPath, info)
+			chunks = append(chunks, chunk)
+			return nil
+		}
+
+		chunks = append(chunks, fileChunks...)
 		return nil
 	})
 

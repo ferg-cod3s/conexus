@@ -35,7 +35,18 @@ Conexus is a **Model Context Protocol (MCP) server** that provides AI assistants
 
 ### Installation
 
-**Option 1: Local Installation (Recommended)**
+**Option 1: NPM Package (Recommended)**
+
+```bash
+# Install globally via npm
+npm install -g @agentic-conexus/mcp
+
+# Or use with bunx/npx (no installation required)
+bunx -y @agentic-conexus/mcp
+npx -y @agentic-conexus/mcp
+```
+
+**Option 2: Local Installation (For Development)**
 
 ```bash
 # Clone the repository
@@ -59,7 +70,7 @@ npm link
 > - Linux (amd64 & arm64)
 > - Windows (amd64)
 
-**Option 2: From Source (For Development)**
+**Option 3: From Source (For Development)**
 
 ```bash
 # Clone the repository
@@ -79,13 +90,16 @@ go test ./...
 
 ```bash
 # Run the MCP server (stdio mode - default)
-./bin/conexus-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+bunx -y @agentic-conexus/mcp
+
+# Or if installed globally
+conexus
 
 # Run with environment variables
-CONEXUS_DB_PATH=./data/db.sqlite CONEXUS_LOG_LEVEL=debug ./bin/conexus-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+CONEXUS_DB_PATH=./data/db.sqlite CONEXUS_LOG_LEVEL=debug bunx -y @agentic-conexus/mcp
 
 # Run in HTTP mode (for testing)
-CONEXUS_PORT=3000 ./bin/conexus-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+CONEXUS_PORT=3000 bunx -y @agentic-conexus/mcp
 ```
 
 ---

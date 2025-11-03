@@ -12,7 +12,7 @@ Conexus implements the [Model Context Protocol (MCP)](https://modelcontextprotoc
 
 ### Configuration File Structure
 
-MCP clients like OpenCode, Claude Desktop, and Cursor use JSON/JSONC configuration files to define MCP servers. These files typically contain:
+MCP clients like Claude Desktop, Claude Code, Cursor, OpenCode, and VS Code use JSON/JSONC configuration files to define MCP servers. These files typically contain:
 
 - Server command and arguments
 - Environment variables (including secrets)
@@ -34,7 +34,7 @@ MCP clients like OpenCode, Claude Desktop, and Cursor use JSON/JSONC configurati
      "mcp": {
        "conexus": {
          "type": "local",
-         "command": ["bunx", "@aagentic-conexus/mcp"],
+         "command": ["bunx", "@agentic-conexus/mcp"],
          "environment": {
            "CONEXUS_DB_PATH": "./conexus/data/conexus.db"
          },
@@ -68,6 +68,11 @@ MCP clients like OpenCode, Claude Desktop, and Cursor use JSON/JSONC configurati
 - Configuration file: `.cursor/mcp.json` in project root
 - Project-specific configuration
 - Hot-reload support
+
+#### Claude Code
+- Configuration file: `~/.claude/mcp.json`
+- Global configuration for all projects
+- CLI-based interaction with `/mcp` commands
 
 ## Quick Start
 

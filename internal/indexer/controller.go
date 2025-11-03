@@ -68,8 +68,9 @@ func (c *DefaultIndexController) Start(ctx context.Context, opts IndexOptions) e
 			c.runningMu.Unlock()
 		}()
 
-		// Perform indexing in background
-		chunks, err := c.indexer.Index(ctx, opts)
+		// Perform indexing in background with a separate context
+		indexCtx := context.Background()
+		chunks, err := c.indexer.Index(indexCtx, opts)
 		if err != nil {
 			c.updateStatus(IndexStatus{
 				IsIndexing: false,

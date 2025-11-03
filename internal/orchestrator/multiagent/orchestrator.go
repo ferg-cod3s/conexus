@@ -20,6 +20,7 @@ type MultiAgentOrchestrator struct {
 	maxConcurrency     int
 	timeout            time.Duration
 	mu                 sync.RWMutex
+	taskStatus         map[string]*TaskStatus
 }
 
 // MultiAgentConfig configures the multi-agent orchestrator
@@ -216,6 +217,7 @@ func NewMultiAgentOrchestrator(config MultiAgentConfig) *MultiAgentOrchestrator 
 		performanceMonitor: config.PerformanceMonitor,
 		maxConcurrency:     config.MaxConcurrency,
 		timeout:            config.Timeout,
+		taskStatus:         make(map[string]*TaskStatus),
 	}
 }
 
@@ -433,15 +435,52 @@ func (mao *MultiAgentOrchestrator) GetPerformanceMetrics() *PerformanceMetrics {
 	}
 }
 
-// GetTaskStatus returns the status of a task (placeholder)
+// GetTaskStatus returns the status of a task
 func (mao *MultiAgentOrchestrator) GetTaskStatus(ctx context.Context, taskID string) (*TaskStatus, error) {
-	// TODO: Implement task status tracking
-	return &TaskStatus{
+	mao.mu.RLock()
+	defer mao.mu.RUnlock()
+
+	status, exists := mao.taskStatus[taskID]
+	if !exists {
+		return nil, fmt.Errorf("task not found: %s", taskID)
+	}
+
+	// Return a copy to prevent external modification
+	statusCopy := *status
+	return &statusCopy, nil
+}
+
+// updateTaskStatus updates the status of a task
+func (mao *MultiAgentOrchestrator) updateTaskStatus(taskID string, status TaskStatusType, progress float64, message string) {
+	mao.mu.Lock()
+	defer mao.mu.Unlock()
+
+	if taskStatus, exists := mao.taskStatus[taskID]; exists {
+		taskStatus.Status = status
+		taskStatus.Progress = progress
+		taskStatus.Message = message
+		taskStatus.UpdatedAt = time.Now()
+
+		if status == TaskStatusCompleted || status == TaskStatusFailed {
+			taskStatus.CompletedAt = time.Now()
+		}
+	}
+}
+
+// initializeTaskStatus creates a new task status entry
+func (mao *MultiAgentOrchestrator) initializeTaskStatus(taskID string, priority TaskPriority) {
+	mao.mu.Lock()
+	defer mao.mu.Unlock()
+
+	now := time.Now()
+	mao.taskStatus[taskID] = &TaskStatus{
 		TaskID:    taskID,
-		Status:    TaskStatusRunning,
-		Progress:  0.5,
-		StartedAt: time.Now().Add(-time.Minute),
-	}, nil
+		Status:    TaskStatusPending,
+		Progress:  0.0,
+		Priority:  priority,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
 }
 
 // TaskStatus represents the status of a multi-agent task
@@ -449,8 +488,12 @@ type TaskStatus struct {
 	TaskID      string         `json:"task_id"`
 	Status      TaskStatusType `json:"status"`
 	Progress    float64        `json:"progress"`
+	Priority    TaskPriority   `json:"priority"`
+	Message     string         `json:"message,omitempty"`
 	StartedAt   time.Time      `json:"started_at"`
 	CompletedAt time.Time      `json:"completed_at,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 	Error       string         `json:"error,omitempty"`
 }
 

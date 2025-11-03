@@ -438,16 +438,16 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 ## 📈 Current Version and Roadmap
 
 ### Version Information
-- **Current Version**: 0.1.2-alpha
+- **Current Version**: 0.2.1-alpha
 - **Version Strategy**: Semantic Versioning (SemVer)
 - **Pre-release Status**: Alpha (pre-1.0 releases)
-- **Next Version**: 0.2.0-alpha (minor release)
+- **Next Version**: 0.3.0-alpha (minor release)
 
 ### Version Bump Criteria
 | Type | When to Use | Examples |
 |------|-------------|----------|
 | **Patch (0.1.x)** | Bug fixes, small features, performance improvements | Fix MCP compliance, add new MCP tools |
-| **Minor (0.x.0)** | Significant new functionality, maintains backward compatibility | Multi-agent architecture, advanced search, connectors |
+| **Minor (0.x.0)** | Significant new functionality, maintains backward compatibility | Multi-agent architecture, advanced search, connectors, real embedding providers |
 | **Major (x.0.0)** | Breaking changes, production-ready milestone | Enterprise features, API changes, cloud architecture |
 
 ### Current Roadmap

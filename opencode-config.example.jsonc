@@ -64,8 +64,8 @@
       "command": [
         "npx",
         "@sentry/mcp-server@latest",
-        "--access-token=YOUR_SENTRY_ACCESS_TOKEN",
-        "--host=your-sentry-host.com",
+         "--access-token=YOUR_SENTRY_ACCESS_TOKEN",
+         "--host=your-sentry-host.com",
 	"--organization=your-organization-slug"
       ],
       "environment": {

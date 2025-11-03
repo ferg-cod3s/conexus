@@ -50,13 +50,16 @@ indexer:
   chunk_overlap: 50
 
 embedding:
-  provider: "mock"  # mock, anthropic
-  model: "mock-768"
+  provider: "anthropic"  # mock, anthropic
+  model: "mock-768"  # Use anthropic model when provider is anthropic
   dimensions: 768
   config: {}  # Provider-specific configuration
   # For anthropic provider:
   # config:
   #   api_key: "your-anthropic-api-key"  # Or use ANTHROPIC_API_KEY env var
+  #   timeout: "30s"
+  #   max_retries: 3
+  # Note: For production OpenAI embeddings, use MCP client agents with OpenAI provider
 
 logging:
   level: "info"  # debug, info, warn, error

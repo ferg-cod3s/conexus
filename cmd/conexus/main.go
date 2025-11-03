@@ -321,7 +321,7 @@ func runHTTPServer(
 		}
 
 		// Handle JSON-RPC request/response with observability
-		handleJSONRPC(w, r.WithContext(requestCtx), vectorStore, connectorStore, embedder, logger, metrics, tracerProvider, idx)
+		handleJSONRPC(w, r.WithContext(requestCtx), vectorStore, connectorStore, embedder, logger, metrics, tracerProvider, idx, cfg.Indexer.RootPath)
 	})
 
 	// GitHub webhook endpoint
@@ -554,6 +554,7 @@ func handleJSONRPC(
 	metrics *observability.MetricsCollector,
 	tracerProvider *observability.TracerProvider,
 	idx indexer.IndexController,
+	rootPath string,
 ) {
 	ctx := r.Context()
 	startTime := time.Now()
@@ -605,6 +606,7 @@ func handleJSONRPC(
 		logger:         logger,
 		metrics:        metrics,
 		tracerProvider: tracerProvider,
+		rootPath:       rootPath,
 	}
 
 	// Handle the method
@@ -648,6 +650,7 @@ type mcpHTTPHandler struct {
 	logger         *observability.Logger
 	metrics        *observability.MetricsCollector
 	tracerProvider *observability.TracerProvider
+	rootPath       string
 }
 
 func (h *mcpHTTPHandler) Handle(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
@@ -1149,13 +1152,10 @@ func (h *mcpHTTPHandler) handleIndexControl(ctx context.Context, args json.RawMe
 		}, nil
 
 	case "start":
-		// Get current working directory
-		rootPath, err := os.Getwd()
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get working directory: %v", err),
-			}
+		// Use configured root path
+		rootPath := h.rootPath
+		if rootPath == "" {
+			rootPath = "."
 		}
 
 		// Load ignore patterns
@@ -1199,13 +1199,10 @@ func (h *mcpHTTPHandler) handleIndexControl(ctx context.Context, args json.RawMe
 		}, nil
 
 	case "force_reindex":
-		// Get current working directory
-		rootPath, err := os.Getwd()
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get working directory: %v", err),
-			}
+		// Use configured root path
+		rootPath := h.rootPath
+		if rootPath == "" {
+			rootPath = "."
 		}
 
 		// Load ignore patterns
@@ -1243,13 +1240,10 @@ func (h *mcpHTTPHandler) handleIndexControl(ctx context.Context, args json.RawMe
 			}
 		}
 
-		// Get current working directory
-		rootPath, err := os.Getwd()
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get working directory: %v", err),
-			}
+		// Use configured root path
+		rootPath := h.rootPath
+		if rootPath == "" {
+			rootPath = "."
 		}
 
 		// Load ignore patterns
