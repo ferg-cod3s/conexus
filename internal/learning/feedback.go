@@ -3,12 +3,14 @@ package learning
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
 // FeedbackProcessor processes and analyzes user feedback
 type FeedbackProcessor struct {
 	collectionRate float64
+	collectionMu   sync.RWMutex
 	feedbackQueue  chan *FeedbackData
 	processorCount int
 	isActive       bool
@@ -293,12 +295,16 @@ func (fp *FeedbackProcessor) identifyPatterns(feedback *FeedbackData) []string {
 
 // updateCollectionRate updates the feedback collection rate
 func (fp *FeedbackProcessor) updateCollectionRate() {
+	fp.collectionMu.Lock()
+	defer fp.collectionMu.Unlock()
 	// Simple implementation - in reality this would track over time windows
 	fp.collectionRate = 0.8 // Placeholder
 }
 
 // GetCollectionRate returns the current feedback collection rate
 func (fp *FeedbackProcessor) GetCollectionRate() float64 {
+	fp.collectionMu.RLock()
+	defer fp.collectionMu.RUnlock()
 	return fp.collectionRate
 }
 

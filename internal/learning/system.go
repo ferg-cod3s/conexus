@@ -142,8 +142,8 @@ func (ls *LearningSystem) Stop(ctx context.Context) error {
 
 // ProcessFeedback processes user feedback and updates models
 func (ls *LearningSystem) ProcessFeedback(ctx context.Context, feedback *FeedbackData) error {
-	ls.mu.RLock()
-	defer ls.mu.RUnlock()
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
 
 	if !ls.isActive {
 		return fmt.Errorf("learning system is not active")
