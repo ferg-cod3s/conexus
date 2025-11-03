@@ -15,7 +15,7 @@
 **Conexus** is a **Model Context Protocol (MCP) server** that provides AI assistants with intelligent context about your codebase. It enables semantic search, code understanding, and project knowledge retrieval through standardized MCP tools.
 
 ### Current Status
-- **Version**: 0.1.2-alpha
+- **Version**: 0.2.1-alpha
 - **Status**: ✅ MCP Server Ready
 - **Go Version**: 1.24.0
 - **Test Coverage**: 85-90% target
