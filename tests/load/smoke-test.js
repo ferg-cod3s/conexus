@@ -62,18 +62,18 @@ export default function () {
   sleep(1);
 
   // Test 3: Context search (if implemented)
-  const searchPayload = JSON.stringify({
-    jsonrpc: '2.0',
-    id: 2,
-    method: 'tools/call',
-    params: {
-      name: 'context_search',
-      arguments: {
-        query: 'test function',
-        top_k: 10,
-      },
-    },
-  });
+   const searchPayload = JSON.stringify({
+     jsonrpc: '2.0',
+     id: 2,
+     method: 'tools/call',
+     params: {
+       name: 'context.search',
+       arguments: {
+         query: 'test function',
+         top_k: 10,
+       },
+     },
+   });
 
   const searchStart = Date.now();
   const searchRes = http.post(

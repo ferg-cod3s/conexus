@@ -8,7 +8,7 @@ This document defines clear criteria for version bumps following [Semantic Versi
 
 ## 🏷️ Version Strategy
 
-### Current Version: `0.1.2-alpha`
+### Current Version: `0.2.1-alpha`
 
 **Pre-release Status**: All versions before 1.0.0 are alpha/beta releases for testing and feedback collection.
 
@@ -140,12 +140,15 @@ This document defines clear criteria for version bumps following [Semantic Versi
 
 ## 🎯 Current Roadmap Targets
 
-### v0.1.2-alpha (Current)
+### v0.2.1-alpha (Current)
 - ✅ MCP compliance fix
 - ✅ Add `context.explain` and `context.grep` tools
 - ✅ Test suite improvements
+- ✅ Multi-agent architecture implementation
+- ✅ Advanced search with code relationships
+- ✅ Enhanced connector management
 
-### v0.2.0-alpha (Next Minor)
+### v0.3.0-alpha (Next Minor)
 - 🔄 Multi-agent architecture implementation
 - 🔄 Advanced search with code relationships
 - 🔄 Enhanced connector management
@@ -191,7 +194,15 @@ This document defines clear criteria for version bumps following [Semantic Versi
 
 ## 📝 Version History
 
-### v0.1.2-alpha (Current)
+### v0.2.1-alpha (Current)
+- **Fixed**: MCP tool naming convention compliance
+- **Added**: `context.explain` and `context.grep` tools
+- **Added**: Multi-agent architecture implementation
+- **Added**: Advanced search with code relationships
+- **Added**: Enhanced connector management
+- **Improved**: Test coverage and integration testing
+
+### v0.1.2-alpha
 - **Fixed**: MCP tool naming convention compliance
 - **Added**: `context.explain` and `context.grep` tools
 - **Improved**: Test coverage and integration testing

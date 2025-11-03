@@ -54,13 +54,13 @@ async function testConexus() {
 
     // 2. Test index status
     console.log('📊 Index Status:');
-    const status = await callMCP('tools/call', { name: 'context_index_control', arguments: { action: 'status' } });
+     const status = await callMCP('tools/call', { name: 'context.index_control', arguments: { action: 'status' } });
     console.log(`  ${status.result.message}`);
     console.log(`  Details: ${JSON.stringify(status.result.details)}\n`);
 
     // 3. Test connector management
     console.log('🔌 Available Connectors:');
-    const connectors = await callMCP('tools/call', { name: 'context_connector_management', arguments: { action: 'list' } });
+     const connectors = await callMCP('tools/call', { name: 'context.connector_management', arguments: { action: 'list' } });
     if (connectors.result.connectors && connectors.result.connectors.length > 0) {
       connectors.result.connectors.forEach(conn => {
         console.log(`  • ${conn.name} (${conn.type}) - ${conn.status}`);
@@ -72,7 +72,7 @@ async function testConexus() {
 
     // 4. Test search (returns empty results since no data indexed)
     console.log('🔍 Search Test:');
-    const search = await callMCP('tools/call', { name: 'context_search', arguments: { query: 'test query' } });
+     const search = await callMCP('tools/call', { name: 'context.search', arguments: { query: 'test query' } });
     console.log(`  Found ${search.result?.totalCount || 0} results in ${search.result?.queryTime || 0}ms`);
     if (search.result?.results && search.result.results.length > 0) {
       search.result.results.forEach((result, i) => {

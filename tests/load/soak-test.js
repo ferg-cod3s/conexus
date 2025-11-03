@@ -88,9 +88,9 @@ function createMCPRequest(method, params = {}) {
 function testContextSearch() {
   const query = testQueries[Math.floor(Math.random() * testQueries.length)];
   const startTime = Date.now();
-  
+
   const payload = createMCPRequest('tools/call', {
-    name: 'context_search',
+    name: 'context.search',
     arguments: {
       query: query,
       max_results: 10,
@@ -102,7 +102,7 @@ function testContextSearch() {
     payload,
     {
       headers: { 'Content-Type': 'application/json' },
-      tags: { name: 'context_search' },
+       tags: { name: 'context.search' },
     }
   );
   
@@ -132,21 +132,21 @@ function testContextSearch() {
 function testGetRelatedInfo() {
   const query = testQueries[Math.floor(Math.random() * testQueries.length)];
   const startTime = Date.now();
-  
+
   const payload = createMCPRequest('tools/call', {
-    name: 'context_get_related_info',
+    name: 'context.get_related_info',
     arguments: {
       query: query,
       max_depth: 2,
     },
   });
-  
+
   const response = http.post(
     `${BASE_URL}/mcp`,
     payload,
     {
       headers: { 'Content-Type': 'application/json' },
-      tags: { name: 'context_get_related_info' },
+      tags: { name: 'context.get_related_info' },
     }
   );
   
@@ -172,19 +172,19 @@ function testGetRelatedInfo() {
 
 // Test scenario: Index Control Status
 function testIndexControlStatus() {
-  const payload = createMCPRequest('tools/call', {
-    name: 'context_index_control',
-    arguments: {
-      action: 'status',
-    },
-  });
+   const payload = createMCPRequest('tools/call', {
+     name: 'context.index_control',
+     arguments: {
+       action: 'status',
+     },
+   });
   
   const response = http.post(
     `${BASE_URL}/mcp`,
     payload,
     {
       headers: { 'Content-Type': 'application/json' },
-      tags: { name: 'context_index_control' },
+      tags: { name: 'context.index_control' },
     }
   );
   

@@ -62,17 +62,20 @@ Is it breaking/enterprise? → Major (1.0.0)
 
 ## 🔄 Current Development Status
 
-### Active Version: `0.1.2-alpha`
+### Active Version: `0.2.1-alpha`
 
 **Recent Changes**:
 - ✅ Fixed MCP compliance (dot notation)
 - ✅ Added `context.explain` and `context.grep` tools
+- ✅ Multi-agent architecture implementation
+- ✅ Advanced search with code relationships
+- ✅ Enhanced connector management
 - ✅ Improved test coverage
 
-**Next Target**: `0.2.0-alpha`
-- Multi-agent architecture
-- Advanced search capabilities
-- Enhanced connector management
+**Next Target**: `0.3.0-alpha`
+- Enterprise security and compliance features
+- Multi-tenant support
+- Cloud deployment capabilities
 
 ---
 

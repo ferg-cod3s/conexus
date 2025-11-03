@@ -81,51 +81,51 @@ function createMCPRequest(method, params = {}) {
 function runMixedWorkload() {
   const operations = [
     // Context search - most expensive operation
-    {
-      name: 'context_search',
-      weight: 0.50,
-      params: {
-        name: 'context_search',
-        arguments: {
-          query: 'function implementation',
-          max_results: 10,
-        },
-      },
-    },
+     {
+       name: 'context.search',
+       weight: 0.50,
+       params: {
+         name: 'context.search',
+         arguments: {
+           query: 'function implementation',
+           max_results: 10,
+         },
+       },
+     },
     // Get related info - expensive operation
-    {
-      name: 'context_get_related_info',
-      weight: 0.30,
-      params: {
-        name: 'context_get_related_info',
-        arguments: {
-          query: 'error handling',
-          max_depth: 2,
-        },
-      },
-    },
+     {
+       name: 'context.get_related_info',
+       weight: 0.30,
+       params: {
+         name: 'context.get_related_info',
+         arguments: {
+           query: 'error handling',
+           max_depth: 2,
+         },
+       },
+     },
     // Index control - lightweight operation
-    {
-      name: 'context_index_control',
-      weight: 0.15,
-      params: {
-        name: 'context_index_control',
-        arguments: {
-          action: 'status',
-        },
-      },
-    },
+     {
+       name: 'context.index_control',
+       weight: 0.15,
+       params: {
+         name: 'context.index_control',
+         arguments: {
+           action: 'status',
+         },
+       },
+     },
     // Connector management - lightweight operation
-    {
-      name: 'context_connector_management',
-      weight: 0.05,
-      params: {
-        name: 'context_connector_management',
-        arguments: {
-          action: 'list',
-        },
-      },
-    },
+     {
+       name: 'context.connector_management',
+       weight: 0.05,
+       params: {
+         name: 'context.connector_management',
+         arguments: {
+           action: 'list',
+         },
+       },
+     },
   ];
   
   // Weighted random selection

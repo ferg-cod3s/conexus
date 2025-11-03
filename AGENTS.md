@@ -688,8 +688,8 @@ go test ./... 2>&1 | grep -E "(PASS|FAIL|ok)" | tail -5
 
 ---
 
-**Last Updated**: 2025-10-26  
-**Project Version**: 0.1.2-alpha  
+**Last Updated**: 2025-10-26
+**Project Version**: 0.2.1-alpha
 **Document Version**: 2.0
 
 For questions or improvements to this guide, see the [contributing guide](docs/contributing/contributing-guide.md) or open an issue.
