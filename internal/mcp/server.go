@@ -72,6 +72,8 @@ func (s *Server) Handle(method string, params json.RawMessage) (interface{}, err
 	ctx = observability.WithRequestContext(ctx, fmt.Sprintf("mcp_%s_%d", method, time.Now().UnixNano()))
 
 	switch method {
+	case "initialize":
+		return s.handleInitialize(ctx, params)
 	case "tools/list":
 		return s.handleToolsList(ctx)
 	case "tools/call":
@@ -107,6 +109,39 @@ func (s *Server) Close() error {
 		return s.vectorStore.Close()
 	}
 	return nil
+}
+
+// handleInitialize handles the initialize request
+func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (interface{}, error) {
+	// Parse initialize request
+	var req map[string]interface{}
+	if err := json.Unmarshal(params, &req); err != nil {
+		errorCtx := observability.ExtractErrorContext(ctx, "initialize")
+		errorCtx.ErrorType = "invalid_params"
+		errorCtx.ErrorCode = protocol.InvalidParams
+		errorCtx.Params = params
+
+		if s.errorHandler != nil {
+			s.errorHandler.HandleError(ctx, err, errorCtx)
+		}
+
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid parameters: %v", err),
+		}
+	}
+
+	// Return initialize response with server capabilities
+	return map[string]interface{}{
+		"protocolVersion": "2025-06-18",
+		"capabilities": map[string]interface{}{
+			"tools": map[string]interface{}{},
+		},
+		"serverInfo": map[string]interface{}{
+			"name":    "conexus",
+			"version": "0.2.1-alpha",
+		},
+	}, nil
 }
 
 // handleToolsList returns the list of available tools
@@ -407,6 +442,7 @@ func (s *Server) validateFilePath(filePath string) error {
 func (s *Server) getMimeType(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	switch ext {
+	// Text/Code files
 	case ".go":
 		return "text/x-go"
 	case ".js", ".jsx":
@@ -437,7 +473,35 @@ func (s *Server) getMimeType(filePath string) string {
 		return "text/html"
 	case ".css":
 		return "text/css"
+	// Image files
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".svg":
+		return "image/svg+xml"
+	case ".webp":
+		return "image/webp"
+	// Document files
+	case ".pdf":
+		return "application/pdf"
+	case ".doc", ".docx":
+		return "application/msword"
+	case ".xls", ".xlsx":
+		return "application/vnd.ms-excel"
+	case ".ppt", ".pptx":
+		return "application/vnd.ms-powerpoint"
+	// Archive files
+	case ".zip":
+		return "application/zip"
+	case ".tar":
+		return "application/x-tar"
+	case ".gz":
+		return "application/gzip"
+	// Default for unknown files
 	default:
-		return "text/plain"
+		return "application/octet-stream"
 	}
 }

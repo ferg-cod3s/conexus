@@ -7,15 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
 	"github.com/ferg-cod3s/conexus/internal/indexer"
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
-	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/ferg-cod3s/conexus/internal/security"
+	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 )
 
 // handleContextSearch implements the context.search tool
@@ -226,10 +226,9 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		s.errorHandler.HandleError(ctx, nil, successCtx)
 	}
 
-
 	// Determine if there are more results (we requested topK + 1)
 	hasMore := len(results) > topK
-	
+
 	// Trim to requested limit if we got extra
 	if hasMore {
 		results = results[:topK]
@@ -252,7 +251,6 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 			Metadata:   r.Document.Metadata,
 		})
 	}
-
 
 	return SearchResponse{
 		Results:    searchResults,
@@ -330,7 +328,7 @@ func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoReque
 	}
 
 	relatedFiles := make(map[string]*relatedFileScore)
-	
+
 	for _, candidateFile := range allFiles {
 		// Skip the source file itself
 		if candidateFile == req.FilePath {
@@ -341,7 +339,7 @@ func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoReque
 		// Note: We pass empty chunkType and nil metadata here since we're checking file-level
 		// relationships. Chunk-level relationships are detected later.
 		relationType := detector.DetectRelationType(candidateFile, "", nil)
-		
+
 		if relationType != "" {
 			// Get chunks for this related file
 			chunks, err := s.vectorStore.GetFileChunks(ctx, candidateFile)
@@ -352,7 +350,7 @@ func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoReque
 
 			// Calculate base score from relationship type
 			score := s.getRelationshipScore(relationType)
-			
+
 			relatedFiles[candidateFile] = &relatedFileScore{
 				filePath:     candidateFile,
 				relationType: relationType,
@@ -364,7 +362,7 @@ func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoReque
 
 	// Step 4: Build RelatedItems from related file chunks
 	relatedItems := make([]RelatedItem, 0)
-	
+
 	for _, rf := range relatedFiles {
 		for _, chunk := range rf.chunks {
 			// Extract metadata
@@ -406,8 +404,8 @@ func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoReque
 			return relatedItems[i].Score > relatedItems[j].Score
 		}
 		// Secondary sort by relationship type priority
-		return s.getRelationshipPriority(relatedItems[i].RelationType) < 
-		       s.getRelationshipPriority(relatedItems[j].RelationType)
+		return s.getRelationshipPriority(relatedItems[i].RelationType) <
+			s.getRelationshipPriority(relatedItems[j].RelationType)
 	})
 
 	// Step 6: Limit results to top N (default 50)
@@ -453,7 +451,6 @@ func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoReque
 		RelatedItems:  relatedItems,
 	}, nil
 }
-
 
 // validateTicketID checks if a ticket ID is safe to use
 func validateTicketID(ticketID string) error {
@@ -525,7 +522,7 @@ func (s *Server) handleTicketIDFlow(ctx context.Context, req GetRelatedInfoReque
 	// Step 4: Query vector store for each modified file to get context
 	relatedItems := make([]RelatedItem, 0)
 	filesSeen := make(map[string]bool)
-	
+
 	for _, filePath := range gitInfo.ModifiedFiles {
 		if filesSeen[filePath] {
 			continue
@@ -626,8 +623,8 @@ func (s *Server) handleTicketIDFlow(ctx context.Context, req GetRelatedInfoReque
 			if i >= 5 { // Limit to 5 most recent
 				break
 			}
-			summary += fmt.Sprintf("- %s: %s (%s)\n", 
-				commit.Hash[:8], 
+			summary += fmt.Sprintf("- %s: %s (%s)\n",
+				commit.Hash[:8],
 				commit.Message[:min(80, len(commit.Message))],
 				commit.Author,
 			)
@@ -670,14 +667,25 @@ func (s *Server) fallbackToSemanticSearch(ctx context.Context, ticketID, reason 
 		}
 	}
 
-	// Process results
-	relatedItems := make([]RelatedItem, 0, len(results))
+	// Process results with per-file chunk limiting
+	relatedItems := make([]RelatedItem, 0)
 	var relatedPRs, relatedIssues []string
 	var discussions []DiscussionSummary
+	fileChunkCounts := make(map[string]int)
+	const maxChunksPerFile = 5
 
 	for _, r := range results {
 		sourceType, _ := r.Document.Metadata["source_type"].(string)
 		filePath, _ := r.Document.Metadata["file_path"].(string)
+
+		// For file-based chunks, apply per-file limit
+		if sourceType == "file" && filePath != "" {
+			if fileChunkCounts[filePath] >= maxChunksPerFile {
+				continue // Skip this chunk - already have max for this file
+			}
+			fileChunkCounts[filePath]++
+		}
+
 		startLine, _ := s.extractLineNumber(r.Document.Metadata, "start_line")
 		endLine, _ := s.extractLineNumber(r.Document.Metadata, "end_line")
 
@@ -785,8 +793,6 @@ func (s *Server) extractLineNumber(metadata map[string]interface{}, key string) 
 	}
 	return 0, false
 }
-
-
 
 // handleIndexControl implements the context.index_control tool
 func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (interface{}, error) {

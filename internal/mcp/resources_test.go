@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
+	"github.com/ferg-cod3s/conexus/internal/connectors"
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/indexer"
 	"github.com/ferg-cod3s/conexus/internal/observability"
@@ -19,10 +21,10 @@ import (
 
 func TestResourcesList(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -206,10 +208,10 @@ func TestResourcesList(t *testing.T) {
 
 func TestResourcesRead(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -323,10 +325,10 @@ func TestResourcesRead(t *testing.T) {
 
 func TestResourcesReadSingleChunk(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -443,10 +445,10 @@ func TestResourcesReadSingleChunk(t *testing.T) {
 
 func TestResourcesIntegration(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -547,10 +549,10 @@ func TestResourcesIntegration(t *testing.T) {
 
 func TestResourcesSecurity(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -580,10 +582,10 @@ func TestResourcesSecurity(t *testing.T) {
 
 func TestResourcesPerformance(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -650,10 +652,10 @@ func TestResourcesPerformance(t *testing.T) {
 
 func TestResourcesPagination(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -740,10 +742,10 @@ func TestResourcesPagination(t *testing.T) {
 
 func TestResourcesMIMETypes(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -838,10 +840,10 @@ func TestResourcesMIMETypes(t *testing.T) {
 
 func TestResourcesErrorHandling(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -870,10 +872,10 @@ func TestResourcesErrorHandling(t *testing.T) {
 
 func TestResourcesDirectoryStructure(t *testing.T) {
 	// Setup
-	vs, metrics, errorHandler, testIndexer := setupTestComponents()
+	reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer := setupTestComponents()
 
 	server := NewServer(
-		nil, nil, vs, nil, nil, metrics, errorHandler, testIndexer,
+		reader, writer, rootPath, vs, connectorStore, embedder, metrics, errorHandler, testIndexer,
 	)
 
 	ctx := context.Background()
@@ -955,7 +957,7 @@ func TestResourcesDirectoryStructure(t *testing.T) {
 
 // Helper functions
 
-func setupTestComponents() (vectorstore.VectorStore, *observability.MetricsCollector, *observability.ErrorHandler, indexer.IndexController) {
+func setupTestComponents() (io.Reader, io.Writer, string, vectorstore.VectorStore, connectors.ConnectorStore, embedding.Embedder, *observability.MetricsCollector, *observability.ErrorHandler, indexer.IndexController) {
 	vs := vectorstore.NewMemoryStore()
 	logger := observability.NewLogger(observability.DefaultLoggerConfig())
 
@@ -964,7 +966,18 @@ func setupTestComponents() (vectorstore.VectorStore, *observability.MetricsColle
 	metrics := observability.NewMetricsCollectorWithRegistry("mcp_test", registry)
 	errorHandler := observability.NewErrorHandler(logger, metrics, false)
 	testIndexer := setupTestIndexer()
-	return vs, metrics, errorHandler, testIndexer
+
+	// Create mock connector store (using nil for now, will be overridden in tests if needed)
+	var connectorStore connectors.ConnectorStore
+
+	// Create mock embedder (using nil for now, will be overridden in tests if needed)
+	var embedder embedding.Embedder
+
+	// Create in-memory readers/writers for testing
+	reader := io.NopCloser(io.Reader(nil))
+	writer := io.Writer(nil)
+
+	return reader, writer, "/test", vs, connectorStore, embedder, metrics, errorHandler, testIndexer
 }
 
 func setupTestIndexer() indexer.IndexController {

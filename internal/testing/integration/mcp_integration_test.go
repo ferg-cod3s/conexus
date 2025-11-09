@@ -1,4 +1,3 @@
-
 package integration
 
 import (
@@ -79,7 +78,7 @@ func TestMCPServerConnection(t *testing.T) {
 			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-conn"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
-   indexerCtrl := &MockIndexController{}
+			indexerCtrl := &MockIndexController{}
 			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			if !tt.expectedError {
@@ -121,7 +120,7 @@ func TestMCPToolDiscovery(t *testing.T) {
 	metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-tools"))
 	errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
- indexerCtrl := &MockIndexController{}
+	indexerCtrl := &MockIndexController{}
 	server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 	require.NotNil(t, server)
 
@@ -164,7 +163,7 @@ func TestMCPToolDiscovery(t *testing.T) {
 
 	tools, ok := result["tools"].([]interface{})
 	require.True(t, ok, "Result should contain 'tools' array")
-	assert.Len(t, tools, 4, "Should discover 4 MCP tools")
+	assert.Len(t, tools, 8, "Should discover 8 MCP tools")
 
 	// Verify each tool has required fields
 	expectedTools := map[string]bool{
@@ -172,6 +171,10 @@ func TestMCPToolDiscovery(t *testing.T) {
 		"context.get_related_info":     false,
 		"context.index_control":        false,
 		"context.connector_management": false,
+		"context.explain":              false,
+		"context.grep":                 false,
+		"github.sync_status":           false,
+		"github.sync_trigger":          false,
 	}
 
 	for _, toolInterface := range tools {
@@ -411,7 +414,7 @@ func TestMCPToolExecution(t *testing.T) {
 			// Setup server
 			reader := bytes.NewReader(requestJSON)
 			writer := &bytes.Buffer{}
-   indexerCtrl := &MockIndexController{}
+			indexerCtrl := &MockIndexController{}
 			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			// Run server
@@ -570,7 +573,7 @@ func TestMCPErrorHandling(t *testing.T) {
 
 			reader := bytes.NewReader(requestJSON)
 			writer := &bytes.Buffer{}
-   indexerCtrl := &MockIndexController{}
+			indexerCtrl := &MockIndexController{}
 			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			done := make(chan error, 1)
@@ -665,7 +668,7 @@ func TestMCPProtocolCompliance(t *testing.T) {
 			requestData := []byte(tt.request + "\n")
 			reader := bytes.NewReader(requestData)
 			writer := &bytes.Buffer{}
-   indexerCtrl := &MockIndexController{}
+			indexerCtrl := &MockIndexController{}
 			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			done := make(chan error, 1)

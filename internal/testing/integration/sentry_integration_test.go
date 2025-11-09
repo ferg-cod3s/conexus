@@ -275,13 +275,18 @@ func TestSentryConfigurationValidation(t *testing.T) {
 					Host: "localhost",
 					Port: 9000,
 				},
+				Embedding: config.EmbeddingConfig{
+					Provider:   "mock",
+					Model:      "mock-768",
+					Dimensions: 768,
+				},
 				Database: config.DatabaseConfig{
 					Path: ":memory:",
 				},
 				Indexer: config.IndexerConfig{
-					RootPath:      "/tmp/test-indexer-valid",
-					ChunkSize:     1024,
-					ChunkOverlap:  100,
+					RootPath:     "/tmp/test-indexer-valid",
+					ChunkSize:    1024,
+					ChunkOverlap: 100,
 				},
 				Logging: config.LoggingConfig{
 					Level:  "debug",
@@ -306,6 +311,11 @@ func TestSentryConfigurationValidation(t *testing.T) {
 					Host: "localhost",
 					Port: 9001,
 				},
+				Embedding: config.EmbeddingConfig{
+					Provider:   "mock",
+					Model:      "mock-768",
+					Dimensions: 768,
+				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
 						Enabled:     true,
@@ -323,6 +333,11 @@ func TestSentryConfigurationValidation(t *testing.T) {
 				Server: config.ServerConfig{
 					Host: "localhost",
 					Port: 9002,
+				},
+				Embedding: config.EmbeddingConfig{
+					Provider:   "mock",
+					Model:      "mock-768",
+					Dimensions: 768,
 				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
@@ -342,6 +357,11 @@ func TestSentryConfigurationValidation(t *testing.T) {
 				Server: config.ServerConfig{
 					Host: "localhost",
 					Port: 9003,
+				},
+				Embedding: config.EmbeddingConfig{
+					Provider:   "mock",
+					Model:      "mock-768",
+					Dimensions: 768,
 				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{

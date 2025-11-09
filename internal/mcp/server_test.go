@@ -34,7 +34,7 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) (*embedding.Embed
 	if dims == 0 {
 		dims = 384
 	}
-	
+
 	// Generate meaningful non-zero vectors based on text content
 	// This simulates real embeddings where similar text gets similar vectors
 	vector := make(embedding.Vector, dims)
@@ -60,7 +60,7 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) (*embedding.Embed
 			}
 		}
 	}
-	
+
 	return &embedding.Embedding{
 		Text:   text,
 		Vector: vector,
@@ -333,7 +333,7 @@ func TestServer_Serve(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	// Test Serve - it should return nil for now (placeholder implementation)
 	err := server.Serve()
@@ -348,9 +348,7 @@ func TestServer_HandleInitialize(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
-
-	ctx := context.Background()
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	// Create initialize request
 	req := map[string]interface{}{
@@ -368,7 +366,7 @@ func TestServer_HandleInitialize(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test handleInitialize
-	result, err := server.handleInitialize(ctx, json.RawMessage(reqJSON))
+	result, err := server.Handle("initialize", json.RawMessage(reqJSON))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -389,7 +387,7 @@ func TestServer_HandleResourcesList(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	ctx := context.Background()
 
@@ -413,7 +411,7 @@ func TestServer_HandleResourcesRead(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	ctx := context.Background()
 
@@ -461,7 +459,7 @@ func TestServer_ValidateFilePath(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	tests := []struct {
 		name        string
@@ -495,7 +493,7 @@ func TestServer_GetMimeType(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	tests := []struct {
 		name     string

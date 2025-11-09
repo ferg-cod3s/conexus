@@ -354,6 +354,19 @@ func runHTTPServer(
 	// Initialize rate limiting middleware if enabled
 	var rateLimitMiddleware *middleware.RateLimitMiddleware
 	if cfg.RateLimit.Enabled {
+		// Helper function to parse duration strings
+		parseDuration := func(s string) time.Duration {
+			if s == "" {
+				return time.Minute // default to 1 minute
+			}
+			d, err := time.ParseDuration(s)
+			if err != nil {
+				logger.Warn("Invalid duration string, using default", "duration", s, "error", err)
+				return time.Minute
+			}
+			return d
+		}
+
 		// Convert config to ratelimit package format
 		rateLimitConfig := ratelimit.Config{
 			Enabled: cfg.RateLimit.Enabled,
@@ -376,22 +389,22 @@ func runHTTPServer(
 			},
 			Default: ratelimit.LimitConfig{
 				Requests: cfg.RateLimit.Default.Requests,
-				Window:   cfg.RateLimit.Default.Window,
+				Window:   parseDuration(cfg.RateLimit.Default.Window),
 			},
 			Health: ratelimit.LimitConfig{
 				Requests: cfg.RateLimit.Health.Requests,
-				Window:   cfg.RateLimit.Health.Window,
+				Window:   parseDuration(cfg.RateLimit.Health.Window),
 			},
 			Webhook: ratelimit.LimitConfig{
 				Requests: cfg.RateLimit.Webhook.Requests,
-				Window:   cfg.RateLimit.Webhook.Window,
+				Window:   parseDuration(cfg.RateLimit.Webhook.Window),
 			},
 			Auth: ratelimit.LimitConfig{
 				Requests: cfg.RateLimit.Auth.Requests,
-				Window:   cfg.RateLimit.Auth.Window,
+				Window:   parseDuration(cfg.RateLimit.Auth.Window),
 			},
 			BurstMultiplier: cfg.RateLimit.BurstMultiplier,
-			CleanupInterval: cfg.RateLimit.CleanupInterval,
+			CleanupInterval: parseDuration(cfg.RateLimit.CleanupInterval),
 		}
 
 		// Initialize rate limiter
@@ -421,19 +434,24 @@ func runHTTPServer(
 	}
 
 	// Initialize security middleware
+	xContentTypeOptions := ""
+	if cfg.Security.ContentType {
+		xContentTypeOptions = "nosniff"
+	}
+
 	securityMiddleware := middleware.NewSecurityMiddleware(middleware.SecurityConfig{
 		CSP: middleware.CSPConfig{
 			Enabled: cfg.Security.CSP.Enabled,
-			Default: cfg.Security.CSP.Default,
-			Script:  cfg.Security.CSP.Script,
-			Style:   cfg.Security.CSP.Style,
-			Image:   cfg.Security.CSP.Image,
-			Font:    cfg.Security.CSP.Font,
-			Connect: cfg.Security.CSP.Connect,
-			Media:   cfg.Security.CSP.Media,
-			Object:  cfg.Security.CSP.Object,
-			Frame:   cfg.Security.CSP.Frame,
-			Report:  cfg.Security.CSP.Report,
+			Default: cfg.Security.CSP.DefaultSrc,
+			Script:  cfg.Security.CSP.ScriptSrc,
+			Style:   cfg.Security.CSP.StyleSrc,
+			Image:   cfg.Security.CSP.ImgSrc,
+			Font:    cfg.Security.CSP.FontSrc,
+			Connect: cfg.Security.CSP.ConnectSrc,
+			Media:   cfg.Security.CSP.MediaSrc,
+			Object:  cfg.Security.CSP.ObjectSrc,
+			Frame:   cfg.Security.CSP.FrameSrc,
+			Report:  cfg.Security.CSP.ReportURI,
 		},
 		HSTS: middleware.HSTSConfig{
 			Enabled:           cfg.Security.HSTS.Enabled,
@@ -441,10 +459,9 @@ func runHTTPServer(
 			IncludeSubdomains: cfg.Security.HSTS.IncludeSubdomains,
 			Preload:           cfg.Security.HSTS.Preload,
 		},
-		XFrameOptions:       cfg.Security.XFrameOptions,
-		XContentTypeOptions: cfg.Security.XContentTypeOptions,
+		XFrameOptions:       cfg.Security.FrameOptions,
+		XContentTypeOptions: xContentTypeOptions,
 		ReferrerPolicy:      cfg.Security.ReferrerPolicy,
-		PermissionsPolicy:   cfg.Security.PermissionsPolicy,
 	}, logger)
 
 	// Initialize CORS middleware

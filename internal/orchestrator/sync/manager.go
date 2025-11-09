@@ -17,7 +17,7 @@ import (
 // SyncManager manages synchronization of external data sources
 type SyncManager struct {
 	connectorStore connectors.ConnectorStore
-	connectorMgr   *connectors.ConnectorManager
+	connectorMgr   *connectors.Manager
 	embedder       embedding.Embedder
 	vectorStore    vectorstore.VectorStore
 	errorHandler   *observability.ErrorHandler
@@ -67,7 +67,7 @@ type SyncStatus struct {
 // NewSyncManager creates a new sync manager
 func NewSyncManager(
 	connectorStore connectors.ConnectorStore,
-	connectorMgr *connectors.ConnectorManager,
+	connectorMgr *connectors.Manager,
 	embedder embedding.Embedder,
 	vectorStore vectorstore.VectorStore,
 	errorHandler *observability.ErrorHandler,
@@ -305,7 +305,7 @@ func (sm *SyncManager) runSyncJob(ctx context.Context, job *SyncJob) {
 	log.Printf("Starting sync job %s for connector %s", job.ID, job.ConnectorID)
 
 	// Get connector instance
-	connector, err := sm.connectorMgr.GetConnector(ctx, job.ConnectorID)
+	connector, err := sm.connectorMgr.Get(ctx, job.ConnectorID)
 	if err != nil {
 		job.Status = "failed"
 		job.Error = fmt.Sprintf("Failed to get connector: %v", err)
