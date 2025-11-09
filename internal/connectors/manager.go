@@ -1,100 +1,252 @@
+// Package connectors provides lifecycle management for connectors.
 package connectors
 
 import (
 	"context"
 	"fmt"
-
-	"github.com/ferg-cod3s/conexus/internal/connectors/github"
+	"sync"
+	"time"
 )
 
-// getStringFromMap safely extracts a string value from a map
-func getStringFromMap(m map[string]interface{}, key string) string {
-	if val, ok := m[key].(string); ok {
-		return val
-	}
-	return ""
+// Manager manages the lifecycle of connectors.
+type Manager struct {
+	store        ConnectorStore
+	hooks        *HookRegistry
+	connectors   map[string]*Connector
+	mu           sync.RWMutex
+	shutdownOnce sync.Once
 }
 
-// ConnectorManager manages different types of connectors
-type ConnectorManager struct {
-	store      ConnectorStore
-	connectors map[string]interface{} // connector ID -> connector instance
-}
-
-// NewConnectorManager creates a new connector manager
-func NewConnectorManager(store ConnectorStore) *ConnectorManager {
-	return &ConnectorManager{
+// NewManager creates a new connector manager.
+func NewManager(store ConnectorStore) *Manager {
+	return &Manager{
 		store:      store,
-		connectors: make(map[string]interface{}),
+		hooks:      NewHookRegistry(),
+		connectors: make(map[string]*Connector),
 	}
 }
 
-// GetConnector gets or creates a connector instance
-func (cm *ConnectorManager) GetConnector(ctx context.Context, id string) (interface{}, error) {
-	// Check if we already have the connector instance
-	if conn, exists := cm.connectors[id]; exists {
-		return conn, nil
+// RegisterHook registers a lifecycle hook.
+func (m *Manager) RegisterHook(hook LifecycleHook) {
+	m.hooks.RegisterPreInit(hook)
+	m.hooks.RegisterPostInit(hook)
+	m.hooks.RegisterPreShutdown(hook)
+	m.hooks.RegisterPostShutdown(hook)
+}
+
+// Initialize initializes a connector with lifecycle hooks.
+// Returns error if pre-init or post-init hooks fail.
+func (m *Manager) Initialize(ctx context.Context, connector *Connector) error {
+	if connector == nil {
+		return fmt.Errorf("connector cannot be nil")
 	}
 
-	// Get connector config from store
-	connector, err := cm.store.Get(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get connector %s: %w", id, err)
+	// Execute pre-init hooks
+	if err := m.hooks.ExecutePreInit(ctx, connector); err != nil {
+		return fmt.Errorf("pre-init failed: %w", err)
 	}
 
-	// Create connector instance based on type
-	var instance interface{}
-	switch connector.Type {
-	case "github":
-		config := &github.Config{
-			Token:      getStringFromMap(connector.Config, "token"),
-			Repository: getStringFromMap(connector.Config, "repository"),
+	// Add to store
+	if err := m.store.Add(ctx, connector); err != nil {
+		return fmt.Errorf("store add failed: %w", err)
+	}
+
+	// Execute post-init hooks
+	if err := m.hooks.ExecutePostInit(ctx, connector); err != nil {
+		// Rollback: remove from store if post-init fails
+		// #nosec G104 - Best-effort cleanup in error path
+		_ = m.store.Remove(ctx, connector.ID)
+		return fmt.Errorf("post-init failed: %w", err)
+	}
+
+	// Track in memory
+	m.mu.Lock()
+	m.connectors[connector.ID] = connector
+	m.mu.Unlock()
+
+	return nil
+}
+
+// Shutdown gracefully shuts down a connector with hooks.
+// Uses provided context for timeout control.
+func (m *Manager) Shutdown(ctx context.Context, connectorID string) error {
+	if connectorID == "" {
+		return fmt.Errorf("connector ID cannot be empty")
+	}
+
+	// Get connector
+	m.mu.RLock()
+	connector, exists := m.connectors[connectorID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("connector %s not found", connectorID)
+	}
+
+	// Execute pre-shutdown hooks
+	if err := m.hooks.ExecutePreShutdown(ctx, connector); err != nil {
+		return fmt.Errorf("pre-shutdown failed: %w", err)
+	}
+
+	// Remove from store
+	if err := m.store.Remove(ctx, connectorID); err != nil {
+		return fmt.Errorf("store remove failed: %w", err)
+	}
+
+	// Execute post-shutdown hooks (best-effort, collect errors)
+	var shutdownErr error
+	if err := m.hooks.ExecutePostShutdown(ctx, connector); err != nil {
+		shutdownErr = fmt.Errorf("post-shutdown failed: %w", err)
+	}
+
+	// Remove from memory
+	m.mu.Lock()
+	delete(m.connectors, connectorID)
+	m.mu.Unlock()
+
+	return shutdownErr
+}
+
+// ShutdownAll gracefully shuts down all connectors with timeout.
+// Default timeout is 30 seconds, can be overridden via context.
+func (m *Manager) ShutdownAll(ctx context.Context) error {
+	var shutdownErr error
+	m.shutdownOnce.Do(func() {
+		m.mu.RLock()
+		connectorIDs := make([]string, 0, len(m.connectors))
+		for id := range m.connectors {
+			connectorIDs = append(connectorIDs, id)
+		}
+		m.mu.RUnlock()
+
+		// Shutdown connectors in parallel with timeout
+		var wg sync.WaitGroup
+		errChan := make(chan error, len(connectorIDs))
+
+		for _, id := range connectorIDs {
+			wg.Add(1)
+			go func(connectorID string) {
+				defer wg.Done()
+				if err := m.Shutdown(ctx, connectorID); err != nil {
+					errChan <- fmt.Errorf("connector %s: %w", connectorID, err)
+				}
+			}(id)
 		}
 
-		instance, err = github.NewConnector(config)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create GitHub connector: %w", err)
+		// Wait for all shutdowns to complete
+		wg.Wait()
+		close(errChan)
+
+		// Collect errors
+		var errs []error
+		for err := range errChan {
+			errs = append(errs, err)
 		}
 
-	case "filesystem":
-		// For filesystem, we might not need a special instance
-		instance = nil
+		if len(errs) > 0 {
+			shutdownErr = fmt.Errorf("shutdown errors: %v", errs)
+		}
+	})
 
-	default:
-		return nil, fmt.Errorf("unsupported connector type: %s", connector.Type)
-	}
-
-	// Cache the instance
-	cm.connectors[id] = instance
-	return instance, nil
+	return shutdownErr
 }
 
-// SyncGitHubIssues syncs issues from a GitHub connector
-func (cm *ConnectorManager) SyncGitHubIssues(ctx context.Context, connectorID string) ([]github.Issue, error) {
-	conn, err := cm.GetConnector(ctx, connectorID)
-	if err != nil {
-		return nil, err
+// Get retrieves a connector by ID from memory or store.
+func (m *Manager) Get(ctx context.Context, id string) (*Connector, error) {
+	// Try memory first
+	m.mu.RLock()
+	connector, exists := m.connectors[id]
+	m.mu.RUnlock()
+
+	if exists {
+		return connector, nil
 	}
 
-	githubConn, ok := conn.(*github.Connector)
-	if !ok {
-		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
-	}
-
-	return githubConn.SyncIssues(ctx)
+	// Fall back to store
+	return m.store.Get(ctx, id)
 }
 
-// SyncGitHubPullRequests syncs pull requests from a GitHub connector
-func (cm *ConnectorManager) SyncGitHubPullRequests(ctx context.Context, connectorID string) ([]github.PullRequest, error) {
-	conn, err := cm.GetConnector(ctx, connectorID)
-	if err != nil {
-		return nil, err
+// List returns all active connectors from memory.
+// If no connectors in memory, falls back to store.
+func (m *Manager) List(ctx context.Context) ([]*Connector, error) {
+	m.mu.RLock()
+	count := len(m.connectors)
+	m.mu.RUnlock()
+
+	// If we have connectors in memory, return them
+	if count > 0 {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		connectors := make([]*Connector, 0, len(m.connectors))
+		for _, c := range m.connectors {
+			connectors = append(connectors, c)
+		}
+		return connectors, nil
 	}
 
-	githubConn, ok := conn.(*github.Connector)
-	if !ok {
-		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
+	// Fall back to store
+	return m.store.List(ctx)
+}
+
+// Update updates a connector's configuration with validation.
+func (m *Manager) Update(ctx context.Context, id string, connector *Connector) error {
+	if id == "" {
+		return fmt.Errorf("connector ID cannot be empty")
+	}
+	if connector == nil {
+		return fmt.Errorf("connector cannot be nil")
 	}
 
-	return githubConn.SyncPullRequests(ctx)
+	// Validate with pre-init hooks
+	if err := m.hooks.ExecutePreInit(ctx, connector); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Update in store
+	if err := m.store.Update(ctx, id, connector); err != nil {
+		return fmt.Errorf("store update failed: %w", err)
+	}
+
+	// Update in memory
+	m.mu.Lock()
+	if _, exists := m.connectors[id]; exists {
+		m.connectors[id] = connector
+	}
+	m.mu.Unlock()
+
+	return nil
+}
+
+// Close closes the manager and releases resources.
+func (m *Manager) Close(ctx context.Context) error {
+	// Shutdown all connectors
+	if err := m.ShutdownAll(ctx); err != nil {
+		return err
+	}
+
+	// Close store
+	return m.store.Close()
+}
+
+// DrainTimeout is the default timeout for graceful shutdown.
+const DrainTimeout = 30 * time.Second
+
+// GracefulShutdown performs a graceful shutdown with default timeout.
+func (m *Manager) GracefulShutdown() error {
+	ctx, cancel := context.WithTimeout(context.Background(), DrainTimeout)
+	defer cancel()
+
+	return m.Close(ctx)
+}
+
+// ListActive returns all active connectors currently in memory.
+// Unlike List(), this does not fall back to the store.
+func (m *Manager) ListActive() []*Connector {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	connectors := make([]*Connector, 0, len(m.connectors))
+	for _, c := range m.connectors {
+		connectors = append(connectors, c)
+	}
+	return connectors
 }

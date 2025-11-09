@@ -269,7 +269,16 @@ func (m *MemoryStore) SearchHybrid(ctx context.Context, query string, vector emb
 		return results[i].Score > results[j].Score
 	})
 
-	// Apply limit
+	// Apply offset
+	if opts.Offset > 0 {
+		if opts.Offset >= len(results) {
+			results = []SearchResult{} // Beyond end of results
+		} else {
+			results = results[opts.Offset:]
+		}
+	}
+
+	// Apply limit to remaining results after offset
 	if opts.Limit > 0 && len(results) > opts.Limit {
 		results = results[:opts.Limit]
 	}

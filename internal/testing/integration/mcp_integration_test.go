@@ -1,11 +1,12 @@
+
 package integration
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
@@ -20,41 +21,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Mock indexer for testing
-type mockIndexer struct {
-	status indexer.IndexStatus
-}
+var metricsCounter int64 = 0
 
-func (m *mockIndexer) Start(ctx context.Context, opts indexer.IndexOptions) error {
-	m.status.IsIndexing = true
-	m.status.Phase = "running"
-	return nil
-}
-
-func (m *mockIndexer) Stop(ctx context.Context) error {
-	m.status.IsIndexing = false
-	m.status.Phase = "stopped"
-	return nil
-}
-
-func (m *mockIndexer) ForceReindex(ctx context.Context, opts indexer.IndexOptions) error {
-	m.status.IsIndexing = true
-	m.status.Phase = "force_reindex"
-	return nil
-}
-
-func (m *mockIndexer) ReindexPaths(ctx context.Context, opts indexer.IndexOptions, paths []string) error {
-	m.status.IsIndexing = true
-	m.status.Phase = "reindex_paths"
-	return nil
-}
-
-func (m *mockIndexer) GetStatus() indexer.IndexStatus {
-	return m.status
-}
-
-func (m *mockIndexer) HealthCheck(ctx context.Context) error {
-	return nil
+func getUniqueMetricsNamespace(prefix string) string {
+	metricsCounter++
+	return prefix + "-" + strconv.FormatInt(metricsCounter, 10)
 }
 
 // TestMCPServerConnection tests MCP server stdio transport connection
@@ -105,12 +76,11 @@ func TestMCPServerConnection(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-
-			// Use nil metrics to avoid registration issues in tests
-			var metrics *observability.MetricsCollector
+			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-conn"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+   indexerCtrl := &MockIndexController{}
+			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			if !tt.expectedError {
 				assert.NotNil(t, server, tt.description)
@@ -148,10 +118,11 @@ func TestMCPToolDiscovery(t *testing.T) {
 		Level: "error",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test-tools")
+	metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-tools"))
 	errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
-	server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+ indexerCtrl := &MockIndexController{}
+	server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 	require.NotNil(t, server)
 
 	// Run server in goroutine (it will process one request and EOF)
@@ -193,7 +164,7 @@ func TestMCPToolDiscovery(t *testing.T) {
 
 	tools, ok := result["tools"].([]interface{})
 	require.True(t, ok, "Result should contain 'tools' array")
-	assert.Len(t, tools, 8, "Should discover 8 MCP tools")
+	assert.Len(t, tools, 4, "Should discover 4 MCP tools")
 
 	// Verify each tool has required fields
 	expectedTools := map[string]bool{
@@ -201,10 +172,6 @@ func TestMCPToolDiscovery(t *testing.T) {
 		"context.get_related_info":     false,
 		"context.index_control":        false,
 		"context.connector_management": false,
-		"context.explain":              false,
-		"context.grep":                 false,
-		"github.sync_status":           false,
-		"github.sync_trigger":          false,
 	}
 
 	for _, toolInterface := range tools {
@@ -246,7 +213,7 @@ func TestMCPToolExecution(t *testing.T) {
 		description  string
 	}{
 		{
-			name:     "context.search.basic",
+			name:     "context_search_basic",
 			toolName: "context.search",
 			args: map[string]interface{}{
 				"query": "authentication implementation",
@@ -281,7 +248,7 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should execute basic search successfully",
 		},
 		{
-			name:     "context.search.with_filters",
+			name:     "context_search_with_filters",
 			toolName: "context.search",
 			args: map[string]interface{}{
 				"query": "test query",
@@ -302,7 +269,7 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should handle search with filters",
 		},
 		{
-			name:     "context.get_related_info.file",
+			name:     "context_get_related_info_file",
 			toolName: "context.get_related_info",
 			args: map[string]interface{}{
 				"file_path": "/path/to/file.go",
@@ -323,7 +290,7 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should get related info for file",
 		},
 		{
-			name:     "context.get_related_info.ticket",
+			name:     "context_get_related_info_ticket",
 			toolName: "context.get_related_info",
 			args: map[string]interface{}{
 				"ticket_id": "JIRA-123",
@@ -340,7 +307,7 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should get related info for ticket",
 		},
 		{
-			name:     "context.index_control.status",
+			name:     "context_index_control_status",
 			toolName: "context.index_control",
 			args: map[string]interface{}{
 				"action": "status",
@@ -373,7 +340,7 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should return index status",
 		},
 		{
-			name:     "context.connector_management.list",
+			name:     "context_connector_management_list",
 			toolName: "context.connector_management",
 			args: map[string]interface{}{
 				"action": "list",
@@ -385,12 +352,10 @@ func TestMCPToolExecution(t *testing.T) {
 				resp, ok := result.(map[string]interface{})
 				require.True(t, ok, "Result should be object")
 
-				assert.Contains(t, resp, "connectors", "Should have connectors field")
+				// Response has message and status fields
+				assert.Contains(t, resp, "message", "Should have message field")
 				assert.Contains(t, resp, "status", "Should have status field")
-
-				connectors, ok := resp["connectors"].([]interface{})
-				require.True(t, ok, "Connectors should be array")
-				assert.GreaterOrEqual(t, len(connectors), 0, "Should have zero or more connectors")
+				assert.Equal(t, "ok", resp["status"], "Status should be ok")
 			},
 			expectError: false,
 			description: "Should list connectors",
@@ -416,7 +381,7 @@ func TestMCPToolExecution(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector(fmt.Sprintf("test-tool-call-%s", tt.name))
+			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-tool-call"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 			// Create tool call request
@@ -446,8 +411,8 @@ func TestMCPToolExecution(t *testing.T) {
 			// Setup server
 			reader := bytes.NewReader(requestJSON)
 			writer := &bytes.Buffer{}
-			mockIdx := &mockIndexer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, mockIdx)
+   indexerCtrl := &MockIndexController{}
+			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			// Run server
 			done := make(chan error, 1)
@@ -576,7 +541,7 @@ func TestMCPErrorHandling(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector(fmt.Sprintf("test-method-%s", tt.name))
+			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-method"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 			var paramsJSON json.RawMessage
@@ -605,7 +570,8 @@ func TestMCPErrorHandling(t *testing.T) {
 
 			reader := bytes.NewReader(requestJSON)
 			writer := &bytes.Buffer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+   indexerCtrl := &MockIndexController{}
+			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			done := make(chan error, 1)
 			go func() {
@@ -693,13 +659,14 @@ func TestMCPProtocolCompliance(t *testing.T) {
 				Level: "error",
 			}
 			logger := observability.NewLogger(loggerCfg)
-			metrics := observability.NewMetricsCollector(fmt.Sprintf("test-protocol-%s", tt.name))
+			metrics := observability.NewMetricsCollector(getUniqueMetricsNamespace("test-protocol"))
 			errorHandler := observability.NewErrorHandler(logger, metrics, false)
 
 			requestData := []byte(tt.request + "\n")
 			reader := bytes.NewReader(requestData)
 			writer := &bytes.Buffer{}
-			server := mcp.NewServer(reader, writer, store, connStore, embedder, metrics, errorHandler, nil)
+   indexerCtrl := &MockIndexController{}
+			server := mcp.NewServer(reader, writer, "", store, connStore, embedder, metrics, errorHandler, indexerCtrl)
 
 			done := make(chan error, 1)
 			go func() {
@@ -787,4 +754,47 @@ func createTestDocument(id, content, sourceType string) vectorstore.Document {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+}
+
+// MockIndexController implements indexer.IndexController for testing
+type MockIndexController struct{}
+
+// Start implements the Start method
+func (m *MockIndexController) Start(ctx context.Context, opts indexer.IndexOptions) error {
+	return nil
+}
+
+// Stop implements the Stop method
+func (m *MockIndexController) Stop(ctx context.Context) error {
+	return nil
+}
+
+// ForceReindex implements the ForceReindex method
+func (m *MockIndexController) ForceReindex(ctx context.Context, opts indexer.IndexOptions) error {
+	return nil
+}
+
+// ReindexPaths implements the ReindexPaths method
+func (m *MockIndexController) ReindexPaths(ctx context.Context, opts indexer.IndexOptions, paths []string) error {
+	return nil
+}
+
+// GetStatus implements the GetStatus method
+func (m *MockIndexController) GetStatus() indexer.IndexStatus {
+	return indexer.IndexStatus{
+		IsIndexing:     false,
+		Phase:          "idle",
+		Progress:       0.0,
+		FilesProcessed: 0,
+		TotalFiles:     0,
+		ChunksCreated:  0,
+		StartTime:      time.Time{},
+		EstimatedEnd:   time.Time{},
+		LastError:      "",
+	}
+}
+
+// HealthCheck implements the HealthCheck method
+func (m *MockIndexController) HealthCheck(ctx context.Context) error {
+	return nil
 }

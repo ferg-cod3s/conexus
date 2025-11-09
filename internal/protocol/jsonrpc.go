@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-// JSONRPCVersion is the JSON-RPC protocol version
+// JSONRPCVersion is JSON-RPC protocol version
 const JSONRPCVersion = "2.0"
 
 // Request represents a JSON-RPC 2.0 request
@@ -31,7 +31,7 @@ func (r *Request) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// Normalize the ID type
+	// Normalize ID type
 	r.ID = normalizeID(aux.ID)
 	return nil
 }
@@ -58,7 +58,7 @@ func (r *Response) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// Normalize the ID type
+	// Normalize ID type
 	r.ID = normalizeID(aux.ID)
 	return nil
 }
@@ -97,7 +97,7 @@ type Error struct {
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-// Error implements the error interface
+// Error implements error interface
 func (e *Error) Error() string {
 	return fmt.Sprintf("JSON-RPC error %d: %s", e.Code, e.Message)
 }
@@ -142,7 +142,7 @@ func (s *Server) Serve() error {
 			if err == io.EOF {
 				return nil
 			}
-			// After a parse error, we cannot reliably continue reading from the stream
+			// After a parse error, we cannot reliably continue reading from stream
 			return s.sendError(nil, ParseError, fmt.Sprintf("parse error: %v", err), nil)
 		}
 
@@ -159,7 +159,7 @@ func (s *Server) Serve() error {
 			continue
 		}
 
-		// Handle the request
+		// Handle request
 		result, err := s.handler.Handle(req.Method, req.Params)
 		if err != nil {
 			// Check if it's a protocol.Error to preserve specific error codes
@@ -249,12 +249,12 @@ func (c *Client) Call(method string, params interface{}) (json.RawMessage, error
 		}
 	}
 
-	// Create request
+	// Create request with string ID
 	req := Request{
 		JSONRPC: JSONRPCVersion,
 		Method:  method,
 		Params:  paramsJSON,
-		ID:      c.nextID,
+		ID:      fmt.Sprintf("%d", c.nextID),
 	}
 	c.nextID++
 
