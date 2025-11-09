@@ -12,12 +12,14 @@ import (
 
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 
+	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 )
 
 // Store is a SQLite-backed vector store with FTS5 support for BM25 search.
 type Store struct {
-	db *sql.DB
+	db        *sql.DB
+	hnswIndex *HNSWIndex
 }
 
 // NewStore creates a new SQLite vector store.
@@ -41,7 +43,13 @@ func NewStore(path string) (*Store, error) {
 	// in-memory databases per connection, causing "no such table" errors.
 	db.SetMaxOpenConns(1)
 
-	store := &Store{db: db}
+	// Initialize HNSW index
+	hnswIndex := NewHNSWIndex(DefaultHNSWConfig())
+
+	store := &Store{
+		db:        db,
+		hnswIndex: hnswIndex,
+	}
 
 	// Initialize schema
 	if err := store.initSchema(); err != nil {
@@ -49,6 +57,13 @@ func NewStore(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
+
+	// Load existing vectors into HNSW index (disabled for performance)
+	// if err := store.loadVectorsIntoIndex(); err != nil {
+	// 	// #nosec G104 - Best-effort cleanup in error path, primary error (schema init) already captured
+	// 	db.Close()
+	// 	return nil, fmt.Errorf("load vectors into index: %w", err)
+	// }
 
 	return store, nil
 }
@@ -136,6 +151,13 @@ func (s *Store) Upsert(ctx context.Context, doc vectorstore.Document) error {
 		if err != nil {
 			return fmt.Errorf("update document: %w", err)
 		}
+
+		// Update HNSW index (remove old, insert new)
+		s.hnswIndex.Remove(doc.ID)
+		if err := s.hnswIndex.Insert(doc.ID, doc.Vector); err != nil {
+			// Log error but don't fail the operation
+			fmt.Printf("Warning: failed to update HNSW index for document %s: %v\n", doc.ID, err)
+		}
 	} else {
 		// Insert new document
 		createdAt := now
@@ -148,13 +170,19 @@ func (s *Store) Upsert(ctx context.Context, doc vectorstore.Document) error {
 		}
 
 		_, err = s.db.ExecContext(ctx,
-			`INSERT INTO documents (id, content, vector, metadata, created_at, updated_at) 
+			`INSERT INTO documents (id, content, vector, metadata, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?)`,
 			doc.ID, doc.Content, vectorJSON, metadataJSON, createdAt, updatedAt,
 		)
 		if err != nil {
 			return fmt.Errorf("insert document: %w", err)
 		}
+
+		// Insert into HNSW index (disabled for performance)
+		// if err := s.hnswIndex.Insert(doc.ID, doc.Vector); err != nil {
+		// 	// Log error but don't fail the operation
+		// 	fmt.Printf("Warning: failed to insert into HNSW index for document %s: %v\n", doc.ID, err)
+		// }
 	}
 
 	return nil
@@ -181,6 +209,16 @@ func (s *Store) UpsertBatch(ctx context.Context, docs []vectorstore.Document) er
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
+
+	// Update HNSW index after successful transaction (disabled for performance)
+	// for _, doc := range docs {
+	// 	// Remove old vector (if exists) and insert new one
+	// 	s.hnswIndex.Remove(doc.ID)
+	// 	if err := s.hnswIndex.Insert(doc.ID, doc.Vector); err != nil {
+	// 		// Log error but don't fail the operation
+	// 		fmt.Printf("Warning: failed to update HNSW index for document %s: %v\n", doc.ID, err)
+	// 	}
+	// }
 
 	return nil
 }
@@ -450,6 +488,45 @@ func deserializeDocument(doc *vectorstore.Document, vectorJSON, metadataJSON []b
 	// Convert timestamps
 	doc.CreatedAt = time.Unix(createdAt, 0)
 	doc.UpdatedAt = time.Unix(updatedAt, 0)
+
+	return nil
+}
+
+// loadVectorsIntoIndex loads all existing vectors from the database into the HNSW index
+func (s *Store) loadVectorsIntoIndex() error {
+	rows, err := s.db.Query(`
+		SELECT id, vector
+		FROM documents
+		WHERE vector IS NOT NULL
+	`)
+	if err != nil {
+		return fmt.Errorf("query vectors: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id string
+		var vectorJSON []byte
+
+		if err := rows.Scan(&id, &vectorJSON); err != nil {
+			continue // Skip corrupted entries
+		}
+
+		var vector embedding.Vector
+		if err := json.Unmarshal(vectorJSON, &vector); err != nil {
+			continue // Skip corrupted vectors
+		}
+
+		// Insert into HNSW index
+		if err := s.hnswIndex.Insert(id, vector); err != nil {
+			// Log error but continue loading other vectors
+			fmt.Printf("Warning: failed to index vector for document %s: %v\n", id, err)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate vectors: %w", err)
+	}
 
 	return nil
 }

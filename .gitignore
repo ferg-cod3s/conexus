@@ -47,6 +47,15 @@ data/
 .env.local
 .env.*.local
 
+# OpenCode MCP Configuration (but keep examples)
+opencode*.jsonc
+!opencode-config.example.jsonc
+opencode*.json
+
+# Environment scripts with secrets
+opencode*.sh
+!opencode-config.example.sh
+
 # Logs
 *.log
 logs/

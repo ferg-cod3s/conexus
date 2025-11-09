@@ -193,16 +193,18 @@ func TestMCPToolDiscovery(t *testing.T) {
 
 	tools, ok := result["tools"].([]interface{})
 	require.True(t, ok, "Result should contain 'tools' array")
-	assert.Len(t, tools, 6, "Should discover 6 MCP tools")
+	assert.Len(t, tools, 8, "Should discover 8 MCP tools")
 
 	// Verify each tool has required fields
 	expectedTools := map[string]bool{
-		"context_search":               false,
-		"context_get_related_info":     false,
-		"context_index_control":        false,
-		"context_connector_management": false,
-		"context_explain":              false,
-		"context_grep":                 false,
+		"context.search":               false,
+		"context.get_related_info":     false,
+		"context.index_control":        false,
+		"context.connector_management": false,
+		"context.explain":              false,
+		"context.grep":                 false,
+		"github.sync_status":           false,
+		"github.sync_trigger":          false,
 	}
 
 	for _, toolInterface := range tools {
@@ -244,8 +246,8 @@ func TestMCPToolExecution(t *testing.T) {
 		description  string
 	}{
 		{
-			name:     "context_search_basic",
-			toolName: "context_search",
+			name:     "context.search.basic",
+			toolName: "context.search",
 			args: map[string]interface{}{
 				"query": "authentication implementation",
 				"top_k": 5,
@@ -279,8 +281,8 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should execute basic search successfully",
 		},
 		{
-			name:     "context_search_with_filters",
-			toolName: "context_search",
+			name:     "context.search.with_filters",
+			toolName: "context.search",
 			args: map[string]interface{}{
 				"query": "test query",
 				"top_k": 10,
@@ -300,8 +302,8 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should handle search with filters",
 		},
 		{
-			name:     "context_get_related_info_file",
-			toolName: "context_get_related_info",
+			name:     "context.get_related_info.file",
+			toolName: "context.get_related_info",
 			args: map[string]interface{}{
 				"file_path": "/path/to/file.go",
 			},
@@ -321,8 +323,8 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should get related info for file",
 		},
 		{
-			name:     "context_get_related_info_ticket",
-			toolName: "context_get_related_info",
+			name:     "context.get_related_info.ticket",
+			toolName: "context.get_related_info",
 			args: map[string]interface{}{
 				"ticket_id": "JIRA-123",
 			},
@@ -338,8 +340,8 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should get related info for ticket",
 		},
 		{
-			name:     "context_index_control_status",
-			toolName: "context_index_control",
+			name:     "context.index_control.status",
+			toolName: "context.index_control",
 			args: map[string]interface{}{
 				"action": "status",
 			},
@@ -371,8 +373,8 @@ func TestMCPToolExecution(t *testing.T) {
 			description: "Should return index status",
 		},
 		{
-			name:     "context_connector_management_list",
-			toolName: "context_connector_management",
+			name:     "context.connector_management.list",
+			toolName: "context.connector_management",
 			args: map[string]interface{}{
 				"action": "list",
 			},
@@ -516,7 +518,7 @@ func TestMCPErrorHandling(t *testing.T) {
 			name:   "missing_required_field_search",
 			method: "tools/call",
 			params: map[string]interface{}{
-				"name": "context_search",
+				"name": "context.search",
 				"arguments": map[string]interface{}{
 					// Missing required "query" field
 					"top_k": 10,
@@ -539,7 +541,7 @@ func TestMCPErrorHandling(t *testing.T) {
 			name:   "missing_file_and_ticket",
 			method: "tools/call",
 			params: map[string]interface{}{
-				"name":      "context_get_related_info",
+				"name":      "context.get_related_info",
 				"arguments": map[string]interface{}{
 					// Missing both file_path and ticket_id
 				},
@@ -551,7 +553,7 @@ func TestMCPErrorHandling(t *testing.T) {
 			name:   "invalid_index_action",
 			method: "tools/call",
 			params: map[string]interface{}{
-				"name": "context_index_control",
+				"name": "context.index_control",
 				"arguments": map[string]interface{}{
 					"action": "invalid_action",
 				},

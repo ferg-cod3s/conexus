@@ -147,6 +147,40 @@ Comprehensive input validation prevents injection attacks and ensures data integ
 - **URL Handling:** Validate and normalize URLs to prevent directory traversal in web interfaces.
 - **Logging:** Monitor for traversal attempts and alert on suspicious patterns.
 
+## 5.1 Web Security Features
+
+Conexus implements comprehensive web security headers and protections to prevent common client-side attacks.
+
+### Content Security Policy (CSP)
+
+- **Default Policy:** Strict CSP with `'none'` default, `'self'` for scripts/styles/images/fonts/connect
+- **Configurable Directives:** Support for all standard CSP directives (script-src, style-src, img-src, etc.)
+- **Report-Only Mode:** Optional report collection for policy violations
+- **Environment Override:** `CONEXUS_SECURITY_CSP_ENABLED` to disable in development
+
+### HTTP Security Headers
+
+- **HTTP Strict Transport Security (HSTS):** Enabled by default with 1-year max-age
+- **X-Frame-Options:** Set to `DENY` to prevent clickjacking
+- **X-Content-Type-Options:** Set to `nosniff` to prevent MIME sniffing
+- **Referrer-Policy:** `strict-origin-when-cross-origin` for privacy
+- **Permissions-Policy:** Restricts browser features (camera, microphone, geolocation, etc.)
+
+### Cross-Origin Resource Sharing (CORS)
+
+- **Disabled by Default:** CORS is disabled for security, must be explicitly enabled
+- **Configurable Origins:** Allowlist-based origin validation
+- **Method Restrictions:** Configurable allowed HTTP methods
+- **Header Control:** Explicit allowed and exposed headers
+- **Credential Handling:** Optional credentials support with proper validation
+
+### Implementation Details
+
+- **Middleware Architecture:** Security headers applied before authentication, CORS handled first
+- **Environment Configuration:** All security settings configurable via environment variables
+- **Logging:** Security events logged for monitoring and compliance
+- **Performance Impact:** Minimal overhead with efficient header generation
+
 ## 6. Secrets Management
 
 Robust secrets management ensures cryptographic materials are protected throughout their lifecycle.

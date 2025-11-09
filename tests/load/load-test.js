@@ -109,13 +109,13 @@ function testContextSearch() {
   const query = searchQueries[Math.floor(Math.random() * searchQueries.length)];
   const startTime = Date.now();
   
-  const response = sendMCPRequest('tools/call', {
-    name: 'context_search',
-    arguments: {
-      query: query,
-      max_results: 10,
-    },
-  });
+   const response = sendMCPRequest('tools/call', {
+     name: 'context.search',
+     arguments: {
+       query: query,
+       max_results: 10,
+     },
+   });
   
   const duration = Date.now() - startTime;
   searchDuration.add(duration);
@@ -155,13 +155,13 @@ function testGetRelatedInfo() {
   const query = searchQueries[Math.floor(Math.random() * searchQueries.length)];
   const startTime = Date.now();
   
-  const response = sendMCPRequest('tools/call', {
-    name: 'context_get_related_info',
-    arguments: {
-      query: query,
-      max_depth: 2,
-    },
-  });
+   const response = sendMCPRequest('tools/call', {
+     name: 'context.get_related_info',
+     arguments: {
+       query: query,
+       max_depth: 2,
+     },
+   });
   
   const duration = Date.now() - startTime;
   relatedInfoDuration.add(duration);
@@ -192,12 +192,12 @@ function testGetRelatedInfo() {
 function testIndexControlStatus() {
   const startTime = Date.now();
   
-  const response = sendMCPRequest('tools/call', {
-    name: 'context_index_control',
-    arguments: {
-      action: 'status',
-    },
-  });
+   const response = sendMCPRequest('tools/call', {
+     name: 'context.index_control',
+     arguments: {
+       action: 'status',
+     },
+   });
   
   const duration = Date.now() - startTime;
   indexControlDuration.add(duration);
@@ -226,12 +226,12 @@ function testIndexControlStatus() {
 
 // Test scenario: Connector Management List (5% of traffic)
 function testConnectorManagementList() {
-  const response = sendMCPRequest('tools/call', {
-    name: 'context_connector_management',
-    arguments: {
-      action: 'list',
-    },
-  });
+   const response = sendMCPRequest('tools/call', {
+     name: 'context.connector_management',
+     arguments: {
+       action: 'list',
+     },
+   });
   
   const success = check(response, {
     'connector_mgmt: status 200': (r) => r.status === 200,

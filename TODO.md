@@ -1,8 +1,8 @@
 # Conexus Project TODOs
 
 **Current Phase**: Phase 8 - MCP Protocol Completeness & Feature Enhancement  
-**Last Updated**: 2025-10-25  
-**Status**: 🚨 BLOCKED - Critical MCP compliance issue found (Issue #71)
+**Last Updated**: 2025-10-26  
+**Status**: ✅ COMPLETE - MCP compliance issue resolved, ready for v0.1.2-alpha release
 
 ---
 
@@ -24,7 +24,7 @@
 - **Status**: 🚨 IMMEDIATE ACTION REQUIRED
 - **Impact**: Non-compliance with MCP specification
 - **Evidence**: `docs/research/MCP_PATTERNS_RESEARCH.md`
-- **Action**: Must migrate from `context_search` to `context.search` pattern
+- **Action**: ✅ COMPLETED - Migrated from `context_search` to `context.search` pattern
 
 **See `PHASE8-PLAN.md` for complete details**
 
@@ -34,13 +34,13 @@
 
 ### High Priority (Must-Have for v0.2.0)
 
-#### **Task 8.0: Fix MCP Tool Naming Convention Violation** (4-6 hours) 🚨 **NEW**
+#### **Task 8.0: Fix MCP Tool Naming Convention Violation** (4-6 hours) ✅ **COMPLETED**
 - **Issue**: #71
-- **Status**: 📋 **IMMEDIATE ACTION REQUIRED**
-- **Priority**: 🔴 CRITICAL
-- **Description**: Migrate from underscore notation (`context_search`) to dot notation (`context.search`) for MCP compliance
+- **Status**: ✅ **RESOLVED**
+- **Priority**: 🔴 CRITICAL (was)
+- **Description**: Migrated from underscore notation (`context_search`) to dot notation (`context.search`) for MCP compliance
 - **Acceptance**: All tools use dot notation, documentation matches implementation, tests pass
-- **Files to Update**: `internal/mcp/schema.go`, all test files, documentation examples
+- **Files Updated**: All test files, documentation examples, research docs
 
 #### **Task 8.1: Implement `context.get_related_info`** (5-7 hours)
 - **Issue**: #56
@@ -283,5 +283,5 @@
 ---
 
 **Last Updated**: 2025-10-24  
-**Next Review**: Prepare for v0.2.0 release  
+**Next Review**: Prepare for v0.1.2-alpha release  
 **Project Status**: 🟢 COMPLETE - Phase 8 finished, ready for v0.2.0

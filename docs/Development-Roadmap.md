@@ -285,6 +285,69 @@ This roadmap outlines the development strategy for Conexus (Agentic Context Engi
 - **Dependency:** LangGraph maturity → Alternative memory framework ready
 - **Go/No-Go:** All enterprise features tested in production-like environment
 
+## Phase 6: Advanced Embeddings & AI Integration (Months 23-30)
+
+**Goal:** Enhance semantic search with real embedding models and advanced AI capabilities.
+
+**Milestones:**
+- Month 25: Real embedding providers integrated
+- Month 27: Cross-language semantic understanding
+- Month 30: Advanced AI features (code generation, refactoring)
+
+### Epic Breakdowns
+
+#### Epic 1: Real Embedding Providers
+**Acceptance Criteria:**
+- OpenAI text-embedding-3-small/large support
+- Anthropic embedding API (when available)
+- Voyage AI voyage-code-2 integration
+- Local models (sentence-transformers) option
+
+**Tasks:**
+- Provider implementations
+- API key management
+- Performance benchmarking vs mock
+- Cost optimization
+
+#### Epic 2: Enhanced Semantic Understanding
+**Acceptance Criteria:**
+- Cross-language pattern recognition
+- Code relationship mapping
+- Architecture-aware search
+- Industry-specific context
+
+**Tasks:**
+- Multi-language embedding training
+- Code relationship analysis
+- Architecture pattern detection
+
+#### Epic 3: AI-Powered Features
+**Acceptance Criteria:**
+- Code generation from natural language
+- Automated refactoring suggestions
+- Bug detection and fixes
+- Documentation generation
+
+**Tasks:**
+- LLM integration framework
+- Prompt engineering
+- Output quality validation
+
+### Technical Debt Mitigation
+- **Sprint 24 (Month 24):** Embedding performance optimization
+- **Sprint 28 (Month 28):** AI integration testing
+
+### Testing Milestones
+- Month 24: Embedding accuracy benchmarks
+- Month 26: Cross-language understanding tests
+- Month 28: AI feature quality validation
+- Month 30: End-to-end AI workflow testing
+
+### Risks & Dependencies
+- **Risk:** Embedding API costs → Mitigation: Usage monitoring and optimization
+- **Dependency:** Anthropic embedding API availability → Fallback to OpenAI/Voyage
+- **Go/No-Go:** Real embeddings provide >20% accuracy improvement over mock
+
 ## Risk & Dependency Tracking
 
 ### Critical Path Analysis

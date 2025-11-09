@@ -27,9 +27,9 @@ Phase 6 implements the core RAG (Retrieval-Augmented Generation) pipeline with h
 - **Hybrid Fusion**: Reciprocal Rank Fusion (RRF) combining BM25 + dense vectors
 
 ### Embeddings
-- **Default**: Mock embedder (deterministic, zero-cost)
-- **Interface**: `Embedder` with provider hooks for future integrations
-- **Deferred**: OpenAI, Voyage, Cohere, local models (post-MVP)
+- **MVP**: Mock embedder only (deterministic, zero-cost)
+- **Interface**: `Embedder` with provider registry for future integrations
+- **Phase 6**: Real embedding providers (OpenAI, Anthropic, Voyage, local models)
 
 ### MCP Protocol
 - **Transport**: stdio only (JSON-RPC over stdin/stdout)

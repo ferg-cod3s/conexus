@@ -43,19 +43,19 @@ func (r *Registry) Register(provider Provider) error {
 	if provider == nil {
 		return fmt.Errorf("cannot register nil provider")
 	}
-	
+
 	name := provider.Name()
 	if name == "" {
 		return fmt.Errorf("provider name cannot be empty")
 	}
-	
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	if _, exists := r.providers[name]; exists {
 		return fmt.Errorf("provider %q already registered", name)
 	}
-	
+
 	r.providers[name] = provider
 	return nil
 }
@@ -65,12 +65,12 @@ func (r *Registry) Register(provider Provider) error {
 func (r *Registry) Get(name string) (Provider, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	provider, ok := r.providers[name]
 	if !ok {
 		return nil, fmt.Errorf("provider %q not found", name)
 	}
-	
+
 	return provider, nil
 }
 
@@ -78,12 +78,12 @@ func (r *Registry) Get(name string) (Provider, error) {
 func (r *Registry) List() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	names := make([]string, 0, len(r.providers))
 	for name := range r.providers {
 		names = append(names, name)
 	}
-	
+
 	sort.Strings(names)
 	return names
 }
@@ -113,8 +113,14 @@ func (r *Registry) Clear() {
 }
 
 func init() {
-	// Register the mock provider by default
+	// Register the mock provider (MVP - only provider available)
 	if err := Register(&MockProvider{}); err != nil {
 		panic(fmt.Sprintf("failed to register mock provider: %v", err))
 	}
+
+	// Anthropic provider moved to post-MVP (Phase 6)
+	// TODO: Re-enable when Anthropic releases embedding API
+	// if err := Register(&AnthropicProvider{}); err != nil {
+	//     panic(fmt.Sprintf("failed to register anthropic provider: %v", err))
+	// }
 }

@@ -12,7 +12,7 @@ func TestGetToolDefinitions(t *testing.T) {
 	tools := GetToolDefinitions()
 
 	// Verify we have all expected tools
-	assert.Len(t, tools, 6, "should have 6 tool definitions")
+	assert.Len(t, tools, 8, "should have 8 tool definitions")
 
 	toolNames := make(map[string]bool)
 	for _, tool := range tools {
@@ -25,6 +25,8 @@ func TestGetToolDefinitions(t *testing.T) {
 	assert.True(t, toolNames[ToolContextConnectorManagement], "should have context.connector_management tool")
 	assert.True(t, toolNames[ToolContextExplain], "should have context.explain tool")
 	assert.True(t, toolNames[ToolContextGrep], "should have context.grep tool")
+	assert.True(t, toolNames[ToolGitHubSyncStatus], "should have github.sync_status tool")
+	assert.True(t, toolNames[ToolGitHubSyncTrigger], "should have github.sync_trigger tool")
 }
 
 func TestToolDefinition_ContextSearch(t *testing.T) {

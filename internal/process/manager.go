@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -58,9 +60,12 @@ func (m *Manager) Spawn(ctx context.Context, agentID string, perms schema.Permis
 		processCtx, cancel = context.WithCancel(ctx)
 	}
 
-	// TODO: Determine agent binary path based on agentID
-	// For now, we'll use a placeholder
-	agentBinary := fmt.Sprintf("./agents/%s", agentID)
+	// Determine agent binary path based on agentID
+	agentBinary, err := m.resolveAgentBinaryPath(agentID)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to resolve agent binary path: %w", err)
+	}
 
 	// #nosec G204 - agentID validated by security.ValidateAgentID() at line 48, command injection impossible
 	cmd := exec.CommandContext(processCtx, agentBinary)
@@ -146,6 +151,52 @@ func (m *Manager) Wait(processID string) error {
 	}
 
 	return process.Cmd.Wait()
+}
+
+// resolveAgentBinaryPath finds the agent binary path based on agentID
+func (m *Manager) resolveAgentBinaryPath(agentID string) (string, error) {
+	// Check multiple possible locations for the agent binary
+	possiblePaths := []string{
+		// Current directory agents folder
+		filepath.Join("agents", agentID),
+		filepath.Join("agents", agentID+".exe"),
+		// System-wide installation
+		filepath.Join("/usr/local/bin", "conexus-agent-"+agentID),
+		filepath.Join("/usr/bin", "conexus-agent-"+agentID),
+	}
+
+	// Add home directory paths
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePaths := []string{
+			filepath.Join(homeDir, ".local", "bin", "conexus-agent-"+agentID),
+			filepath.Join(homeDir, "bin", "conexus-agent-"+agentID),
+		}
+		possiblePaths = append(possiblePaths, homePaths...)
+	}
+
+	// Add PATH lookup
+	possiblePaths = append(possiblePaths, "conexus-agent-"+agentID)
+
+	for _, path := range possiblePaths {
+		if path == "" {
+			continue
+		}
+
+		// Check if file exists and is executable
+		if stat, err := os.Stat(path); err == nil && !stat.IsDir() {
+			// Check if it's executable (on Unix systems)
+			if stat.Mode()&0111 != 0 || filepath.Ext(path) == ".exe" {
+				return path, nil
+			}
+		}
+	}
+
+	// If no binary found, check if it's in PATH
+	if path, err := exec.LookPath("conexus-agent-" + agentID); err == nil {
+		return path, nil
+	}
+
+	return "", fmt.Errorf("agent binary not found for agentID: %s", agentID)
 }
 
 // GetProcess retrieves a process by ID

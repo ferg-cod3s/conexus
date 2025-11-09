@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"time"
+
+	"github.com/getsentry/sentry-go"
 )
 
 // ContextKey is a type for context keys to avoid collisions.
@@ -45,16 +47,64 @@ type LoggerConfig struct {
 	Output io.Writer
 	// AddSource adds source file/line to log entries
 	AddSource bool
+	// SentryEnabled enables Sentry integration for logs
+	SentryEnabled bool
 }
 
 // DefaultLoggerConfig returns a default logger configuration.
 func DefaultLoggerConfig() LoggerConfig {
 	return LoggerConfig{
-		Level:     "info",
-		Format:    "json",
-		Output:    os.Stdout,
-		AddSource: true,
+		Level:         "info",
+		Format:        "json",
+		Output:        os.Stdout,
+		AddSource:     true,
+		SentryEnabled: false,
 	}
+}
+
+// sentryHandler is a slog.Handler that sends logs to Sentry.
+type sentryHandler struct {
+	next slog.Handler
+}
+
+func (h *sentryHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.next.Enabled(ctx, level)
+}
+
+func (h *sentryHandler) Handle(ctx context.Context, r slog.Record) error {
+	// Send to Sentry for error and warn levels
+	if r.Level >= slog.LevelWarn {
+		var attrs []slog.Attr
+		r.Attrs(func(attr slog.Attr) bool {
+			attrs = append(attrs, attr)
+			return true
+		})
+
+		// Convert slog attributes to Sentry context
+		sentryCtx := make(map[string]interface{})
+		for _, attr := range attrs {
+			sentryCtx[attr.Key] = attr.Value.Any()
+		}
+
+		sentry.WithScope(func(scope *sentry.Scope) {
+			scope.SetContext("log", sentryCtx)
+			scope.SetTag("logger", "slog")
+			scope.SetTag("level", r.Level.String())
+
+			// Capture as message with context for error and warn logs
+			sentry.CaptureMessage(r.Message)
+		})
+	}
+
+	return h.next.Handle(ctx, r)
+}
+
+func (h *sentryHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &sentryHandler{next: h.next.WithAttrs(attrs)}
+}
+
+func (h *sentryHandler) WithGroup(name string) slog.Handler {
+	return &sentryHandler{next: h.next.WithGroup(name)}
 }
 
 // NewLogger creates a new structured logger.
@@ -87,6 +137,11 @@ func NewLogger(cfg LoggerConfig) *Logger {
 		handler = slog.NewTextHandler(cfg.Output, handlerOpts)
 	} else {
 		handler = slog.NewJSONHandler(cfg.Output, handlerOpts)
+	}
+
+	// Wrap with Sentry handler if enabled
+	if cfg.SentryEnabled {
+		handler = &sentryHandler{next: handler}
 	}
 
 	return &Logger{

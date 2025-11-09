@@ -1,8 +1,8 @@
 # Conexus - MCP Server for Context-Aware AI Assistants
 
-**Version**: 0.1.1-alpha  
-**Status**: ✅ MCP Server Ready  
-**Go Version**: 1.23.4
+**Version**: 0.2.1-alpha
+**Status**: ✅ MCP Server Ready
+**Go Version**: 1.24.0
 
 [![Go Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)]()
@@ -20,6 +20,7 @@ Conexus is a **Model Context Protocol (MCP) server** that provides AI assistants
 - 🔍 **Semantic Search**: Hybrid vector + keyword search across your codebase
 - 📁 **File Context**: Intelligent file relationships and project structure understanding
 - ⚡ **Fast Performance**: Sub-second context retrieval with intelligent caching
+- 🛡️ **Security First**: Rate limiting, security headers, and input validation
 - 🛠️ **Easy Integration**: Works with Claude Desktop, Cursor, and other MCP clients
 - 🧪 **Well Tested**: Comprehensive test suite with real-world validation
 
@@ -34,7 +35,18 @@ Conexus is a **Model Context Protocol (MCP) server** that provides AI assistants
 
 ### Installation
 
-**Option 1: Local Installation (Recommended)**
+**Option 1: NPM Package (Recommended)**
+
+```bash
+# Install globally via npm
+npm install -g @agentic-conexus/mcp
+
+# Or use with bunx/npx (no installation required)
+bunx -y @agentic-conexus/mcp
+npx -y @agentic-conexus/mcp
+```
+
+**Option 2: Local Installation (For Development)**
 
 ```bash
 # Clone the repository
@@ -58,7 +70,7 @@ npm link
 > - Linux (amd64 & arm64)
 > - Windows (amd64)
 
-**Option 2: From Source (For Development)**
+**Option 3: From Source (For Development)**
 
 ```bash
 # Clone the repository
@@ -78,13 +90,16 @@ go test ./...
 
 ```bash
 # Run the MCP server (stdio mode - default)
-./bin/conexus-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+bunx -y @agentic-conexus/mcp
+
+# Or if installed globally
+conexus
 
 # Run with environment variables
-CONEXUS_DB_PATH=./data/db.sqlite CONEXUS_LOG_LEVEL=debug ./bin/conexus-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+CONEXUS_DB_PATH=./data/db.sqlite CONEXUS_LOG_LEVEL=debug bunx -y @agentic-conexus/mcp
 
 # Run in HTTP mode (for testing)
-CONEXUS_PORT=3000 ./bin/conexus-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+CONEXUS_PORT=3000 bunx -y @agentic-conexus/mcp
 ```
 
 ---
@@ -580,7 +595,63 @@ export CONEXUS_PORT=3000
 
 # Project root to index
 export CONEXUS_ROOT_PATH=/path/to/project
+
+# Rate Limiting Configuration
+export CONEXUS_RATE_LIMIT_ENABLED=true
+export CONEXUS_RATE_LIMIT_ALGORITHM=sliding_window  # sliding_window|token_bucket
+export CONEXUS_RATE_LIMIT_DEFAULT_REQUESTS=100      # requests per window
+export CONEXUS_RATE_LIMIT_DEFAULT_WINDOW=1m         # time window
+export CONEXUS_RATE_LIMIT_HEALTH_REQUESTS=1000      # health endpoint limit
+export CONEXUS_RATE_LIMIT_WEBHOOK_REQUESTS=10000    # webhook endpoint limit
+export CONEXUS_RATE_LIMIT_AUTH_REQUESTS=1000        # authenticated requests limit
+# Redis support for distributed rate limiting
+export CONEXUS_RATE_LIMIT_REDIS_ENABLED=true
+export CONEXUS_RATE_LIMIT_REDIS_ADDR=localhost:6379
+export CONEXUS_RATE_LIMIT_REDIS_PASSWORD=your-password
+
+# HTTPS/TLS Configuration (for HTTP mode)
+export CONEXUS_TLS_ENABLED=true
+export CONEXUS_TLS_CERT_FILE=/path/to/cert.pem
+export CONEXUS_TLS_KEY_FILE=/path/to/key.pem
+# Or for Let's Encrypt auto-cert:
+export CONEXUS_TLS_AUTO_CERT=true
+export CONEXUS_TLS_AUTO_CERT_DOMAINS="yourdomain.com,www.yourdomain.com"
+export CONEXUS_TLS_AUTO_CERT_EMAIL="admin@yourdomain.com"
 ```
+
+### HTTPS/TLS Security
+
+Conexus supports HTTPS with automatic TLS certificate management:
+
+#### Development (Self-Signed Certificates)
+```bash
+# Generate self-signed certificates for development
+./scripts/generate-dev-certs.sh localhost ./data/tls
+
+# Configure environment
+export CONEXUS_TLS_ENABLED=true
+export CONEXUS_TLS_CERT_FILE=./data/tls/cert.pem
+export CONEXUS_TLS_KEY_FILE=./data/tls/key.pem
+```
+
+#### Production (Let's Encrypt)
+```bash
+export CONEXUS_TLS_AUTO_CERT=true
+export CONEXUS_TLS_AUTO_CERT_DOMAINS="yourdomain.com,api.yourdomain.com"
+export CONEXUS_TLS_AUTO_CERT_EMAIL="admin@yourdomain.com"
+```
+
+#### Manual Certificates
+```bash
+export CONEXUS_TLS_CERT_FILE=/etc/ssl/certs/yourdomain.crt
+export CONEXUS_TLS_KEY_FILE=/etc/ssl/private/yourdomain.key
+```
+
+**Security Features:**
+- TLS 1.2+ only (configurable)
+- Secure cipher suites by default
+- HTTP to HTTPS automatic redirection
+- HSTS headers for enhanced security
 
 ### MCP Client Configuration
 
@@ -779,6 +850,10 @@ volumes:
 - Minimal attack surface (Alpine base)
 - Read-only config option
 - Health check monitoring
+- **Security Headers**: CSP, HSTS, X-Frame-Options, X-Content-Type-Options
+- **CORS Protection**: Configurable cross-origin request handling
+- **Rate Limiting**: Configurable request throttling with Redis support
+- **Input Validation**: Comprehensive request sanitization
 
 ### MCP Server Endpoints
 
@@ -971,91 +1046,12 @@ conexus/
 
 ### Contributing
 
-1. **Fork the repository**
-2. **Create a feature branch**
-3. **Add tests for new functionality**
-4. **Ensure all tests pass**: `go test ./...`
-5. **Follow the code style**: `golangci-lint run`
-6. **Update documentation**
-7. **Submit a pull request**
-
-### Adding New MCP Tools
-
-1. **Define the tool** in `internal/mcp/schema.go`
-2. **Implement the handler** in `internal/mcp/handlers.go`
-3. **Add integration tests** in `internal/testing/integration/`
-4. **Update documentation** in `docs/getting-started/mcp-integration-guide.md`
-
-See **[Contributing Guide](docs/contributing/contributing-guide.md)** for detailed guidelines.
-
----
-
-## 📊 Current Status
-
-### MCP Server Status (✅ Production Ready)
-
-- ✅ **Core MCP Server**: JSON-RPC 2.0 implementation with stdio transport
-- ✅ **Search Engine**: Hybrid vector + BM25 semantic search
-- ✅ **Indexing System**: Incremental file indexing with real-time updates
-- ✅ **Vector Store**: SQLite-backed vector embeddings
-- ✅ **MCP Tools**: 4 tools for search, context, indexing, and management
-- ✅ **Testing**: Comprehensive test suite with integration tests
-
-### Test Results
-
-```
-✅ All integration tests passing
-✅ MCP protocol compliance verified
-✅ Search performance: <11ms average response time
-✅ Memory efficiency: 58MB for 10K files
-✅ Cross-platform compatibility: macOS, Linux, Windows
-✅ NPM package ready: @agentic-conexus/mcp
-```
-
-### Recent Releases
-
-- **v0.1.1-alpha**: Current release with MCP server functionality
-- **v0.1.0-alpha**: Initial MCP server implementation
-- **Future versions**: Multi-agent architecture and enterprise features
-
----
-
-## 🛣️ Roadmap
-
-### Near Term (MCP Server Focus)
-
-- ⏳ **Enhanced Connectors**: GitHub, Jira, Slack integrations
-- ⏳ **Advanced Search**: Code relationships and dependency mapping
-- ⏳ **Performance**: Improved caching and faster indexing
-- ⏳ **UI/UX**: Better error messages and debugging tools
-
-### Medium Term (Advanced Features)
-
-- ⏳ **Multi-Agent Architecture**: Specialized analysis agents
-- ⏳ **Evidence Validation**: Complete traceability for results
-- ⏳ **Workflow Orchestration**: Complex multi-step analysis
-- ⏳ **Custom Tools**: User-defined analysis tools
-
-### Long Term (Enterprise)
-
-- ⏳ **Team Features**: Multi-tenant support and collaboration
-- ⏳ **Advanced Security**: Authentication, authorization, audit logs
-- ⏳ **Cloud Deployment**: Distributed processing and scaling
-- ⏳ **Enterprise Integrations**: SSO, compliance, governance
-
-### Community Contributions
-
-We welcome community contributions! See the **[Contributing Guide](docs/contributing/contributing-guide.md)** to get involved.
-
----
-
-## 🤝 Contributing
-
 We welcome contributions! Please see:
-
 - **[Contributing Guide](docs/contributing/contributing-guide.md)** - How to contribute
 - **[Testing Strategy](docs/contributing/testing-strategy.md)** - Testing requirements
-- **[Code Style](CLAUDE.md)** - Coding conventions
+- **[Versioning Criteria](docs/VERSIONING_CRITERIA.md)** - When and how to bump versions
+- **[Development Guide](AGENTS.md)** - Build, test, and development commands
+- **[AI Assistant Guide](CLAUDE.md)** - Guidelines for AI development assistants
 
 ### Quick Contribution Checklist
 

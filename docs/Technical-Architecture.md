@@ -220,7 +220,7 @@ sequenceDiagram
 
 ### 4.1. Claude Code /plugin
    This is a **declarative wrapper**, not an SDK.
-   The `plugin.json` manifest will define slash commands (`/context_search`) and hooks.
+   The `plugin.json` manifest will define slash commands (`/context.search`) and hooks.
    The `.mcp.json` file will instruct Claude Code how to automatically start and communicate with the engine's MCP server process.
    A `hooks/hooks.json` will be implemented to trigger re-indexing automatically after a `Write` or `Edit` tool is used on a file.
 

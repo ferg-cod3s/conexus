@@ -218,8 +218,8 @@ func TestServer_Handle_ToolsList(t *testing.T) {
 	err = json.Unmarshal(resultJSON, &tools)
 	require.NoError(t, err)
 
-	// Verify we have 6 tools
-	assert.Len(t, tools, 6)
+	// Verify we have 8 tools
+	assert.Len(t, tools, 8)
 
 	// Verify tool names
 	toolNames := make(map[string]bool)
@@ -232,6 +232,8 @@ func TestServer_Handle_ToolsList(t *testing.T) {
 	assert.True(t, toolNames[ToolContextConnectorManagement])
 	assert.True(t, toolNames[ToolContextExplain])
 	assert.True(t, toolNames[ToolContextGrep])
+	assert.True(t, toolNames[ToolGitHubSyncStatus])
+	assert.True(t, toolNames[ToolGitHubSyncTrigger])
 }
 
 func TestServer_Handle_ContextSearch(t *testing.T) {
@@ -477,8 +479,8 @@ func TestServer_GetMimeType(t *testing.T) {
 		{"typescript file", "app.ts", "application/typescript"},
 		{"json file", "config.json", "application/json"},
 		{"text file", "readme.txt", "text/plain"},
-		{"unknown file", "unknown.xyz", "text/plain"},
-		{"no extension", "Makefile", "text/plain"},
+		{"unknown file", "unknown.xyz", "application/octet-stream"},
+		{"no extension", "Makefile", "application/octet-stream"},
 	}
 
 	for _, tt := range tests {

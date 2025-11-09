@@ -169,7 +169,7 @@ docker-compose -f docker-compose.staging.yml up -d
 curl http://staging.example.com/health
 curl -X POST http://staging.example.com/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context_index_control","arguments":{"action":"status"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"context.index_control","arguments":{"action":"status"}}}'
 
 # 3. Verify metrics
 curl http://staging.example.com:9091/metrics

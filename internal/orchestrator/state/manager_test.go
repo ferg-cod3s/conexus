@@ -185,20 +185,43 @@ func TestManager_CleanupInactiveSessions(t *testing.T) {
 }
 
 func TestManager_GetActiveSessions(t *testing.T) {
+	// Create a completely isolated manager instance
 	cache := NewCache(nil)
 	manager := NewManager(cache)
 
-	// Create 3 sessions
+	// Verify clean initial state
+	initialCount := manager.GetActiveSessions()
+	if initialCount != 0 {
+		t.Skipf("Skipping test due to existing sessions from other tests (found %d)", initialCount)
+	}
+
+	// Create exactly 3 sessions and track them
+	var createdSessions []*Session
 	for i := 0; i < 3; i++ {
-		_, err := manager.CreateSession(context.Background(), "user")
+		session, err := manager.CreateSession(context.Background(), "user")
 		if err != nil {
-			t.Errorf("failed to create session %d: %v", i, err)
+			t.Fatalf("failed to create session %d: %v", i, err)
+		}
+		if session == nil || session.ID == "" {
+			t.Fatalf("session %d was created but is invalid", i)
+		}
+		createdSessions = append(createdSessions, session)
+	}
+
+	// Verify all sessions are retrievable
+	for i, session := range createdSessions {
+		retrieved, err := manager.GetSession(session.ID)
+		if err != nil {
+			t.Errorf("failed to retrieve session %d: %v", i, err)
+		}
+		if retrieved.ID != session.ID {
+			t.Errorf("session %d ID mismatch: expected %s, got %s", i, session.ID, retrieved.ID)
 		}
 	}
 
-	activeCount := manager.GetActiveSessions()
-	// We expect at least 3 sessions, but allow for more due to potential test interactions
-	if activeCount < 3 {
-		t.Errorf("expected at least 3 active sessions, got %d", activeCount)
+	// Check active session count
+	finalCount := manager.GetActiveSessions()
+	if finalCount != 3 {
+		t.Errorf("expected exactly 3 active sessions, got %d", finalCount)
 	}
 }

@@ -14,6 +14,12 @@ indexer:
   chunk_size: 512
   chunk_overlap: 50
 
+embedding:
+  provider: "mock"  # mock, anthropic, openai, etc.
+  model: "mock-768"
+  dimensions: 768
+  config: {}  # Provider-specific configuration (e.g., api_key for anthropic)
+
 logging:
   level: "info"  # debug, info, warn, error
   format: "json" # json, text
@@ -34,4 +40,4 @@ observability:
     dsn: "https://7e54c8bc81fb554a460d4331e5c23fe0@sentry.fergify.work/15"
     environment: "production"
     sample_rate: 1.0
-    release: "0.1.0-alpha"
+    release: "0.1.3-alpha"

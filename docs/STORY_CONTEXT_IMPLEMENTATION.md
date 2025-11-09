@@ -594,13 +594,15 @@ curl -X POST http://localhost:8080/mcp \
     "jsonrpc": "2.0",
     "id": 2,
     "method": "tools/call",
-    "params": {
-      "name": "context_search",
-      "arguments": {
-        "query": "authentication logic",
-        "work_context": {
-          "session_id": "dev-session-123"
-        }
+     "params": {
+       "name": "context.search",
+       "arguments": {
+         "query": "authentication",
+         "work_context": {
+           "session_id": "dev-session-123"
+         }
+       }
+     }
       }
     }
   }'
@@ -626,18 +628,18 @@ curl -X POST http://localhost:8080/mcp \
     "jsonrpc": "2.0",
     "id": 3,
     "method": "tools/call",
-    "params": {
-      "name": "context_connector_management",
-      "arguments": {
-        "action": "add",
-        "connector_id": "github-main",
-        "connector_config": {
-          "type": "github",
-          "token": "your-github-token",
-          "repository": "your-org/your-repo"
-        }
-      }
-    }
+     "params": {
+       "name": "context.connector_management",
+       "arguments": {
+         "action": "add",
+         "connector_id": "github-main",
+         "connector_config": {
+           "type": "github",
+           "token": "your-github-token",
+           "repository": "your-org/your-repo"
+         }
+       }
+     }
   }'
 ```
 

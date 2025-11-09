@@ -64,7 +64,7 @@ func TestEndToEndMCPWithMonitoring(t *testing.T) {
 	// Test invalid search query
 	t.Run("invalid_search", func(t *testing.T) {
 		invalidReq := map[string]interface{}{
-			"name": "context_search",
+			"name": "context.search",
 			"arguments": map[string]interface{}{
 				// Missing required "query" field
 				"top_k": 5,

@@ -17,9 +17,14 @@ import (
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/indexer"
 	"github.com/ferg-cod3s/conexus/internal/mcp"
+	"github.com/ferg-cod3s/conexus/internal/mcp/webhooks"
+	"github.com/ferg-cod3s/conexus/internal/middleware"
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
 	"github.com/ferg-cod3s/conexus/internal/security"
+	"github.com/ferg-cod3s/conexus/internal/security/auth"
+	"github.com/ferg-cod3s/conexus/internal/security/ratelimit"
+	"github.com/ferg-cod3s/conexus/internal/tls"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore/sqlite"
 	"github.com/getsentry/sentry-go"
@@ -27,7 +32,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const Version = "0.1.1-alpha"
+const Version = "0.1.3-alpha"
 
 func main() {
 	ctx := context.Background()
@@ -46,10 +51,11 @@ func main() {
 		logOutput = os.Stderr
 	}
 	logger := observability.NewLogger(observability.LoggerConfig{
-		Level:     cfg.Logging.Level,
-		Format:    cfg.Logging.Format,
-		Output:    logOutput,
-		AddSource: true,
+		Level:         cfg.Logging.Level,
+		Format:        cfg.Logging.Format,
+		Output:        logOutput,
+		AddSource:     true,
+		SentryEnabled: cfg.Observability.Sentry.Enabled,
 	})
 
 	logger.Info("Conexus MCP Server starting",
@@ -114,6 +120,7 @@ func main() {
 			Release:          cfg.Observability.Sentry.Release,
 			TracesSampleRate: cfg.Observability.Sentry.SampleRate,
 			EnableTracing:    true,
+			EnableLogs:       true,
 		})
 		if err != nil {
 			logger.Error("Failed to initialize Sentry", "error", err)
@@ -144,8 +151,35 @@ func main() {
 	}
 	defer connectorStore.Close()
 
-	// Initialize embedder (mock for now - would be real implementation)
-	embedder := embedding.NewMock(768) // Standard embedding dimension
+	// Initialize embedder from configuration
+	provider, err := embedding.Get(cfg.Embedding.Provider)
+	if err != nil {
+		logger.Error("Failed to get embedding provider", "provider", cfg.Embedding.Provider, "error", err)
+		os.Exit(1)
+	}
+
+	// Prepare provider configuration
+	providerConfig := make(map[string]interface{})
+	for k, v := range cfg.Embedding.Config {
+		providerConfig[k] = v
+	}
+
+	// Add common config fields
+	providerConfig["model"] = cfg.Embedding.Model
+	providerConfig["dimensions"] = cfg.Embedding.Dimensions
+
+	// Create embedder instance
+	embedder, err := provider.Create(providerConfig)
+	if err != nil {
+		logger.Error("Failed to create embedder", "provider", cfg.Embedding.Provider, "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("Embedder initialized",
+		"provider", cfg.Embedding.Provider,
+		"model", embedder.Model(),
+		"dimensions", embedder.Dimensions(),
+	)
 
 	// Initialize indexer controller
 	idx := indexer.NewIndexController("./data/indexer_state.json")
@@ -211,8 +245,58 @@ func runHTTPServer(
 	tracerProvider *observability.TracerProvider,
 	idx indexer.IndexController,
 ) {
+	// Initialize TLS manager if TLS is enabled
+	var tlsManager *tls.Manager
+	if cfg.TLS.Enabled {
+		var err error
+		tlsManager, err = tls.NewManager(&cfg.TLS, logger)
+		if err != nil {
+			logger.Error("Failed to initialize TLS manager", "error", err)
+			os.Exit(1)
+		}
+
+		// Validate certificates
+		if err := tlsManager.ValidateCertificates(); err != nil {
+			logger.Error("Certificate validation failed", "error", err)
+			os.Exit(1)
+		}
+
+		logger.Info("TLS enabled",
+			"auto_cert", cfg.TLS.AutoCert,
+			"min_version", cfg.TLS.MinVersion)
+	}
 	// Setup HTTP server with health check
 	mux := http.NewServeMux()
+
+	// Initialize webhook handler
+	errorHandler := observability.NewErrorHandler(logger, metrics, false)
+	webhookHandler := webhooks.NewWebhookHandler(connectorStore, embedder, vectorStore, errorHandler)
+
+	// Initialize JWT manager if authentication is enabled
+	var jwtManager *auth.JWTManager
+	var authMiddleware *middleware.AuthMiddleware
+	if cfg.Auth.Enabled {
+		var err error
+		jwtManager, err = auth.NewJWTManager(
+			cfg.Auth.PrivateKey,
+			cfg.Auth.PublicKey,
+			cfg.Auth.Issuer,
+			cfg.Auth.Audience,
+			cfg.Auth.TokenExpiry,
+		)
+		if err != nil {
+			logger.Error("Failed to initialize JWT manager", "error", err)
+			os.Exit(1)
+		}
+		authMiddleware = middleware.NewAuthMiddleware(jwtManager)
+		logger.Info("JWT authentication enabled",
+			"issuer", cfg.Auth.Issuer,
+			"audience", cfg.Auth.Audience,
+			"token_expiry_minutes", cfg.Auth.TokenExpiry,
+		)
+	} else {
+		logger.Info("JWT authentication disabled")
+	}
 
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -237,32 +321,206 @@ func runHTTPServer(
 		}
 
 		// Handle JSON-RPC request/response with observability
-		handleJSONRPC(w, r.WithContext(requestCtx), vectorStore, connectorStore, embedder, logger, metrics, tracerProvider, idx)
+		handleJSONRPC(w, r.WithContext(requestCtx), vectorStore, connectorStore, embedder, logger, metrics, tracerProvider, idx, cfg.Indexer.RootPath)
+	})
+
+	// GitHub webhook endpoint
+	mux.HandleFunc("/webhooks/github", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Start trace span if tracing is enabled
+		var span trace.Span
+		requestCtx := r.Context()
+		if tracerProvider != nil {
+			requestCtx, span = tracerProvider.StartSpan(requestCtx, "webhook.github")
+			defer span.End()
+		}
+
+		// Handle GitHub webhook
+		webhookHandler.HandleGitHubWebhook(w, r.WithContext(requestCtx))
 	})
 
 	// Root info endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"name":"conexus","version":"%s","mcp_endpoint":"/mcp"}`, Version)
+		fmt.Fprintf(w, `{"name":"conexus","version":"%s","mcp_endpoint":"/mcp","webhook_endpoint":"/webhooks/github"}`, Version)
 	})
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+
+	// Initialize rate limiting middleware if enabled
+	var rateLimitMiddleware *middleware.RateLimitMiddleware
+	if cfg.RateLimit.Enabled {
+		// Convert config to ratelimit package format
+		rateLimitConfig := ratelimit.Config{
+			Enabled: cfg.RateLimit.Enabled,
+			Algorithm: func() ratelimit.Algorithm {
+				switch cfg.RateLimit.Algorithm {
+				case "token_bucket":
+					return ratelimit.TokenBucket
+				case "sliding_window":
+					return ratelimit.SlidingWindow
+				default:
+					return ratelimit.SlidingWindow // default
+				}
+			}(),
+			Redis: ratelimit.RedisConfig{
+				Enabled:   cfg.RateLimit.Redis.Enabled,
+				Addr:      cfg.RateLimit.Redis.Addr,
+				Password:  cfg.RateLimit.Redis.Password,
+				DB:        cfg.RateLimit.Redis.DB,
+				KeyPrefix: cfg.RateLimit.Redis.KeyPrefix,
+			},
+			Default: ratelimit.LimitConfig{
+				Requests: cfg.RateLimit.Default.Requests,
+				Window:   cfg.RateLimit.Default.Window,
+			},
+			Health: ratelimit.LimitConfig{
+				Requests: cfg.RateLimit.Health.Requests,
+				Window:   cfg.RateLimit.Health.Window,
+			},
+			Webhook: ratelimit.LimitConfig{
+				Requests: cfg.RateLimit.Webhook.Requests,
+				Window:   cfg.RateLimit.Webhook.Window,
+			},
+			Auth: ratelimit.LimitConfig{
+				Requests: cfg.RateLimit.Auth.Requests,
+				Window:   cfg.RateLimit.Auth.Window,
+			},
+			BurstMultiplier: cfg.RateLimit.BurstMultiplier,
+			CleanupInterval: cfg.RateLimit.CleanupInterval,
+		}
+
+		// Initialize rate limiter
+		rateLimiter, err := ratelimit.NewRateLimiter(rateLimitConfig)
+		if err != nil {
+			logger.Error("Failed to initialize rate limiter", "error", err)
+			os.Exit(1)
+		}
+
+		// Initialize rate limiting middleware
+		rateLimitMiddleware = middleware.NewRateLimitMiddleware(middleware.RateLimitConfig{
+			RateLimiter:      rateLimiter,
+			MetricsCollector: metrics,
+			SkipPaths:        cfg.RateLimit.SkipPaths,
+			SkipIPs:          cfg.RateLimit.SkipIPs,
+			TrustedProxies:   cfg.RateLimit.TrustedProxies,
+		}, logger)
+
+		logger.Info("Rate limiting enabled",
+			"algorithm", cfg.RateLimit.Algorithm,
+			"redis_enabled", cfg.RateLimit.Redis.Enabled,
+			"default_requests", cfg.RateLimit.Default.Requests,
+			"default_window", cfg.RateLimit.Default.Window,
+		)
+	} else {
+		logger.Info("Rate limiting disabled")
+	}
+
+	// Initialize security middleware
+	securityMiddleware := middleware.NewSecurityMiddleware(middleware.SecurityConfig{
+		CSP: middleware.CSPConfig{
+			Enabled: cfg.Security.CSP.Enabled,
+			Default: cfg.Security.CSP.Default,
+			Script:  cfg.Security.CSP.Script,
+			Style:   cfg.Security.CSP.Style,
+			Image:   cfg.Security.CSP.Image,
+			Font:    cfg.Security.CSP.Font,
+			Connect: cfg.Security.CSP.Connect,
+			Media:   cfg.Security.CSP.Media,
+			Object:  cfg.Security.CSP.Object,
+			Frame:   cfg.Security.CSP.Frame,
+			Report:  cfg.Security.CSP.Report,
+		},
+		HSTS: middleware.HSTSConfig{
+			Enabled:           cfg.Security.HSTS.Enabled,
+			MaxAge:            cfg.Security.HSTS.MaxAge,
+			IncludeSubdomains: cfg.Security.HSTS.IncludeSubdomains,
+			Preload:           cfg.Security.HSTS.Preload,
+		},
+		XFrameOptions:       cfg.Security.XFrameOptions,
+		XContentTypeOptions: cfg.Security.XContentTypeOptions,
+		ReferrerPolicy:      cfg.Security.ReferrerPolicy,
+		PermissionsPolicy:   cfg.Security.PermissionsPolicy,
+	}, logger)
+
+	// Initialize CORS middleware
+	corsMiddleware := middleware.NewCORSMiddleware(middleware.CORSConfig{
+		Enabled:          cfg.CORS.Enabled,
+		AllowedOrigins:   cfg.CORS.AllowedOrigins,
+		AllowedMethods:   cfg.CORS.AllowedMethods,
+		AllowedHeaders:   cfg.CORS.AllowedHeaders,
+		ExposedHeaders:   cfg.CORS.ExposedHeaders,
+		AllowCredentials: cfg.CORS.AllowCredentials,
+		MaxAge:           cfg.CORS.MaxAge,
+	}, logger)
+
+	// Apply middleware in correct order: rate limiting first, then CORS, then security headers, then auth
+	var handler http.Handler = mux
+	if rateLimitMiddleware != nil {
+		handler = rateLimitMiddleware.Middleware(handler)
+	}
+	handler = corsMiddleware.Middleware(handler)
+	handler = securityMiddleware.Middleware(handler)
+	if authMiddleware != nil {
+		handler = authMiddleware.Middleware(handler)
+	}
+
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
+	// Configure TLS if enabled
+	if tlsManager != nil {
+		server.TLSConfig = tlsManager.GetTLSConfig()
+		logger.Info("HTTPS server configured with TLS")
+	}
+
+	// Start HTTP redirect server if TLS is enabled
+	if tlsManager != nil {
+		httpsPort := cfg.Server.Port
+		if httpsPort == 443 {
+			httpsPort = 0 // Use default HTTPS port
+		}
+		if err := tlsManager.StartHTTPRedirect(ctx, httpsPort); err != nil {
+			logger.Error("Failed to start HTTP redirect server", "error", err)
+			os.Exit(1)
+		}
+	}
+
 	// Start server in goroutine
 	go func() {
-		logger.Info("HTTP server starting",
+		scheme := "http"
+		if tlsManager != nil {
+			scheme = "https"
+		}
+		logger.Info("Server starting",
+			"scheme", scheme,
 			"addr", addr,
-			"health_endpoint", fmt.Sprintf("http://%s/health", addr),
-			"mcp_endpoint", fmt.Sprintf("http://%s/mcp", addr),
+			"health_endpoint", fmt.Sprintf("%s://%s/health", scheme, addr),
+			"mcp_endpoint", fmt.Sprintf("%s://%s/mcp", scheme, addr),
 		)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+
+		var err error
+		if tlsManager != nil {
+			// Use auto-cert or manual certs
+			if cfg.TLS.AutoCert {
+				err = server.ListenAndServeTLS("", "")
+			} else {
+				err = server.ListenAndServeTLS(cfg.TLS.CertFile, cfg.TLS.KeyFile)
+			}
+		} else {
+			err = server.ListenAndServe()
+		}
+
+		if err != nil && err != http.ErrServerClosed {
 			logger.Error("Server failed", "error", err)
 			os.Exit(1)
 		}
@@ -296,6 +554,7 @@ func handleJSONRPC(
 	metrics *observability.MetricsCollector,
 	tracerProvider *observability.TracerProvider,
 	idx indexer.IndexController,
+	rootPath string,
 ) {
 	ctx := r.Context()
 	startTime := time.Now()
@@ -347,6 +606,7 @@ func handleJSONRPC(
 		logger:         logger,
 		metrics:        metrics,
 		tracerProvider: tracerProvider,
+		rootPath:       rootPath,
 	}
 
 	// Handle the method
@@ -390,6 +650,7 @@ type mcpHTTPHandler struct {
 	logger         *observability.Logger
 	metrics        *observability.MetricsCollector
 	tracerProvider *observability.TracerProvider
+	rootPath       string
 }
 
 func (h *mcpHTTPHandler) Handle(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
@@ -891,13 +1152,10 @@ func (h *mcpHTTPHandler) handleIndexControl(ctx context.Context, args json.RawMe
 		}, nil
 
 	case "start":
-		// Get current working directory
-		rootPath, err := os.Getwd()
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get working directory: %v", err),
-			}
+		// Use configured root path
+		rootPath := h.rootPath
+		if rootPath == "" {
+			rootPath = "."
 		}
 
 		// Load ignore patterns
@@ -941,13 +1199,10 @@ func (h *mcpHTTPHandler) handleIndexControl(ctx context.Context, args json.RawMe
 		}, nil
 
 	case "force_reindex":
-		// Get current working directory
-		rootPath, err := os.Getwd()
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get working directory: %v", err),
-			}
+		// Use configured root path
+		rootPath := h.rootPath
+		if rootPath == "" {
+			rootPath = "."
 		}
 
 		// Load ignore patterns
@@ -985,13 +1240,10 @@ func (h *mcpHTTPHandler) handleIndexControl(ctx context.Context, args json.RawMe
 			}
 		}
 
-		// Get current working directory
-		rootPath, err := os.Getwd()
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get working directory: %v", err),
-			}
+		// Use configured root path
+		rootPath := h.rootPath
+		if rootPath == "" {
+			rootPath = "."
 		}
 
 		// Load ignore patterns

@@ -80,21 +80,21 @@ function createMCPRequest(method, params = {}) {
 function testFastOperation() {
   const query = queries[Math.floor(Math.random() * queries.length)];
   const startTime = Date.now();
-  
+
   const payload = createMCPRequest('tools/call', {
-    name: 'context_search',
+    name: 'context.search',
     arguments: {
       query: query,
       max_results: 5,  // Smaller result set for faster responses
     },
   });
-  
+
   const response = http.post(
     `${BASE_URL}/mcp`,
     payload,
     {
       headers: { 'Content-Type': 'application/json' },
-      tags: { name: 'context_search' },
+      tags: { name: 'context.search' },
       timeout: '10s',
     }
   );

@@ -28,9 +28,9 @@ func (m *MockEmbedder) Embed(ctx context.Context, text string) (*Embedding, erro
 	if text == "" {
 		return nil, fmt.Errorf("cannot embed empty text")
 	}
-	
+
 	vector := m.generateVector(text)
-	
+
 	return &Embedding{
 		Text:   text,
 		Vector: vector,
@@ -41,7 +41,7 @@ func (m *MockEmbedder) Embed(ctx context.Context, text string) (*Embedding, erro
 // EmbedBatch generates embeddings for multiple texts.
 func (m *MockEmbedder) EmbedBatch(ctx context.Context, texts []string) ([]*Embedding, error) {
 	embeddings := make([]*Embedding, len(texts))
-	
+
 	for i, text := range texts {
 		emb, err := m.Embed(ctx, text)
 		if err != nil {
@@ -49,7 +49,7 @@ func (m *MockEmbedder) EmbedBatch(ctx context.Context, texts []string) ([]*Embed
 		}
 		embeddings[i] = emb
 	}
-	
+
 	return embeddings, nil
 }
 
@@ -68,15 +68,15 @@ func (m *MockEmbedder) Model() string {
 func (m *MockEmbedder) generateVector(text string) Vector {
 	// Hash the text to get a deterministic seed
 	hash := sha256.Sum256([]byte(text))
-	
+
 	vector := make(Vector, m.dimensions)
-	
+
 	// Generate pseudo-random values from hash
 	for i := 0; i < m.dimensions; i++ {
 		// Use different parts of the hash cyclically
 		offset := (i * 4) % len(hash)
 		seed := binary.BigEndian.Uint32(hash[offset:])
-		
+
 		// Convert to float in range [-1, 1]
 		// Guard against integer overflow (G115): use int64 intermediate to avoid overflow
 		// when converting uint32 to signed type
@@ -86,7 +86,36 @@ func (m *MockEmbedder) generateVector(text string) Vector {
 		}
 		vector[i] = float32(seed64) / float32(math.MaxInt32) // #nosec G115 -- seed64 is guaranteed <= MaxInt32
 	}
-	
+
+	// Normalize to unit vector
+	return normalize(vector)
+}
+
+// generateDeterministicVector creates a deterministic normalized vector from text with a provider seed.
+// Uses SHA256 hash as seed for reproducible pseudo-random values.
+func generateDeterministicVector(text string, dimensions int, provider string) Vector {
+	// Hash text with provider seed to get a deterministic seed
+	hashInput := text + provider
+	hash := sha256.Sum256([]byte(hashInput))
+
+	vector := make(Vector, dimensions)
+
+	// Generate pseudo-random values from hash
+	for i := 0; i < dimensions; i++ {
+		// Use different parts of hash cyclically
+		offset := (i * 4) % len(hash)
+		seed := binary.BigEndian.Uint32(hash[offset:])
+
+		// Convert to float in range [-1, 1]
+		// Guard against integer overflow (G115): use int64 intermediate to avoid overflow
+		// when converting uint32 to signed type
+		seed64 := int64(seed)
+		if seed64 > math.MaxInt32 {
+			seed64 = seed64 % math.MaxInt32
+		}
+		vector[i] = float32(seed64) / float32(math.MaxInt32) // #nosec G115 -- seed64 is guaranteed <= MaxInt32
+	}
+
 	// Normalize to unit vector
 	return normalize(vector)
 }
@@ -97,18 +126,18 @@ func normalize(v Vector) Vector {
 	for _, val := range v {
 		sumSquares += val * val
 	}
-	
+
 	if sumSquares == 0 {
 		return v
 	}
-	
+
 	magnitude := float32(math.Sqrt(float64(sumSquares)))
-	
+
 	normalized := make(Vector, len(v))
 	for i, val := range v {
 		normalized[i] = val / magnitude
 	}
-	
+
 	return normalized
 }
 
@@ -123,16 +152,16 @@ func (p *MockProvider) Name() string {
 // Create instantiates a mock embedder with the given config.
 func (p *MockProvider) Create(config map[string]interface{}) (Embedder, error) {
 	dimensions := 384 // Default
-	
+
 	if dim, ok := config["dimensions"].(int); ok {
 		dimensions = dim
 	} else if dim, ok := config["dimensions"].(float64); ok {
 		dimensions = int(dim)
 	}
-	
+
 	if dimensions <= 0 {
 		return nil, fmt.Errorf("dimensions must be positive, got %d", dimensions)
 	}
-	
+
 	return NewMock(dimensions), nil
 }
