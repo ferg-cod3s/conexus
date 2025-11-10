@@ -11,6 +11,8 @@
     "prepublishOnly": "npm run build:all",
     "test": "go test ./...",
     "test:integration": "go test ./internal/testing/integration/...",
+    "test:inspector": "node tests/integration/inspector/test-inspector.js --conexus-path ./conexus",
+    "inspector": "npx -y @modelcontextprotocol/inspector ./conexus",
     "lint": "golangci-lint run",
     "start": "node bin/conexus.js"
   },
