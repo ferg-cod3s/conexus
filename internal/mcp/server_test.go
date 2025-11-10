@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -33,9 +34,36 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) (*embedding.Embed
 	if dims == 0 {
 		dims = 384
 	}
+
+	// Generate meaningful non-zero vectors based on text content
+	// This simulates real embeddings where similar text gets similar vectors
+	vector := make(embedding.Vector, dims)
+	if text != "" {
+		// Use a simple hash-based approach to generate consistent vectors
+		// Characters influence different dimensions
+		for i := 0; i < len(text) && i < dims; i++ {
+			vector[i] = float32(text[i]) / 255.0
+		}
+		// Fill remaining dimensions with a pattern based on text length
+		for i := len(text); i < dims; i++ {
+			vector[i] = float32((len(text)*i)%100) / 100.0
+		}
+		// Normalize the vector (make it unit length)
+		var sum float32
+		for _, v := range vector {
+			sum += v * v
+		}
+		if sum > 0 {
+			norm := float32(1.0 / math.Sqrt(float64(sum)))
+			for i := range vector {
+				vector[i] *= norm
+			}
+		}
+	}
+
 	return &embedding.Embedding{
 		Text:   text,
-		Vector: make(embedding.Vector, dims),
+		Vector: vector,
 		Model:  m.model,
 	}, nil
 }
@@ -167,7 +195,7 @@ func TestNewServer(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	assert.NotNil(t, server)
 	assert.NotNil(t, server.vectorStore)
@@ -184,7 +212,7 @@ func TestServer_Close(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 	err := server.Close()
 	assert.NoError(t, err)
 }
@@ -197,7 +225,7 @@ func TestServer_Handle_ToolsList(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	result, err := server.Handle("tools/list", nil)
 	require.NoError(t, err)
@@ -258,7 +286,7 @@ func TestServer_Handle_ContextSearch(t *testing.T) {
 	err := store.Upsert(ctx, doc)
 	require.NoError(t, err)
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	req := SearchRequest{
 		Query: "test query",
@@ -286,7 +314,7 @@ func TestServer_Handle_UnknownMethod(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	_, err := server.Handle("unknown/method", nil)
 	assert.Error(t, err)
@@ -305,7 +333,7 @@ func TestServer_Serve(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	// Test Serve - it should return nil for now (placeholder implementation)
 	err := server.Serve()
@@ -320,9 +348,7 @@ func TestServer_HandleInitialize(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
-
-	ctx := context.Background()
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	// Create initialize request
 	req := map[string]interface{}{
@@ -340,7 +366,7 @@ func TestServer_HandleInitialize(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test handleInitialize
-	result, err := server.handleInitialize(ctx, json.RawMessage(reqJSON))
+	result, err := server.Handle("initialize", json.RawMessage(reqJSON))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -361,7 +387,7 @@ func TestServer_HandleResourcesList(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	ctx := context.Background()
 
@@ -385,7 +411,7 @@ func TestServer_HandleResourcesRead(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	ctx := context.Background()
 
@@ -433,7 +459,7 @@ func TestServer_ValidateFilePath(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	tests := []struct {
 		name        string
@@ -467,7 +493,7 @@ func TestServer_GetMimeType(t *testing.T) {
 	embedder := &mockEmbedder{}
 	mockIdx := &mockIndexer{}
 
-	server := NewServer(reader, writer, store, connectorStore, embedder, nil, nil, mockIdx)
+	server := NewServer(reader, writer, "", store, connectorStore, embedder, nil, nil, mockIdx)
 
 	tests := []struct {
 		name     string

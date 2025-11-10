@@ -21,21 +21,22 @@ import (
 
 // Server implements the MCP protocol server
 type Server struct {
-	vectorStore      vectorstore.VectorStore
-	connectorStore   connectors.ConnectorStore
-	connectorManager *connectors.ConnectorManager
-	embedder         embedding.Embedder
-	searchCache      *search.SearchCache
-	metrics          *observability.MetricsCollector
-	errorHandler     *observability.ErrorHandler
-	jsonrpcSrv       *protocol.Server
-	indexer          indexer.IndexController
+	vectorStore    vectorstore.VectorStore
+	rootPath       string
+	connectorStore connectors.ConnectorStore
+	embedder       embedding.Embedder
+	searchCache    *search.SearchCache
+	metrics        *observability.MetricsCollector
+	errorHandler   *observability.ErrorHandler
+	jsonrpcSrv     *protocol.Server
+	indexer        indexer.IndexController
 }
 
 // NewServer creates a new MCP server
 func NewServer(
 	reader io.Reader,
 	writer io.Writer,
+	rootPath string,
 	vectorStore vectorstore.VectorStore,
 	connectorStore connectors.ConnectorStore,
 	embedder embedding.Embedder,
@@ -46,17 +47,15 @@ func NewServer(
 	// Initialize search cache (max 100 entries, 5 minute TTL)
 	searchCache := search.NewSearchCache(100, 5*time.Minute)
 
-	connectorManager := connectors.NewConnectorManager(connectorStore)
-
 	s := &Server{
-		vectorStore:      vectorStore,
-		connectorStore:   connectorStore,
-		connectorManager: connectorManager,
-		embedder:         embedder,
-		searchCache:      searchCache,
-		metrics:          metrics,
-		errorHandler:     errorHandler,
-		indexer:          indexer,
+		vectorStore:    vectorStore,
+		rootPath:       rootPath,
+		connectorStore: connectorStore,
+		embedder:       embedder,
+		searchCache:    searchCache,
+		metrics:        metrics,
+		errorHandler:   errorHandler,
+		indexer:        indexer,
 	}
 
 	// Create JSON-RPC server with this server as handler
@@ -112,37 +111,35 @@ func (s *Server) Close() error {
 	return nil
 }
 
-// InitializeRequest represents an initialize request
-type InitializeRequest struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    map[string]interface{} `json:"capabilities"`
-	ClientInfo      map[string]interface{} `json:"clientInfo"`
-}
-
-// handleInitialize handles MCP protocol initialization
+// handleInitialize handles the initialize request
 func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (interface{}, error) {
-	var req InitializeRequest
-	if len(params) > 0 {
-		if err := json.Unmarshal(params, &req); err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InvalidParams,
-				Message: fmt.Sprintf("invalid parameters: %v", err),
-			}
+	// Parse initialize request
+	var req map[string]interface{}
+	if err := json.Unmarshal(params, &req); err != nil {
+		errorCtx := observability.ExtractErrorContext(ctx, "initialize")
+		errorCtx.ErrorType = "invalid_params"
+		errorCtx.ErrorCode = protocol.InvalidParams
+		errorCtx.Params = params
+
+		if s.errorHandler != nil {
+			s.errorHandler.HandleError(ctx, err, errorCtx)
+		}
+
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid parameters: %v", err),
 		}
 	}
 
+	// Return initialize response with server capabilities
 	return map[string]interface{}{
 		"protocolVersion": "2025-06-18",
 		"capabilities": map[string]interface{}{
 			"tools": map[string]interface{}{},
-			"resources": map[string]interface{}{
-				"subscribe":   false,
-				"listChanged": true,
-			},
 		},
 		"serverInfo": map[string]interface{}{
 			"name":    "conexus",
-			"version": "0.1.2-alpha",
+			"version": "0.2.1-alpha",
 		},
 	}, nil
 }
@@ -191,14 +188,6 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (i
 		return s.handleIndexControl(ctx, req.Arguments)
 	case ToolContextConnectorManagement:
 		return s.handleConnectorManagement(ctx, req.Arguments)
-	case ToolContextExplain:
-		return s.handleContextExplain(ctx, req.Arguments)
-	case ToolContextGrep:
-		return s.handleContextGrep(ctx, req.Arguments)
-	case ToolGitHubSyncStatus:
-		return s.handleGitHubSyncStatus(ctx, req.Arguments)
-	case ToolGitHubSyncTrigger:
-		return s.handleGitHubSyncTrigger(ctx, req.Arguments)
 	default:
 		errorCtx := observability.ExtractErrorContext(ctx, "tools/call")
 		errorCtx.ErrorType = "tool_not_found"
@@ -453,6 +442,7 @@ func (s *Server) validateFilePath(filePath string) error {
 func (s *Server) getMimeType(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	switch ext {
+	// Text/Code files
 	case ".go":
 		return "text/x-go"
 	case ".js", ".jsx":
@@ -483,10 +473,34 @@ func (s *Server) getMimeType(filePath string) string {
 		return "text/html"
 	case ".css":
 		return "text/css"
-	case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp":
-		return "image/png" // Using png as representative for images
+	// Image files
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".svg":
+		return "image/svg+xml"
+	case ".webp":
+		return "image/webp"
+	// Document files
 	case ".pdf":
 		return "application/pdf"
+	case ".doc", ".docx":
+		return "application/msword"
+	case ".xls", ".xlsx":
+		return "application/vnd.ms-excel"
+	case ".ppt", ".pptx":
+		return "application/vnd.ms-powerpoint"
+	// Archive files
+	case ".zip":
+		return "application/zip"
+	case ".tar":
+		return "application/x-tar"
+	case ".gz":
+		return "application/gzip"
+	// Default for unknown files
 	default:
 		return "application/octet-stream"
 	}

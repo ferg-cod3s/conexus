@@ -47,13 +47,13 @@ func TestRateLimitIntegration(t *testing.T) {
 			Enabled:         true,
 			Algorithm:       "sliding_window",
 			BurstMultiplier: 1.0, // Allow bursting up to the full rate limit
-			Default: config.RateLimitRuleConfig{
-				Requests: 10,          // Even higher limit for testing
-				Window:   time.Minute, // 1 minute window
+			Default: config.LimitConfig{
+				Requests: 10,   // Even higher limit for testing
+				Window:   "1m", // 1 minute window
 			},
-			Health: config.RateLimitRuleConfig{
+			Health: config.LimitConfig{
 				Requests: 10,
-				Window:   time.Minute,
+				Window:   "1m",
 			},
 		},
 		Security: config.SecurityConfig{
@@ -97,6 +97,12 @@ func TestRateLimitIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize rate limiter
+	defaultWindow, err := time.ParseDuration(cfg.RateLimit.Default.Window)
+	require.NoError(t, err)
+
+	healthWindow, err := time.ParseDuration(cfg.RateLimit.Health.Window)
+	require.NoError(t, err)
+
 	rateLimitConfig := ratelimit.Config{
 		Enabled: cfg.RateLimit.Enabled,
 		Algorithm: func() ratelimit.Algorithm {
@@ -111,11 +117,11 @@ func TestRateLimitIntegration(t *testing.T) {
 		}(),
 		Default: ratelimit.LimitConfig{
 			Requests: cfg.RateLimit.Default.Requests,
-			Window:   cfg.RateLimit.Default.Window,
+			Window:   defaultWindow,
 		},
 		Health: ratelimit.LimitConfig{
 			Requests: cfg.RateLimit.Health.Requests,
-			Window:   cfg.RateLimit.Health.Window,
+			Window:   healthWindow,
 		},
 	}
 

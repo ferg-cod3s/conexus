@@ -3,14 +3,12 @@ package integration
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/config"
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/getsentry/sentry-go"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,6 +18,15 @@ func TestSentryErrorCapture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping Sentry integration test in short mode")
 	}
+
+	// Create error handler once, reuse across all subtests
+	loggerCfg := observability.LoggerConfig{
+		Level:  "debug",
+		Format: "json",
+	}
+	logger := observability.NewLogger(loggerCfg)
+	metrics := observability.NewMetricsCollector("test-sentry-error-capture")
+	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	tests := []struct {
 		name        string
@@ -61,18 +68,6 @@ func TestSentryErrorCapture(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create error handler with Sentry enabled
-			loggerCfg := observability.LoggerConfig{
-				Level:  "debug",
-				Format: "json",
-			}
-			logger := observability.NewLogger(loggerCfg)
-
-			// Use separate registry to avoid conflicts
-			testRegistry := prometheus.NewRegistry()
-			metrics := observability.NewMetricsCollectorWithRegistry(fmt.Sprintf("test-sentry-%s", tt.name), testRegistry)
-			errorHandler := observability.NewErrorHandler(logger, metrics, true)
-
 			ctx := context.Background()
 
 			// Create test error
@@ -113,7 +108,7 @@ func TestSentryTracing(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-	metrics := observability.NewMetricsCollector("test")
+	metrics := observability.NewMetricsCollector("test-sentry-tracing")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -159,10 +154,7 @@ func TestSentryUserContext(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-
-	// Use separate registry to avoid conflicts
-	testRegistry := prometheus.NewRegistry()
-	metrics := observability.NewMetricsCollectorWithRegistry("test-sentry-user-context", testRegistry)
+	metrics := observability.NewMetricsCollector("test-sentry-user-context")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -242,10 +234,7 @@ func TestSentryErrorRecovery(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-
-	// Use separate registry to avoid conflicts
-	testRegistry := prometheus.NewRegistry()
-	metrics := observability.NewMetricsCollectorWithRegistry("test-sentry-recovery", testRegistry)
+	metrics := observability.NewMetricsCollector("test-sentry-error-recovery")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -286,6 +275,11 @@ func TestSentryConfigurationValidation(t *testing.T) {
 					Host: "localhost",
 					Port: 9000,
 				},
+				Embedding: config.EmbeddingConfig{
+					Provider:   "mock",
+					Model:      "mock-768",
+					Dimensions: 768,
+				},
 				Database: config.DatabaseConfig{
 					Path: ":memory:",
 				},
@@ -317,6 +311,11 @@ func TestSentryConfigurationValidation(t *testing.T) {
 					Host: "localhost",
 					Port: 9001,
 				},
+				Embedding: config.EmbeddingConfig{
+					Provider:   "mock",
+					Model:      "mock-768",
+					Dimensions: 768,
+				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
 						Enabled:     true,
@@ -334,6 +333,11 @@ func TestSentryConfigurationValidation(t *testing.T) {
 				Server: config.ServerConfig{
 					Host: "localhost",
 					Port: 9002,
+				},
+				Embedding: config.EmbeddingConfig{
+					Provider:   "mock",
+					Model:      "mock-768",
+					Dimensions: 768,
 				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
@@ -353,6 +357,11 @@ func TestSentryConfigurationValidation(t *testing.T) {
 				Server: config.ServerConfig{
 					Host: "localhost",
 					Port: 9003,
+				},
+				Embedding: config.EmbeddingConfig{
+					Provider:   "mock",
+					Model:      "mock-768",
+					Dimensions: 768,
 				},
 				Observability: config.ObservabilityConfig{
 					Sentry: config.SentryConfig{
@@ -392,10 +401,7 @@ func TestSentryHealthCheck(t *testing.T) {
 		Format: "json",
 	}
 	logger := observability.NewLogger(loggerCfg)
-
-	// Use separate registry to avoid conflicts
-	testRegistry := prometheus.NewRegistry()
-	metrics := observability.NewMetricsCollectorWithRegistry("test-sentry-health", testRegistry)
+	metrics := observability.NewMetricsCollector("test-sentry-health-check")
 	errorHandler := observability.NewErrorHandler(logger, metrics, true)
 
 	ctx := context.Background()
@@ -417,10 +423,9 @@ func TestSentryHealthCheck(t *testing.T) {
 
 	if status == "enabled" {
 		// If enabled, check additional fields
-		// Note: message field may not be present in all implementations
-		_, hasMessage := sentryHealth["message"]
-		if hasMessage {
-			assert.NotEmpty(t, sentryHealth["message"], "Enabled Sentry should have non-empty message")
-		}
+		assert.Contains(t, sentryHealth, "configured", "Enabled Sentry should have configured field")
+		configured, ok := sentryHealth["configured"].(bool)
+		assert.True(t, ok, "Configured field should be boolean")
+		assert.True(t, configured, "Enabled Sentry should have configured=true")
 	}
 }

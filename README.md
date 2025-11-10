@@ -1,8 +1,8 @@
-# Conexus - MCP Server for Context-Aware AI Assistants
+# Conexus - The Agentic Context Engine
 
-**Version**: 0.2.1-alpha
-**Status**: ✅ MCP Server Ready
-**Go Version**: 1.24.0
+**Version**: 0.0.5 (Phase 5 - Integration & Documentation)  
+**Status**: 🚧 Active Development  
+**Go Version**: 1.23.4
 
 [![Go Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)]()
@@ -12,17 +12,17 @@
 
 ## 🎯 Overview
 
-Conexus is a **Model Context Protocol (MCP) server** that provides AI assistants with intelligent context about your codebase. It enables semantic search, code understanding, and project knowledge retrieval through standardized MCP tools.
+Conexus is an **agentic context engine** that transforms Large Language Models (LLMs) into expert engineering assistants. It provides a **multi-agent system** for analyzing codebases, with built-in validation, profiling, and workflow orchestration.
 
 ### Key Features
 
-- 🔌 **MCP Server**: First-class Model Context Protocol server for AI assistants
-- 🔍 **Semantic Search**: Hybrid vector + keyword search across your codebase
-- 📁 **File Context**: Intelligent file relationships and project structure understanding
-- ⚡ **Fast Performance**: Sub-second context retrieval with intelligent caching
-- 🛡️ **Security First**: Rate limiting, security headers, and input validation
-- 🛠️ **Easy Integration**: Works with Claude Desktop, Cursor, and other MCP clients
-- 🧪 **Well Tested**: Comprehensive test suite with real-world validation
+- 🤖 **Multi-Agent Architecture**: Specialized agents for locating and analyzing code
+- 🔌 **MCP Integration**: First-class Model Context Protocol support for AI assistants
+- ✅ **Evidence-Backed Validation**: 100% evidence traceability for all agent outputs
+- 📊 **Performance Profiling**: Real-time metrics and bottleneck detection
+- 🔄 **Workflow Orchestration**: Complex multi-agent workflows with state management
+- 🏗️ **AGENT_OUTPUT_V1**: Standardized JSON schema for agent communication
+- 🧪 **Comprehensive Testing**: 53+ integration tests with real-world validation
 
 ---
 
@@ -30,57 +30,23 @@ Conexus is a **Model Context Protocol (MCP) server** that provides AI assistants
 
 ### Prerequisites
 
-- **Node.js 18+** or **Bun** (for npm/bunx installation)
+- **Go 1.23.4+** ([download](https://go.dev/dl/))
 - Git
+- Linux/macOS/Windows with WSL
+- **Bun runtime** (required for dogfooding tests only)
 
 ### Installation
 
-**Option 1: NPM Package (Recommended)**
-
-```bash
-# Install globally via npm
-npm install -g @agentic-conexus/mcp
-
-# Or use with bunx/npx (no installation required)
-bunx -y @agentic-conexus/mcp
-npx -y @agentic-conexus/mcp
-```
-
-**Option 2: Local Installation (For Development)**
-
 ```bash
 # Clone the repository
 git clone https://github.com/ferg-cod3s/conexus.git
 cd conexus
 
-# Build the binaries
-./scripts/build-binaries.sh
+# Install dependencies
+go mod download
 
-# Run directly
-./bin/conexus-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
-
-# Or install locally
-npm install
-npm run build:all
-npm link
-```
-
-> **Note**: Pre-built binaries are included for:
-> - macOS (Intel & Apple Silicon)
-> - Linux (amd64 & arm64)
-> - Windows (amd64)
-
-**Option 3: From Source (For Development)**
-
-```bash
-# Clone the repository
-git clone https://github.com/ferg-cod3s/conexus.git
-cd conexus
-
-# Requires Go 1.23.4+ - https://go.dev/dl/
-
-# Build from source
-go build -o conexus ./cmd/conexus
+# Build the project
+go build ./cmd/conexus
 
 # Run tests
 go test ./...
@@ -89,134 +55,83 @@ go test ./...
 ### Basic Usage
 
 ```bash
-# Run the MCP server (stdio mode - default)
-bunx -y @agentic-conexus/mcp
+# Run the Conexus MCP server (default port 8080)
+./conexus
 
-# Or if installed globally
-conexus
+# Run with custom configuration
+CONEXUS_LOG_LEVEL=debug ./conexus
 
-# Run with environment variables
-CONEXUS_DB_PATH=./data/db.sqlite CONEXUS_LOG_LEVEL=debug bunx -y @agentic-conexus/mcp
-
-# Run in HTTP mode (for testing)
-CONEXUS_PORT=3000 bunx -y @agentic-conexus/mcp
+# Test the server is running
+curl http://localhost:8080/health
 ```
+
+**Note**: Conexus runs as an MCP server exposing HTTP endpoints. See the **MCP Integration** section below for connecting with AI assistants.
+
+---
 
 ---
 
 ## 🔌 MCP Integration
 
-Conexus is a dedicated **MCP server** that provides AI assistants with intelligent context about your codebase through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). It integrates seamlessly with Claude Desktop, Cursor, and other MCP-compatible clients.
+Conexus provides first-class support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io), enabling seamless integration with AI assistants like Claude Desktop and Cursor.
 
-### Why Use Conexus as an MCP Server?
+### Why Use Conexus with AI Assistants?
 
-Conexus provides AI assistants with **intelligent codebase context** that goes beyond simple file search:
-
-#### 🔍 **Smart Code Discovery**
-- **Semantic Search**: Find code by meaning, not just keywords
-- **Hybrid Search**: Combines vector similarity with BM25 keyword matching
-- **File Relationships**: Understand how files and functions connect
-- **Project Structure**: Intelligent awareness of codebase organization
-
-#### ⚡ **Fast Performance**
-- **Sub-Second Retrieval**: Get relevant context in under 1 second
-- **Intelligent Caching**: 98% cache hit rate for repeated queries
-- **Efficient Indexing**: Quickly processes large codebases
-
-#### 🛠️ **MCP Tools**
-- **context.search**: Semantic search across your entire codebase
-- **context.get_related_info**: Find files and discussions related to specific code
-- **context.index_control**: Manage indexing operations
-- **context.connector_management**: Configure data sources
+- 🔍 **Intelligent Context Retrieval**: Search your codebase using natural language
+- 🎯 **Precise Results**: Vector similarity search + filtering for relevant findings
+- 🔄 **Real-time Indexing**: Keep your code context fresh and up-to-date
+- 🛠️ **Built-in Tools**: 4 powerful MCP tools for code understanding
 
 ### Quick MCP Setup (<5 minutes)
 
-**Option 1: Local Binary (Recommended for MCP clients)**
-
-```bash
-# Clone and build
-git clone https://github.com/ferg-cod3s/conexus.git
-cd conexus
-./scripts/build-binaries.sh
-
-# Use the local binary
-./bin/conexus-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
-```
-
-Configure in your MCP client (Claude Desktop, Cursor, etc.):
-
-```json
-{
-  "mcpServers": {
-    "conexus": {
-      "command": "bunx",
-      "args": ["@agentic-conexus/mcp"],
-      "env": {
-        "CONEXUS_DB_PATH": "/path/to/your/project/.conexus/db.sqlite"
-      }
-    }
-  }
-}
-```
-
-**Option 2: Go Install (For development)**
+**1. Install and start Conexus MCP server:**
 
 ```bash
 # Install Conexus
 go install github.com/ferg-cod3s/conexus/cmd/conexus@latest
 
-# Start the MCP server (stdio mode by default)
+# Start the MCP server (will auto-index current directory)
 conexus
-
-# Or run in HTTP mode
-CONEXUS_PORT=3000 conexus
 ```
 
-Configure for stdio mode (recommended for MCP):
+**2. Configure Claude Desktop:**
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
   "mcpServers": {
     "conexus": {
       "command": "conexus",
+      "args": [],
       "env": {
-        "CONEXUS_DB_PATH": "/path/to/your/project/.conexus/db.sqlite"
+        "CONEXUS_LOG_LEVEL": "info"
       }
     }
   }
 }
 ```
 
-**Test the integration:**
-
-In your MCP client (OpenCode, Claude Desktop, etc.):
+**3. Restart Claude Desktop and test:**
 
 ```
 You: "Search for HTTP handler functions in this codebase"
 
-AI Assistant: [Uses context.search tool]
+Claude: [Uses context.search tool]
 Found 5 HTTP handlers:
 - HandleRequest in internal/server/handler.go:42-68
 - HandleHealth in internal/server/health.go:15-22
 ...
 ```
 
-**Environment Variables:**
-
-- `CONEXUS_DB_PATH`: Path to SQLite database (default: `~/.conexus/db.sqlite`)
-- `CONEXUS_LOG_LEVEL`: Log level: debug, info, warn, error (default: `info`)
-- `CONEXUS_PORT`: Run in HTTP mode instead of stdio (for development)
-
 ### Available MCP Tools
 
 | Tool | Status | Description |
 |------|--------|-------------|
-| `context.search` | ✅ Fully Implemented | Semantic search with hybrid vector+BM25, work context boosting, and semantic reranking |
-| `context.get_related_info` | ✅ Fully Implemented | Get related files, functions, and context for specific files or tickets |
-| `context.explain` | ✅ Fully Implemented | Detailed code explanations with examples and complexity assessment |
-| `context.grep` | ✅ Fully Implemented | Fast pattern matching using ripgrep with regex support |
-| `context.index_control` | ✅ Fully Implemented | Full indexing operations (start, stop, status, reindex, sync) |
-| `context.connector_management` | ✅ Fully Implemented | Complete CRUD operations for data source connectors with SQLite persistence |
+| `context.search` | ✅ Fully Implemented | Search code with filters (type, language, file patterns) |
+| `context.get_related_info` | ✅ Fully Implemented | Get related files, functions, and context |
+| `context.index_control` | ⏳ Partial | Indexing operations (status available, reindex planned) |
+| `context.connector_management` | ⏳ Partial | Data source management (list available, CRUD planned) |
 
 ### Example Queries
 
@@ -241,180 +156,6 @@ Found 5 HTTP handlers:
 "Search for configuration loading functions"
 ```
 
-### Project-Specific Installation
-
-For using Conexus with specific projects, you can configure it to work with your existing codebase structure:
-
-#### 1. Per-Project MCP Server Configuration
-
-Create a project-specific MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "conexus-myproject": {
-      "command": "conexus",
-      "args": ["mcp", "--root", "/path/to/your/project"],
-      "env": {
-        "CONEXUS_LOG_LEVEL": "info",
-        "CONEXUS_CONFIG": "/path/to/your/project/conexus.yml"
-      }
-    }
-  }
-}
-```
-
-#### 2. Project Configuration File
-
-Create a `conexus.yml` file in your project root:
-
-```yaml
-# conexus.yml - Project-specific configuration
-project:
-  name: "my-project"
-  description: "Web application backend"
-
-# Codebase settings
-codebase:
-  root: "."
-  include_patterns:
-    - "**/*.go"
-    - "**/*.js"
-    - "**/*.ts"
-    - "**/*.py"
-  exclude_patterns:
-    - "**/node_modules/**"
-    - "**/vendor/**"
-    - "**/dist/**"
-    - "**/.git/**"
-
-# Search configuration
-search:
-  max_results: 50
-  similarity_threshold: 0.7
-  enable_fts: true
-
-# Indexing settings
-indexing:
-  auto_reindex: true
-  reindex_interval: "1h"
-  chunk_size: 1000
-```
-
-#### 3. Docker Integration for Teams
-
-For team environments, use Docker to ensure consistent configuration:
-
-```yaml
-# docker-compose.conexus.yml
-version: '3.8'
-services:
-  conexus:
-    image: conexus:latest
-    container_name: conexus-myproject
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./:/workspace:ro
-      - ./data:/data
-    environment:
-      - CONEXUS_ROOT_PATH=/workspace
-      - CONEXUS_LOG_LEVEL=info
-      - CONEXUS_CONFIG=/workspace/conexus.yml
-    working_dir: /workspace
-```
-
-```bash
-# Start for your project
-docker-compose -f docker-compose.conexus.yml up -d
-
-# Test the connection
-curl http://localhost:3000/health
-```
-
-#### 4. Project Type Examples
-
-**Node.js Project:**
-```yaml
-codebase:
-  include_patterns:
-    - "**/*.js"
-    - "**/*.ts"
-    - "**/*.json"
-    - "**/*.md"
-  exclude_patterns:
-    - "**/node_modules/**"
-    - "**/coverage/**"
-    - "**/dist/**"
-```
-
-**Python Project:**
-```yaml
-codebase:
-  include_patterns:
-    - "**/*.py"
-    - "**/*.md"
-    - "**/requirements*.txt"
-    - "**/pyproject.toml"
-  exclude_patterns:
-    - "**/__pycache__/**"
-    - "**/venv/**"
-    - "**/env/**"
-    - "**/.pytest_cache/**"
-```
-
-**Go Project:**
-```yaml
-codebase:
-  include_patterns:
-    - "**/*.go"
-    - "**/go.mod"
-    - "**/go.sum"
-    - "**/*.md"
-  exclude_patterns:
-    - "**/vendor/**"
-```
-
-**Monorepo:**
-```yaml
-codebase:
-  include_patterns:
-    - "packages/**/*.ts"
-    - "packages/**/*.js"
-    - "apps/**/*.ts"
-    - "apps/**/*.js"
-  exclude_patterns:
-    - "**/node_modules/**"
-    - "**/dist/**"
-    - "**/build/**"
-```
-
-#### 5. Claude Desktop Project Templates
-
-Create reusable templates for different project types:
-
-```json
-{
-  "mcpServers": {
-    "conexus-nodejs": {
-      "command": "conexus",
-      "args": ["mcp", "--root", "$PROJECT_ROOT"],
-      "env": {
-        "CONEXUS_CONFIG": "$PROJECT_ROOT/.conexus/nodejs.yml"
-      }
-    },
-    "conexus-python": {
-      "command": "conexus", 
-      "args": ["mcp", "--root", "$PROJECT_ROOT"],
-      "env": {
-        "CONEXUS_CONFIG": "$PROJECT_ROOT/.conexus/python.yml"
-      }
-    }
-  }
-}
-```
-
 ### Advanced Configuration
 
 For production deployments, custom embedding providers, and advanced search optimization, see the **[MCP Integration Guide](docs/getting-started/mcp-integration-guide.md)**.
@@ -429,79 +170,55 @@ For production deployments, custom embedding providers, and advanced search opti
 
 
 
----
+## 📚 Architecture
 
-## 📈 Context Retention vs Standard LLM
-
-Conexus provides **significant improvements** over standard LLM context limitations:
-
-### Standard LLM Limitations
-- ❌ **Fixed Context Window**: Typically 8K-32K tokens
-- ❌ **No Persistent Memory**: Each interaction starts fresh
-- ❌ **Manual Context Gathering**: User must find and provide relevant code
-- ❌ **No Codebase-Specific Knowledge**: Generic training data only
-
-### Conexus Improvements
-- ✅ **Unlimited Context**: Through intelligent retrieval and assembly
-- ✅ **Persistent Sessions**: Full conversation history and state management
-- ✅ **Automated Context Discovery**: Hybrid search finds relevant code automatically
-- ✅ **Codebase-Specific Intelligence**: Indexed knowledge of your actual code
-
-### Measurable Impact
-
-| Metric | Standard LLM | Conexus | Improvement |
-|--------|---------------|---------|-------------|
-| **Context Window** | 8K-32K tokens | Unlimited | ∞ |
-| **Session Memory** | None | Persistent | +100% |
-| **Context Retrieval** | Manual search | 11ms automated | 26x faster |
-| **Code Discovery** | User-dependent | 85-92% recall | Significantly higher |
-| **Memory Efficiency** | Load entire codebase | 58MB for 10K files | 42% under target |
-
-### Real-World Benefits
-
-**For Developers:**
-- **Faster Onboarding**: New team members get instant codebase context
-- **Reduced Context Switching**: AI maintains conversation state across complex tasks
-- **Better Code Reviews**: Automated evidence backing ensures accurate analysis
-
-**For Teams:**
-- **Consistent Understanding**: Shared context across all team members
-- **Knowledge Preservation**: Critical insights retained in conversation history
-- **Scalable Expertise**: AI assistant learns your specific codebase patterns
-
----
-
-## 🏗️ Architecture
-
-### MCP Server Architecture
+### High-Level Overview
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  MCP Server                          │
+│                   Orchestrator                      │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │   Search    │  │   Index     │  │  Connectors │ │
-│  │   Engine    │  │  Manager    │  │  Manager    │ │
+│  │   Intent    │  │  Workflow   │  │    State    │ │
+│  │   Parser    │  │   Engine    │  │  Manager    │ │
 │  └─────────────┘  └─────────────┘  └─────────────┘ │
 └─────────────────────────────────────────────────────┘
                          │
          ┌───────────────┼───────────────┐
          │               │               │
    ┌─────▼─────┐   ┌────▼─────┐   ┌────▼─────┐
-   │   Vector  │   │  SQLite   │  │  File     │
-   │  Search   │  │ Database  │  │ System    │
-   │   Store   │   │   Store   │  │ Scanner   │
-   └───────────┘   └───────────┘   └───────────┘
+   │  Locator  │   │ Analyzer │   │  Future  │
+   │   Agent   │   │  Agent   │   │  Agents  │
+   └─────┬─────┘   └────┬─────┘   └──────────┘
+         │               │
+         └───────┬───────┘
+                 │
+   ┌─────────────▼─────────────┐
+   │      Validation Layer     │
+   │  ┌──────────┐ ┌─────────┐ │
+   │  │ Evidence │ │ Schema  │ │
+   │  │Validator │ │Validator│ │
+   │  └──────────┘ └─────────┘ │
+   └───────────────────────────┘
+                 │
+   ┌─────────────▼─────────────┐
+   │     Profiling Layer       │
+   │  ┌──────────┐ ┌─────────┐ │
+   │  │Collector │ │Reporter │ │
+   │  └──────────┘ └─────────┘ │
+   └───────────────────────────┘
 ```
 
 ### Core Components
 
 | Component | Description | Status |
 |-----------|-------------|--------|
-| **MCP Server** | JSON-RPC 2.0 server with stdio transport | ✅ Complete |
-| **Search Engine** | Hybrid vector + BM25 semantic search | ✅ Complete |
-| **Index Manager** | File watching and incremental indexing | ✅ Complete |
-| **Vector Store** | SQLite-backed vector embeddings | ✅ Complete |
-| **File Scanner** | Intelligent code file discovery | ✅ Complete |
+| **Orchestrator** | Workflow engine, intent parsing, state management | ✅ Complete |
+| **Locator Agent** | Find files/functions matching patterns | ✅ Complete |
+| **Analyzer Agent** | Extract control flow and data dependencies | ✅ Complete |
+| **Evidence Validator** | Verify 100% evidence backing | ✅ Complete |
+| **Schema Validator** | Validate AGENT_OUTPUT_V1 format | ✅ Complete |
+| **Profiler** | Performance metrics and reporting | ✅ Complete |
+| **Integration Framework** | End-to-end testing harness | ✅ Complete |
 
 ---
 
@@ -509,7 +226,7 @@ Conexus provides **significant improvements** over standard LLM context limitati
 
 ### Test Suite Overview
 
-Conexus has comprehensive tests covering the MCP server functionality:
+Conexus has **53 integration tests** covering real-world scenarios:
 
 ```bash
 # Run all tests
@@ -525,31 +242,46 @@ go test -v ./internal/testing/integration
 go test -cover ./...
 
 # Run specific test
-go test -run TestMCPServerIntegration ./internal/testing/integration
+go test -run TestLocatorAnalyzerIntegration ./internal/testing/integration
 ```
+
+### Test Categories
+
+| Category | Tests | Coverage |
+|----------|-------|----------|
+| **Framework Tests** | 13 | Core test infrastructure |
+| **Duration Tests** | 7 | Performance regression detection |
+| **E2E Fixture Tests** | 4 | Workflow execution with test fixtures |
+| **Advanced Workflows** | 7 | Complex multi-step scenarios |
+| **Coordination Tests** | 5 | Multi-agent communication |
+| **Real-World Tests** | 5 | Actual Conexus source code analysis |
 
 ### Performance Benchmarks
 
-Key performance metrics for the MCP server:
+- **Full Test Suite**: <1 second
+- **Single Agent Execution**: <50ms
+- **Multi-Agent Workflow**: <100ms
+- **Real Codebase Analysis**: <100ms per file
 
-#### Search Performance
-- **Search Latency**: ~11ms total (routing + BM25 search)
-- **Cache Hit Rate**: 98% for repeated queries
-- **Vector Search**: 248ms for 1K documents
-- **Hybrid Search**: Combines vector + keyword matching
+### Dogfooding Tests
 
-#### Indexing Performance  
-- **File Processing**: 65,000 files/sec discovery
-- **Indexing Speed**: 450 files/sec with embeddings
-- **Memory Usage**: 58MB for 10K files
-- **Update Speed**: Incremental updates in <1 second
+Conexus includes a comprehensive dogfooding test suite that validates real-world performance:
 
-#### MCP Server Performance
-- **Tool Response**: <100ms for most operations
-- **Concurrent Requests**: Handles multiple AI assistant queries
-- **Memory Efficiency**: Optimized for long-running server processes
+```bash
+# Start the server
+./conexus &
 
-For detailed benchmarks, see [`PERFORMANCE_BASELINE.md`](PERFORMANCE_BASELINE.md).
+# Run dogfooding benchmarks (requires Bun)
+bun run tests/dogfooding/benchmarks/dogfooding-benchmark.js
+
+# View results
+cat tests/dogfooding/results/dogfooding-results.json
+```
+
+**Expected Results:**
+- 100% success rate for basic scenarios
+- Sub-200ms average response times
+- Comprehensive coverage of developer use cases
 
 ---
 
@@ -579,172 +311,258 @@ For detailed benchmarks, see [`PERFORMANCE_BASELINE.md`](PERFORMANCE_BASELINE.md
 
 ## 🔧 Configuration
 
-### Environment Variables
+### Agent Configuration
 
-Configure the MCP server with environment variables:
+Conexus agents use environment variables for configuration:
 
 ```bash
-# Database location
-export CONEXUS_DB_PATH=/path/to/project/.conexus/db.sqlite
+# Enable verbose logging
+export CONEXUS_LOG_LEVEL=debug
 
-# Logging level
-export CONEXUS_LOG_LEVEL=info  # debug|info|warn|error
+# Set profiling interval (ms)
+export CONEXUS_PROFILE_INTERVAL=100
 
-# Run in HTTP mode instead of stdio (for development)
-export CONEXUS_PORT=3000
+# Enable evidence validation
+export CONEXUS_VALIDATE_EVIDENCE=true
 
-# Project root to index
-export CONEXUS_ROOT_PATH=/path/to/project
-
-# Rate Limiting Configuration
-export CONEXUS_RATE_LIMIT_ENABLED=true
-export CONEXUS_RATE_LIMIT_ALGORITHM=sliding_window  # sliding_window|token_bucket
-export CONEXUS_RATE_LIMIT_DEFAULT_REQUESTS=100      # requests per window
-export CONEXUS_RATE_LIMIT_DEFAULT_WINDOW=1m         # time window
-export CONEXUS_RATE_LIMIT_HEALTH_REQUESTS=1000      # health endpoint limit
-export CONEXUS_RATE_LIMIT_WEBHOOK_REQUESTS=10000    # webhook endpoint limit
-export CONEXUS_RATE_LIMIT_AUTH_REQUESTS=1000        # authenticated requests limit
-# Redis support for distributed rate limiting
-export CONEXUS_RATE_LIMIT_REDIS_ENABLED=true
-export CONEXUS_RATE_LIMIT_REDIS_ADDR=localhost:6379
-export CONEXUS_RATE_LIMIT_REDIS_PASSWORD=your-password
-
-# HTTPS/TLS Configuration (for HTTP mode)
-export CONEXUS_TLS_ENABLED=true
-export CONEXUS_TLS_CERT_FILE=/path/to/cert.pem
-export CONEXUS_TLS_KEY_FILE=/path/to/key.pem
-# Or for Let's Encrypt auto-cert:
-export CONEXUS_TLS_AUTO_CERT=true
-export CONEXUS_TLS_AUTO_CERT_DOMAINS="yourdomain.com,www.yourdomain.com"
-export CONEXUS_TLS_AUTO_CERT_EMAIL="admin@yourdomain.com"
+# Set cache directory
+export CONEXUS_CACHE_DIR=~/.cache/conexus
 ```
 
-### HTTPS/TLS Security
+### Validation Configuration
 
-Conexus supports HTTPS with automatic TLS certificate management:
-
-#### Development (Self-Signed Certificates)
 ```bash
-# Generate self-signed certificates for development
-./scripts/generate-dev-certs.sh localhost ./data/tls
+# Require 100% evidence backing (default: true)
+export CONEXUS_REQUIRE_FULL_EVIDENCE=true
 
-# Configure environment
-export CONEXUS_TLS_ENABLED=true
-export CONEXUS_TLS_CERT_FILE=./data/tls/cert.pem
-export CONEXUS_TLS_KEY_FILE=./data/tls/key.pem
+# Schema validation mode (strict|lenient)
+export CONEXUS_SCHEMA_MODE=strict
+
+# Max validation errors before failing
+export CONEXUS_MAX_VALIDATION_ERRORS=10
 ```
 
-#### Production (Let's Encrypt)
-```bash
-export CONEXUS_TLS_AUTO_CERT=true
-export CONEXUS_TLS_AUTO_CERT_DOMAINS="yourdomain.com,api.yourdomain.com"
-export CONEXUS_TLS_AUTO_CERT_EMAIL="admin@yourdomain.com"
-```
+---
 
-#### Manual Certificates
-```bash
-export CONEXUS_TLS_CERT_FILE=/etc/ssl/certs/yourdomain.crt
-export CONEXUS_TLS_KEY_FILE=/etc/ssl/private/yourdomain.key
-```
+## 🎯 AGENT_OUTPUT_V1 Schema
 
-**Security Features:**
-- TLS 1.2+ only (configurable)
-- Secure cipher suites by default
-- HTTP to HTTPS automatic redirection
-- HSTS headers for enhanced security
-
-### MCP Client Configuration
-
-Most configuration is done through your MCP client (Claude Desktop, Cursor, etc.):
+All agents produce standardized output following the **AGENT_OUTPUT_V1** schema:
 
 ```json
 {
-  "mcpServers": {
-    "conexus": {
-      "command": "bunx",
-      "args": ["@agentic-conexus/mcp"],
-      "env": {
-        "CONEXUS_DB_PATH": "/path/to/your/project/.conexus/db.sqlite",
-        "CONEXUS_LOG_LEVEL": "info"
-      }
+  "schema_version": "AGENT_OUTPUT_V1",
+  "task_description": "Locate all HTTP handler functions",
+  "result_summary": "Found 5 HTTP handlers in 3 files",
+  "confidence_score": 0.95,
+  "items": [
+    {
+      "type": "function",
+      "name": "HandleRequest",
+      "file_path": "/internal/server/handler.go",
+      "line_start": 42,
+      "line_end": 68,
+      "evidence_file_path": "/internal/server/handler.go",
+      "evidence_line_start": 42,
+      "evidence_line_end": 68,
+      "classification": "primary",
+      "explanation": "HTTP handler implementing request processing logic"
     }
+  ],
+  "files_examined": ["/internal/server/handler.go"],
+  "metadata": {
+    "agent_name": "locator",
+    "execution_time_ms": 45,
+    "timestamp": "2025-01-15T10:30:00Z"
   }
 }
 ```
 
----
+**Key Requirements**:
+- ✅ **100% Evidence Backing**: Every item must have valid file/line references
+- ✅ **Schema Compliance**: All required fields must be present
+- ✅ **Confidence Score**: Between 0.0 and 1.0
+- ✅ **Structured Items**: Typed items with classification
 
-## 🛠️ Available MCP Tools
-
-Conexus provides these MCP tools for AI assistants:
-
-### `context.search`
-Semantic search across your codebase with hybrid vector + keyword matching.
-
-**Usage:**
-```
-"Search for authentication middleware functions"
-"Find database query implementations"
-"Show error handling patterns"
-```
-
-### `context.get_related_info`
-Find files, discussions, and context related to specific files or tickets.
-
-**Usage:**
-```
-"What's the history of this file?"
-"Show PRs related to this issue"
-"Find discussions about this component"
-```
-
-### `context.index_control`
-Manage indexing operations (start, stop, status, reindex).
-
-**Usage:**
-```
-"Check indexing status"
-"Reindex the codebase"
-"Start automatic indexing"
-```
-
-### `context.connector_management`
-Configure data source connectors (GitHub, Slack, Jira, etc.).
-
-**Usage:**
-```
-"List available connectors"
-"Add GitHub connector"
-"Configure Slack integration"
-```
-
-For detailed API documentation, see **[MCP Integration Guide](docs/getting-started/mcp-integration-guide.md)**.
+See **[API Reference](docs/api-reference.md)** for complete schema documentation.
 
 ---
 
-## 🚀 Future Enhancements
+## 🔄 Workflow Integration
 
-While Conexus currently focuses on being a robust MCP server, we have plans for additional capabilities:
+### Overview
 
-### Planned Features
+Conexus provides a powerful workflow integration system that combines validation, profiling, and quality gates into coordinated multi-agent workflows.
 
-- **🤖 Multi-Agent Architecture**: Specialized agents for complex code analysis tasks
-- **✅ Evidence Validation**: Complete traceability for all code analysis results  
-- **📊 Advanced Profiling**: Performance metrics and optimization recommendations
-- **🔄 Workflow Orchestration**: Complex multi-step analysis workflows
-- **🔐 Enterprise Features**: Authentication, authorization, and team management
-- **🌐 Enhanced Connectors**: GitHub, Jira, Slack, and other data source integrations
+### Basic Orchestrator Usage
 
-### Enterprise Roadmap
+```go
+package main
 
-For teams requiring advanced capabilities, we're planning:
+import (
+    "context"
+    "github.com/ferg-cod3s/conexus/internal/orchestrator"
+    "github.com/ferg-cod3s/conexus/internal/process"
+    "github.com/ferg-cod3s/conexus/internal/tool"
+    "github.com/ferg-cod3s/conexus/internal/validation/evidence"
+)
 
-- **Multi-tenant Support**: Isolated workspaces and team collaboration
-- **Advanced Security**: RBAC, audit logging, and compliance features
-- **Scalable Architecture**: Distributed processing and cloud deployment
-- **Custom Integrations**: API for building custom data source connectors
+func main() {
+    // Create orchestrator with default configuration
+    config := orchestrator.OrchestratorConfig{
+        ProcessManager:    process.NewManager(),
+        ToolExecutor:      tool.NewExecutor(),
+        EvidenceValidator: evidence.NewValidator(false), // false = non-strict mode
+        QualityGates:      orchestrator.DefaultQualityGates(),
+        EnableProfiling:   true,
+    }
+    orch := orchestrator.NewWithConfig(config)
+    
+    // Execute a workflow
+    ctx := context.Background()
+    result, err := orch.HandleRequest(ctx, "find all HTTP handlers", permissions)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Access results with profiling data
+    fmt.Printf("Completed in %v\n", result.Duration)
+    fmt.Printf("Evidence coverage: %.1f%%\n", result.Profile.EvidenceCoverage)
+}
+```
 
-These features are being designed based on user feedback and will be released in future versions. The current focus remains on providing the best MCP server experience for individual developers and teams.
+### Quality Gate Presets
+
+Conexus provides three quality gate configurations:
+
+#### 1. Default Quality Gates (Balanced)
+```go
+config := orchestrator.OrchestratorConfig{
+    QualityGates: orchestrator.DefaultQualityGates(),
+}
+```
+- ✅ 100% evidence backing required
+- ✅ 5-minute max workflow time
+- ✅ 1-minute max agent execution time
+- ✅ Blocks on validation failures
+
+#### 2. Relaxed Quality Gates (Development)
+```go
+config := orchestrator.OrchestratorConfig{
+    QualityGates: orchestrator.RelaxedQualityGates(),
+}
+```
+- ⚠️ 80% evidence coverage minimum
+- ⚠️ 10-minute max workflow time
+- ⚠️ Allows up to 5 unbacked claims
+
+#### 3. Strict Quality Gates (Production)
+```go
+config := orchestrator.OrchestratorConfig{
+    QualityGates: orchestrator.StrictQualityGates(),
+}
+```
+- 🔒 100% evidence backing enforced
+- 🔒 2-minute max workflow time
+- 🔒 30-second max agent execution time
+- 🔒 Blocks on all failures (validation + performance)
+
+### Custom Quality Gates
+
+```go
+config := orchestrator.OrchestratorConfig{
+    QualityGates: &orchestrator.QualityGateConfig{
+        RequireEvidenceBacking:    true,
+        MinEvidenceCoverage:       95.0,
+        AllowUnbackedClaims:       2,
+        MaxExecutionTime:          3 * time.Minute,
+        MaxAgentExecutionTime:     30 * time.Second,
+        BlockOnValidationFailure:  true,
+        BlockOnPerformanceFailure: false,
+    },
+}
+```
+
+### Profiling Integration
+
+Enable automatic profiling to capture performance metrics:
+
+```go
+config := orchestrator.OrchestratorConfig{
+    EnableProfiling: true,
+}
+
+result, _ := orch.ExecuteWorkflow(ctx, workflow, permissions)
+
+// Access profiling data
+profile := result.Profile
+fmt.Printf("Total duration: %v\n", profile.TotalDuration)
+fmt.Printf("Agent time: %v\n", profile.AgentExecutionTime)
+fmt.Printf("Validation time: %v\n", profile.ValidationTime)
+fmt.Printf("Profiling overhead: %.2f%%\n", profile.ProfilingOverheadPercent)
+```
+
+### Validation Integration
+
+Evidence validation is automatically integrated:
+
+```go
+// Strict mode - requires 100% evidence backing
+validator := evidence.NewValidator(true)
+
+// Non-strict mode - allows partial evidence
+validator := evidence.NewValidator(false)
+
+config := orchestrator.OrchestratorConfig{
+    EvidenceValidator: validator,
+}
+```
+
+### Workflow Reports
+
+Generate comprehensive workflow reports:
+
+```go
+result, _ := orch.ExecuteWorkflow(ctx, workflow, permissions)
+
+// Generate workflow report
+report := orchestrator.GenerateWorkflowReport(result)
+
+fmt.Println(report.ExecutionSummary)
+fmt.Println(report.ValidationReport)
+fmt.Println(report.PerformanceReport)
+```
+
+**Example report output:**
+```
+=== Workflow Execution Report ===
+
+Execution Summary:
+  Duration: 127ms
+  Agents Executed: 2
+  Status: ✅ Success
+
+Validation Report:
+  Evidence Coverage: 100.0%
+  Backed Claims: 15
+  Unbacked Claims: 0
+  Status: ✅ Passed
+
+Performance Report:
+  Agent Execution: 85ms (66.9%)
+  Validation: 12ms (9.4%)
+  Profiling Overhead: 1.2%
+  Status: ✅ Within Limits
+```
+
+### Best Practices
+
+1. **Use Default Gates for Most Cases**: Balanced performance and quality
+2. **Enable Profiling in Development**: Identify bottlenecks early
+3. **Strict Mode for Production**: Maximum confidence in production workflows
+4. **Monitor Profiling Overhead**: Keep under 10% for production systems
+5. **Review Validation Reports**: Ensure evidence backing meets standards
+
+See **[Testing Strategy](docs/contributing/testing-strategy.md)** for workflow testing patterns.
 
 ---
 
@@ -753,7 +571,7 @@ These features are being designed based on user feedback and will be released in
 ### Quick Start with Docker
 
 ```bash
-# Pull and run the latest image (when available)
+# Pull and run latest image (when available)
 docker pull conexus:latest
 docker run -d -p 8080:8080 --name conexus conexus:latest
 
@@ -761,7 +579,7 @@ docker run -d -p 8080:8080 --name conexus conexus:latest
 docker build -t conexus:latest .
 docker run -d -p 8080:8080 --name conexus conexus:latest
 
-# Test the service
+# Test service
 curl http://localhost:8080/health
 ```
 
@@ -770,13 +588,13 @@ curl http://localhost:8080/health
 **Production deployment:**
 
 ```bash
-# Start the service
+# Start service
 docker compose up -d
 
 # View logs
 docker compose logs -f
 
-# Stop the service
+# Stop service
 docker compose down
 
 # Rebuild after code changes
@@ -850,14 +668,10 @@ volumes:
 - Minimal attack surface (Alpine base)
 - Read-only config option
 - Health check monitoring
-- **Security Headers**: CSP, HSTS, X-Frame-Options, X-Content-Type-Options
-- **CORS Protection**: Configurable cross-origin request handling
-- **Rate Limiting**: Configurable request throttling with Redis support
-- **Input Validation**: Comprehensive request sanitization
 
 ### MCP Server Endpoints
 
-Once running, the service exposes:
+Once running, service exposes:
 
 **HTTP Endpoints:**
 ```bash
@@ -978,84 +792,109 @@ docker push registry.example.com/conexus:latest
 
 ---
 
-## 📖 Performance & Sourcing
-
-All performance claims in this README are backed by comprehensive benchmarks and documented sources:
-
-### Primary Sources
-
-| Document | What It Contains | Location |
-|----------|------------------|----------|
-| **[PERFORMANCE_BASELINE.md](PERFORMANCE_BASELINE.md)** | 71 benchmarks across all components | Root directory |
-| **[Context Engine Internals](docs/architecture/context-engine-internals.md)** | Caching and retrieval algorithms | docs/architecture/ |
-| **[Load Test Results](tests/load/results/)** | Stress testing and concurrency analysis | tests/load/results/ |
-| **[Component Documentation](internal/)** | Implementation details and capabilities | internal/*/README.md |
-
-### Benchmark Methodology
-
-- **Test Environment**: AMD FX-9590, Linux, Go 1.24.9 [Source: PERFORMANCE_BASELINE.md:3-7]
-- **Total Benchmarks**: 71 individual tests across vectorstore, indexer, and orchestrator [Source: PERFORMANCE_BASELINE.md:540-549]
-- **Pass Rate**: 89% (17/19 targets met) [Source: PERFORMANCE_BASELINE.md:551-559]
-- **Test Duration**: ~15 minutes total execution [Source: PERFORMANCE_BASELINE.md:672]
-
-### Verification
-
-To verify these metrics:
-```bash
-# Run performance benchmarks
-cd tests/load
-./run_benchmarks.sh
-
-# Check current system performance
-go test -bench=. ./...
-
-# View detailed metrics
-cat PERFORMANCE_BASELINE.md
-```
-
-### Context Retention Evidence
-
-The context retention improvements are demonstrated through:
-- **Session Management**: Full conversation history in `internal/orchestrator/state/manager.go`
-- **Caching System**: 3-tier architecture in `docs/architecture/context-engine-internals.md:9870-10127`
-- **Search Performance**: Hybrid search results in `internal/search/search.go`
-- **Load Testing**: Concurrent user validation in `tests/load/results/STRESS_TEST_ANALYSIS.md`
-
----
-
-## 🏗️ Development
+## 🏗️ Development Workflow
 
 ### Project Structure
 
 ```
 conexus/
-├── cmd/conexus/          # MCP server entry point
+├── cmd/conexus/          # Main entry point
 ├── internal/
-│   ├── mcp/             # MCP server implementation
-│   │   ├── server.go    # Main MCP server
-│   │   ├── handlers.go  # Tool handlers
-│   │   └── schema.go    # MCP types
-│   ├── search/          # Search engine
-│   ├── indexer/         # File indexing
-│   ├── vectorstore/     # Vector database
-│   └── connectors/      # Data source connectors
+│   ├── agent/           # Agent implementations
+│   │   ├── locator/     # File/function locator
+│   │   └── analyzer/    # Code analyzer
+│   ├── orchestrator/    # Workflow orchestration
+│   │   ├── intent/      # Intent parsing
+│   │   ├── workflow/    # Workflow engine
+│   │   ├── state/       # State management
+│   │   └── escalation/  # Error handling
+│   ├── validation/      # Validation systems
+│   │   ├── evidence/    # Evidence validation
+│   │   └── schema/      # Schema validation
+│   ├── profiling/       # Performance profiling
+│   ├── protocol/        # JSON-RPC protocol
+│   └── testing/         # Integration testing
 ├── pkg/schema/          # Public schemas
-├── tests/               # Test suite
+├── tests/fixtures/      # Test fixtures
 └── docs/                # Documentation
 ```
 
-### Contributing
+### Adding a New Agent
+
+1. Create agent directory: `internal/agent/myagent/`
+2. Implement agent interface:
+   ```go
+   type Agent interface {
+       Execute(ctx context.Context, req Request) (*schema.AgentOutput, error)
+   }
+   ```
+3. Add tests in `myagent_test.go`
+4. Register in orchestrator
+5. Add integration tests
+
+See **[Contributing Guide](docs/contributing/contributing-guide.md)** for details.
+
+---
+
+## 📊 Current Status
+
+### Phase 5 Progress (95% Complete)
+
+- ✅ **Task 5.1**: Integration Testing Framework (53 tests passing)
+- 🔄 **Task 5.2**: Documentation Updates (in progress)
+- ⏳ **Task 5.3**: Workflow Integration (pending)
+- ⏳ **Task 5.4**: Protocol Tests (optional)
+
+### Test Results
+
+```
+✅ All 53 integration tests passing
+✅ Execution time: <1 second
+✅ Evidence validation: 100%
+✅ Schema compliance: 100%
+✅ Real-world analysis: 5 scenarios validated
+```
+
+See **[PHASE5-STATUS.md](PHASE5-STATUS.md)** for detailed status.
+
+---
+
+## 🛣️ Roadmap
+
+### Phase 6: Optimization (Planned)
+
+- ⏳ Advanced caching strategies
+- ⏳ Parallel agent execution
+- ⏳ Performance optimization
+- ⏳ Memory usage reduction
+
+### Phase 7: Production Readiness (Planned)
+
+- ⏳ CLI enhancements
+- ⏳ Configuration management
+- ⏳ Deployment automation
+- ⏳ Monitoring dashboards
+
+### Future Agents (Planned)
+
+- ⏳ Pattern recognition agent
+- ⏳ Thoughts analyzer agent
+- ⏳ Dependency analyzer agent
+- ⏳ Security audit agent
+
+---
+
+## 🤝 Contributing
 
 We welcome contributions! Please see:
+
 - **[Contributing Guide](docs/contributing/contributing-guide.md)** - How to contribute
 - **[Testing Strategy](docs/contributing/testing-strategy.md)** - Testing requirements
-- **[Versioning Criteria](docs/VERSIONING_CRITERIA.md)** - When and how to bump versions
-- **[Development Guide](AGENTS.md)** - Build, test, and development commands
-- **[AI Assistant Guide](CLAUDE.md)** - Guidelines for AI development assistants
+- **[Code Style](CLAUDE.md)** - Coding conventions
 
 ### Quick Contribution Checklist
 
-- [ ] Fork the repository
+- [ ] Fork repository
 - [ ] Create a feature branch
 - [ ] Write tests for new features
 - [ ] Ensure all tests pass (`go test ./...`)
@@ -1067,7 +906,7 @@ We welcome contributions! Please see:
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see [LICENSE](LICENSE) for details.
+This project is licensed under **MIT License** - see [LICENSE](LICENSE) for details.
 
 ---
 
@@ -1095,4 +934,4 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) for 
 
 ---
 
-**Built with ❤️ by the Conexus team**
+**Built with ❤️ by Conexus team**

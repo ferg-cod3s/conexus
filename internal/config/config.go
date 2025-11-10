@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
+	"github.com/ferg-cod3s/conexus/internal/security"
 	"github.com/ferg-cod3s/conexus/internal/validation"
 	"gopkg.in/yaml.v3"
 )
@@ -24,12 +24,12 @@ type Config struct {
 	Indexer       IndexerConfig       `json:"indexer" yaml:"indexer"`
 	Embedding     EmbeddingConfig     `json:"embedding" yaml:"embedding"`
 	Logging       LoggingConfig       `json:"logging" yaml:"logging"`
+	Observability ObservabilityConfig `json:"observability" yaml:"observability"`
+	TLS           TLSConfig           `json:"tls" yaml:"tls"`
 	Auth          AuthConfig          `json:"auth" yaml:"auth"`
+	RateLimit     RateLimitConfig     `json:"rate_limit" yaml:"rate_limit"`
 	Security      SecurityConfig      `json:"security" yaml:"security"`
 	CORS          CORSConfig          `json:"cors" yaml:"cors"`
-	TLS           TLSConfig           `json:"tls" yaml:"tls"`
-	RateLimit     RateLimitConfig     `json:"rate_limit" yaml:"rate_limit"`
-	Observability ObservabilityConfig `json:"observability" yaml:"observability"`
 }
 
 // ServerConfig holds HTTP server configuration.
@@ -50,28 +50,10 @@ type IndexerConfig struct {
 	ChunkOverlap int    `json:"chunk_overlap" yaml:"chunk_overlap"`
 }
 
-// EmbeddingConfig holds embedding provider configuration.
-type EmbeddingConfig struct {
-	Provider   string                 `json:"provider" yaml:"provider"`
-	Model      string                 `json:"model" yaml:"model"`
-	Dimensions int                    `json:"dimensions" yaml:"dimensions"`
-	Config     map[string]interface{} `json:"config" yaml:"config"`
-}
-
 // LoggingConfig holds logging configuration.
 type LoggingConfig struct {
 	Level  string `json:"level" yaml:"level"`
 	Format string `json:"format" yaml:"format"`
-}
-
-// AuthConfig holds JWT authentication configuration.
-type AuthConfig struct {
-	Enabled     bool   `json:"enabled" yaml:"enabled"`
-	Issuer      string `json:"issuer" yaml:"issuer"`
-	Audience    string `json:"audience" yaml:"audience"`
-	PublicKey   string `json:"public_key" yaml:"public_key"`
-	PrivateKey  string `json:"private_key" yaml:"private_key"`
-	TokenExpiry int    `json:"token_expiry" yaml:"token_expiry"` // in minutes
 }
 
 // ObservabilityConfig holds observability configuration.
@@ -104,51 +86,7 @@ type SentryConfig struct {
 	Release     string  `json:"release" yaml:"release"`
 }
 
-// SecurityConfig holds security headers configuration.
-type SecurityConfig struct {
-	CSP                 CSPConfig  `json:"csp" yaml:"csp"`
-	HSTS                HSTSConfig `json:"hsts" yaml:"hsts"`
-	XFrameOptions       string     `json:"x_frame_options" yaml:"x_frame_options"`
-	XContentTypeOptions string     `json:"x_content_type_options" yaml:"x_content_type_options"`
-	ReferrerPolicy      string     `json:"referrer_policy" yaml:"referrer_policy"`
-	PermissionsPolicy   string     `json:"permissions_policy" yaml:"permissions_policy"`
-}
-
-// CSPConfig holds Content Security Policy configuration.
-type CSPConfig struct {
-	Enabled bool     `json:"enabled" yaml:"enabled"`
-	Default []string `json:"default" yaml:"default"`
-	Script  []string `json:"script" yaml:"script"`
-	Style   []string `json:"style" yaml:"style"`
-	Image   []string `json:"image" yaml:"image"`
-	Font    []string `json:"font" yaml:"font"`
-	Connect []string `json:"connect" yaml:"connect"`
-	Media   []string `json:"media" yaml:"media"`
-	Object  []string `json:"object" yaml:"object"`
-	Frame   []string `json:"frame" yaml:"frame"`
-	Report  string   `json:"report" yaml:"report"`
-}
-
-// HSTSConfig holds HTTP Strict Transport Security configuration.
-type HSTSConfig struct {
-	Enabled           bool `json:"enabled" yaml:"enabled"`
-	MaxAge            int  `json:"max_age" yaml:"max_age"`
-	IncludeSubdomains bool `json:"include_subdomains" yaml:"include_subdomains"`
-	Preload           bool `json:"preload" yaml:"preload"`
-}
-
-// CORSConfig holds CORS configuration.
-type CORSConfig struct {
-	Enabled          bool     `json:"enabled" yaml:"enabled"`
-	AllowedOrigins   []string `json:"allowed_origins" yaml:"allowed_origins"`
-	AllowedMethods   []string `json:"allowed_methods" yaml:"allowed_methods"`
-	AllowedHeaders   []string `json:"allowed_headers" yaml:"allowed_headers"`
-	ExposedHeaders   []string `json:"exposed_headers" yaml:"exposed_headers"`
-	AllowCredentials bool     `json:"allow_credentials" yaml:"allow_credentials"`
-	MaxAge           int      `json:"max_age" yaml:"max_age"`
-}
-
-// TLSConfig holds TLS/HTTPS configuration.
+// TLSConfig holds TLS configuration.
 type TLSConfig struct {
 	Enabled          bool     `json:"enabled" yaml:"enabled"`
 	CertFile         string   `json:"cert_file" yaml:"cert_file"`
@@ -163,24 +101,42 @@ type TLSConfig struct {
 	HTTPRedirectPort int      `json:"http_redirect_port" yaml:"http_redirect_port"`
 }
 
-// RateLimitConfig holds rate limiting configuration.
-type RateLimitConfig struct {
-	Enabled         bool                 `json:"enabled" yaml:"enabled"`
-	Algorithm       string               `json:"algorithm" yaml:"algorithm"`
-	Redis           RateLimitRedisConfig `json:"redis" yaml:"redis"`
-	Default         RateLimitRuleConfig  `json:"default" yaml:"default"`
-	Health          RateLimitRuleConfig  `json:"health" yaml:"health"`
-	Webhook         RateLimitRuleConfig  `json:"webhook" yaml:"webhook"`
-	Auth            RateLimitRuleConfig  `json:"auth" yaml:"auth"`
-	BurstMultiplier float64              `json:"burst_multiplier" yaml:"burst_multiplier"`
-	CleanupInterval time.Duration        `json:"cleanup_interval" yaml:"cleanup_interval"`
-	SkipPaths       []string             `json:"skip_paths" yaml:"skip_paths"`
-	SkipIPs         []string             `json:"skip_ips" yaml:"skip_ips"`
-	TrustedProxies  []string             `json:"trusted_proxies" yaml:"trusted_proxies"`
+// EmbeddingConfig holds embedding provider configuration.
+type EmbeddingConfig struct {
+	Provider   string                 `json:"provider" yaml:"provider"`
+	Model      string                 `json:"model" yaml:"model"`
+	Dimensions int                    `json:"dimensions" yaml:"dimensions"`
+	Config     map[string]interface{} `json:"config" yaml:"config"`
 }
 
-// RateLimitRedisConfig holds Redis configuration for rate limiting.
-type RateLimitRedisConfig struct {
+// AuthConfig holds JWT authentication configuration.
+type AuthConfig struct {
+	Enabled     bool   `json:"enabled" yaml:"enabled"`
+	PrivateKey  string `json:"private_key" yaml:"private_key"`
+	PublicKey   string `json:"public_key" yaml:"public_key"`
+	Issuer      string `json:"issuer" yaml:"issuer"`
+	Audience    string `json:"audience" yaml:"audience"`
+	TokenExpiry int    `json:"token_expiry" yaml:"token_expiry"` // minutes
+}
+
+// RateLimitConfig holds rate limiting configuration.
+type RateLimitConfig struct {
+	Enabled         bool        `json:"enabled" yaml:"enabled"`
+	Algorithm       string      `json:"algorithm" yaml:"algorithm"` // token_bucket, sliding_window
+	Redis           RedisConfig `json:"redis" yaml:"redis"`
+	Default         LimitConfig `json:"default" yaml:"default"`
+	Health          LimitConfig `json:"health" yaml:"health"`
+	Webhook         LimitConfig `json:"webhook" yaml:"webhook"`
+	Auth            LimitConfig `json:"auth" yaml:"auth"`
+	BurstMultiplier float64     `json:"burst_multiplier" yaml:"burst_multiplier"`
+	CleanupInterval string      `json:"cleanup_interval" yaml:"cleanup_interval"` // duration string
+	SkipPaths       []string    `json:"skip_paths" yaml:"skip_paths"`
+	SkipIPs         []string    `json:"skip_ips" yaml:"skip_ips"`
+	TrustedProxies  []string    `json:"trusted_proxies" yaml:"trusted_proxies"`
+}
+
+// RedisConfig holds Redis connection configuration.
+type RedisConfig struct {
 	Enabled   bool   `json:"enabled" yaml:"enabled"`
 	Addr      string `json:"addr" yaml:"addr"`
 	Password  string `json:"password" yaml:"password"`
@@ -188,53 +144,117 @@ type RateLimitRedisConfig struct {
 	KeyPrefix string `json:"key_prefix" yaml:"key_prefix"`
 }
 
-// RateLimitRuleConfig holds rate limit configuration for a specific endpoint type.
-type RateLimitRuleConfig struct {
-	Requests int           `json:"requests" yaml:"requests"`
-	Window   time.Duration `json:"window" yaml:"window"`
+// LimitConfig holds rate limit configuration for a specific endpoint type.
+type LimitConfig struct {
+	Requests          int    `json:"requests" yaml:"requests"`                       // requests per window
+	Window            string `json:"window" yaml:"window"`                           // duration string (e.g., "1m", "1h")
+	RequestsPerSecond int    `json:"requests_per_second" yaml:"requests_per_second"` // deprecated: use Requests instead
+	Burst             int    `json:"burst" yaml:"burst"`                             // deprecated: use Window instead
+}
+
+// SecurityConfig holds security middleware configuration.
+type SecurityConfig struct {
+	Enabled         bool       `json:"enabled" yaml:"enabled"`
+	CSP             CSPConfig  `json:"csp" yaml:"csp"`
+	HSTS            HSTSConfig `json:"hsts" yaml:"hsts"`
+	FrameOptions    string     `json:"frame_options" yaml:"frame_options"`
+	ContentType     bool       `json:"content_type" yaml:"content_type"`
+	BrowserXSSBlock bool       `json:"browser_xss_block" yaml:"browser_xss_block"`
+	ReferrerPolicy  string     `json:"referrer_policy" yaml:"referrer_policy"`
+}
+
+// CSPConfig holds Content Security Policy configuration.
+type CSPConfig struct {
+	Enabled      bool     `json:"enabled" yaml:"enabled"`
+	DefaultSrc   []string `json:"default_src" yaml:"default_src"`
+	ScriptSrc    []string `json:"script_src" yaml:"script_src"`
+	StyleSrc     []string `json:"style_src" yaml:"style_src"`
+	ImgSrc       []string `json:"img_src" yaml:"img_src"`
+	ConnectSrc   []string `json:"connect_src" yaml:"connect_src"`
+	FontSrc      []string `json:"font_src" yaml:"font_src"`
+	ObjectSrc    []string `json:"object_src" yaml:"object_src"`
+	MediaSrc     []string `json:"media_src" yaml:"media_src"`
+	FrameSrc     []string `json:"frame_src" yaml:"frame_src"`
+	ReportURI    string   `json:"report_uri" yaml:"report_uri"`
+	ReportOnly   bool     `json:"report_only" yaml:"report_only"`
+	UpgradeInsec bool     `json:"upgrade_insecure" yaml:"upgrade_insecure"`
+}
+
+// HSTSConfig holds HTTP Strict Transport Security configuration.
+type HSTSConfig struct {
+	Enabled           bool `json:"enabled" yaml:"enabled"`
+	MaxAge            int  `json:"max_age" yaml:"max_age"`
+	IncludeSubdomains bool `json:"include_subdomains" yaml:"include_subdomains"`
+	Preload           bool `json:"preload" yaml:"preload"`
+}
+
+// CORSConfig holds Cross-Origin Resource Sharing configuration.
+type CORSConfig struct {
+	Enabled          bool     `json:"enabled" yaml:"enabled"`
+	AllowedOrigins   []string `json:"allowed_origins" yaml:"allowed_origins"`
+	AllowedMethods   []string `json:"allowed_methods" yaml:"allowed_methods"`
+	AllowedHeaders   []string `json:"allowed_headers" yaml:"allowed_headers"`
+	ExposedHeaders   []string `json:"exposed_headers" yaml:"exposed_headers"`
+	AllowCredentials bool     `json:"allow_credentials" yaml:"allow_credentials"`
+	MaxAge           int      `json:"max_age" yaml:"max_age"`
 }
 
 // Default values
 const (
-	DefaultHost                = "0.0.0.0"
-	DefaultPort                = 0 // Default to stdio mode for MCP compatibility
-	DefaultDBPath              = "./data/conexus.db"
-	DefaultRootPath            = "."
-	DefaultChunkSize           = 512
-	DefaultChunkOverlap        = 50
+	DefaultHost             = "0.0.0.0"
+	DefaultPort             = 8080
+	DefaultDBPath           = "./data/conexus.db"
+	DefaultRootPath         = "."
+	DefaultChunkSize        = 512
+	DefaultChunkOverlap     = 50
+	DefaultLogLevel         = "info"
+	DefaultLogFormat        = "json"
+	DefaultMetricsEnabled   = false
+	DefaultMetricsPort      = 9091
+	DefaultMetricsPath      = "/metrics"
+	DefaultTracingEnabled   = false
+	DefaultTracingEndpoint  = "http://localhost:4318"
+	DefaultSampleRate       = 0.1
+	DefaultSentryEnabled    = false
+	DefaultSentryDSN        = ""
+	DefaultSentryEnv        = "development"
+	DefaultSentrySampleRate = 1.0
+	DefaultSentryRelease    = "0.1.0-alpha"
+
+	// TLS defaults
+	DefaultTLSEnabled          = false
+	DefaultTLSMinVersion       = "1.2"
+	DefaultTLSHTTPRedirectPort = 80
+	DefaultAutoCertCacheDir    = "./data/autocert"
+
+	// Embedding defaults
 	DefaultEmbeddingProvider   = "mock"
 	DefaultEmbeddingModel      = "mock-768"
 	DefaultEmbeddingDimensions = 768
-	DefaultLogLevel            = "info"
-	DefaultLogFormat           = "json"
-	DefaultAuthEnabled         = false
-	DefaultAuthIssuer          = "conexus"
-	DefaultAuthAudience        = "conexus-api"
-	DefaultAuthTokenExpiry     = 60 // 1 hour in minutes
-	DefaultSecurityCSPEnabled  = true
-	DefaultSecurityHSTSEnabled = true
-	DefaultSecurityHSTSMaxAge  = 31536000 // 1 year
-	DefaultCORSEnabled         = false
-	DefaultCORSMaxAge          = 86400 // 24 hours
-	DefaultTLSEnabled          = false
-	DefaultTLSCertFile         = ""
-	DefaultTLSKeyFile          = ""
-	DefaultTLSAutoCert         = false
-	DefaultTLSAutoCertEmail    = ""
-	DefaultTLSAutoCertCacheDir = "./data/tls-cache"
-	DefaultTLSMinVersion       = "1.2"
-	DefaultTLSHTTPRedirectPort = 80
-	DefaultMetricsEnabled      = false
-	DefaultMetricsPort         = 9091
-	DefaultMetricsPath         = "/metrics"
-	DefaultTracingEnabled      = false
-	DefaultTracingEndpoint     = "http://localhost:4318"
-	DefaultSampleRate          = 0.1
-	DefaultSentryEnabled       = false
-	DefaultSentryDSN           = ""
-	DefaultSentryEnv           = "development"
-	DefaultSentrySampleRate    = 1.0
-	DefaultSentryRelease       = "0.1.2-alpha"
+
+	// Auth defaults
+	DefaultAuthEnabled = false
+	DefaultTokenExpiry = 60 // minutes
+
+	// Rate limit defaults
+	DefaultRateLimitEnabled   = false
+	DefaultRateLimitAlgorithm = "token_bucket"
+	DefaultBurstMultiplier    = 2.0
+	DefaultCleanupInterval    = "5m"
+	DefaultRequestsPerSecond  = 10
+	DefaultBurst              = 20
+
+	// Security defaults
+	DefaultSecurityEnabled = true
+	DefaultFrameOptions    = "DENY"
+	DefaultReferrerPolicy  = "strict-origin-when-cross-origin"
+	DefaultHSTSMaxAge      = 31536000 // 1 year in seconds
+	DefaultContentType     = true
+	DefaultBrowserXSSBlock = true
+
+	// CORS defaults
+	DefaultCORSEnabled = false
+	DefaultCORSMaxAge  = 86400 // 24 hours in seconds
 )
 
 // Valid values for validation
@@ -252,12 +272,11 @@ func Load(ctx context.Context) (*Config, error) {
 	// Load from config file if specified
 	if configFile := os.Getenv("CONEXUS_CONFIG_FILE"); configFile != "" {
 		// Validate config file path to prevent path traversal
-		validatedPath, err := validation.ValidateConfigPath(configFile)
-		if err != nil {
+		if _, err := validation.ValidateConfigPath(configFile); err != nil {
 			return nil, fmt.Errorf("config file path validation failed: %w", err)
 		}
 
-		fileCfg, err := loadFile(validatedPath)
+		fileCfg, err := loadFile(configFile)
 		if err != nil {
 			return nil, fmt.Errorf("load config file: %w", err)
 		}
@@ -290,54 +309,9 @@ func defaults() *Config {
 			ChunkSize:    DefaultChunkSize,
 			ChunkOverlap: DefaultChunkOverlap,
 		},
-		Embedding: EmbeddingConfig{
-			Provider:   DefaultEmbeddingProvider,
-			Model:      DefaultEmbeddingModel,
-			Dimensions: DefaultEmbeddingDimensions,
-			Config:     make(map[string]interface{}),
-		},
 		Logging: LoggingConfig{
 			Level:  DefaultLogLevel,
 			Format: DefaultLogFormat,
-		},
-		Auth: AuthConfig{
-			Enabled:     DefaultAuthEnabled,
-			Issuer:      DefaultAuthIssuer,
-			Audience:    DefaultAuthAudience,
-			TokenExpiry: DefaultAuthTokenExpiry,
-		},
-		Security: SecurityConfig{
-			CSP: CSPConfig{
-				Enabled: DefaultSecurityCSPEnabled,
-				Default: []string{"'none'"},
-				Script:  []string{"'self'"},
-				Style:   []string{"'self'"},
-				Image:   []string{"'self'"},
-				Font:    []string{"'self'"},
-				Connect: []string{"'self'"},
-				Media:   []string{"'none'"},
-				Object:  []string{"'none'"},
-				Frame:   []string{"'none'"},
-			},
-			HSTS: HSTSConfig{
-				Enabled:           DefaultSecurityHSTSEnabled,
-				MaxAge:            DefaultSecurityHSTSMaxAge,
-				IncludeSubdomains: true,
-				Preload:           false,
-			},
-			XFrameOptions:       "DENY",
-			XContentTypeOptions: "nosniff",
-			ReferrerPolicy:      "strict-origin-when-cross-origin",
-			PermissionsPolicy:   "camera=(), microphone=(), geolocation=(), payment=()",
-		},
-		CORS: CORSConfig{
-			Enabled:          DefaultCORSEnabled,
-			AllowedOrigins:   []string{},
-			AllowedMethods:   []string{"GET", "POST"},
-			AllowedHeaders:   []string{"Content-Type", "Authorization"},
-			ExposedHeaders:   []string{},
-			AllowCredentials: false,
-			MaxAge:           DefaultCORSMaxAge,
 		},
 		Observability: ObservabilityConfig{
 			Metrics: MetricsConfig{
@@ -358,14 +332,62 @@ func defaults() *Config {
 				Release:     DefaultSentryRelease,
 			},
 		},
+		TLS: TLSConfig{
+			Enabled:          DefaultTLSEnabled,
+			MinVersion:       DefaultTLSMinVersion,
+			HTTPRedirectPort: DefaultTLSHTTPRedirectPort,
+			AutoCertCacheDir: DefaultAutoCertCacheDir,
+		},
+		Embedding: EmbeddingConfig{
+			Provider:   DefaultEmbeddingProvider,
+			Model:      DefaultEmbeddingModel,
+			Dimensions: DefaultEmbeddingDimensions,
+		},
+		Auth: AuthConfig{
+			Enabled:     DefaultAuthEnabled,
+			TokenExpiry: DefaultTokenExpiry,
+		},
+		RateLimit: RateLimitConfig{
+			Enabled:         DefaultRateLimitEnabled,
+			Algorithm:       DefaultRateLimitAlgorithm,
+			BurstMultiplier: DefaultBurstMultiplier,
+			Redis: RedisConfig{
+				Enabled: false,
+			},
+			Default: LimitConfig{
+				RequestsPerSecond: DefaultRequestsPerSecond,
+				Burst:             DefaultBurst,
+			},
+		},
+		Security: SecurityConfig{
+			Enabled:         DefaultSecurityEnabled,
+			FrameOptions:    DefaultFrameOptions,
+			ContentType:     DefaultContentType,
+			BrowserXSSBlock: DefaultBrowserXSSBlock,
+			ReferrerPolicy:  DefaultReferrerPolicy,
+			CSP: CSPConfig{
+				Enabled: false,
+			},
+			HSTS: HSTSConfig{
+				MaxAge: DefaultHSTSMaxAge,
+			},
+		},
+		CORS: CORSConfig{
+			Enabled: DefaultCORSEnabled,
+			MaxAge:  DefaultCORSMaxAge,
+		},
 	}
 }
 
 // loadFile loads configuration from a YAML or JSON file.
 func loadFile(path string) (*Config, error) {
-	// Clean path to prevent basic traversal attacks
-	safePath := filepath.Clean(path)
+	// Validate and sanitize path to prevent traversal attacks (G304)
+	safePath, err := security.ValidatePath(path, "")
+	if err != nil {
+		return nil, fmt.Errorf("invalid config path: %w", err)
+	}
 
+	// #nosec G304 - Path validated at line 165 with ValidatePath
 	data, err := os.ReadFile(safePath)
 	if err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
@@ -402,6 +424,11 @@ func loadEnv(cfg *Config) *Config {
 			cfg.Server.Port = p
 		}
 	}
+	if stdio := os.Getenv("CONEXUS_STDIO"); stdio != "" {
+		if enabled, err := strconv.ParseBool(stdio); err == nil && enabled {
+			cfg.Server.Port = 0
+		}
+	}
 
 	// Database config
 	if dbPath := os.Getenv("CONEXUS_DB_PATH"); dbPath != "" {
@@ -420,19 +447,6 @@ func loadEnv(cfg *Config) *Config {
 	if chunkOverlap := os.Getenv("CONEXUS_CHUNK_OVERLAP"); chunkOverlap != "" {
 		if co, err := strconv.Atoi(chunkOverlap); err == nil {
 			cfg.Indexer.ChunkOverlap = co
-		}
-	}
-
-	// Embedding config
-	if provider := os.Getenv("CONEXUS_EMBEDDING_PROVIDER"); provider != "" {
-		cfg.Embedding.Provider = provider
-	}
-	if model := os.Getenv("CONEXUS_EMBEDDING_MODEL"); model != "" {
-		cfg.Embedding.Model = model
-	}
-	if dimensions := os.Getenv("CONEXUS_EMBEDDING_DIMENSIONS"); dimensions != "" {
-		if dim, err := strconv.Atoi(dimensions); err == nil {
-			cfg.Embedding.Dimensions = dim
 		}
 	}
 
@@ -495,67 +509,110 @@ func loadEnv(cfg *Config) *Config {
 		cfg.Observability.Sentry.Release = sentryRelease
 	}
 
+	// TLS config
+	if tlsEnabled := os.Getenv("CONEXUS_TLS_ENABLED"); tlsEnabled != "" {
+		if enabled, err := strconv.ParseBool(tlsEnabled); err == nil {
+			cfg.TLS.Enabled = enabled
+		}
+	}
+	if certFile := os.Getenv("CONEXUS_TLS_CERT_FILE"); certFile != "" {
+		cfg.TLS.CertFile = certFile
+	}
+	if keyFile := os.Getenv("CONEXUS_TLS_KEY_FILE"); keyFile != "" {
+		cfg.TLS.KeyFile = keyFile
+	}
+	if autoCert := os.Getenv("CONEXUS_TLS_AUTOCERT"); autoCert != "" {
+		if enabled, err := strconv.ParseBool(autoCert); err == nil {
+			cfg.TLS.AutoCert = enabled
+		}
+	}
+	if autoCertDomains := os.Getenv("CONEXUS_TLS_AUTOCERT_DOMAINS"); autoCertDomains != "" {
+		cfg.TLS.AutoCertDomains = strings.Split(autoCertDomains, ",")
+	}
+	if autoCertEmail := os.Getenv("CONEXUS_TLS_AUTOCERT_EMAIL"); autoCertEmail != "" {
+		cfg.TLS.AutoCertEmail = autoCertEmail
+	}
+	if autoCertCacheDir := os.Getenv("CONEXUS_TLS_AUTOCERT_CACHE_DIR"); autoCertCacheDir != "" {
+		cfg.TLS.AutoCertCacheDir = autoCertCacheDir
+	}
+	if minVersion := os.Getenv("CONEXUS_TLS_MIN_VERSION"); minVersion != "" {
+		cfg.TLS.MinVersion = minVersion
+	}
+	if cipherSuites := os.Getenv("CONEXUS_TLS_CIPHER_SUITES"); cipherSuites != "" {
+		cfg.TLS.CipherSuites = strings.Split(cipherSuites, ",")
+	}
+	if curvePreferences := os.Getenv("CONEXUS_TLS_CURVE_PREFERENCES"); curvePreferences != "" {
+		cfg.TLS.CurvePreferences = strings.Split(curvePreferences, ",")
+	}
+	if httpRedirectPort := os.Getenv("CONEXUS_TLS_HTTP_REDIRECT_PORT"); httpRedirectPort != "" {
+		if port, err := strconv.Atoi(httpRedirectPort); err == nil {
+			cfg.TLS.HTTPRedirectPort = port
+		}
+	}
+
+	// Embedding config
+	if embeddingProvider := os.Getenv("CONEXUS_EMBEDDING_PROVIDER"); embeddingProvider != "" {
+		cfg.Embedding.Provider = embeddingProvider
+	}
+	if embeddingModel := os.Getenv("CONEXUS_EMBEDDING_MODEL"); embeddingModel != "" {
+		cfg.Embedding.Model = embeddingModel
+	}
+	if embeddingDimensions := os.Getenv("CONEXUS_EMBEDDING_DIMENSIONS"); embeddingDimensions != "" {
+		if dims, err := strconv.Atoi(embeddingDimensions); err == nil {
+			cfg.Embedding.Dimensions = dims
+		}
+	}
+
 	// Auth config
 	if authEnabled := os.Getenv("CONEXUS_AUTH_ENABLED"); authEnabled != "" {
 		if enabled, err := strconv.ParseBool(authEnabled); err == nil {
 			cfg.Auth.Enabled = enabled
 		}
 	}
-	if authIssuer := os.Getenv("CONEXUS_AUTH_ISSUER"); authIssuer != "" {
-		cfg.Auth.Issuer = authIssuer
-	}
-	if authAudience := os.Getenv("CONEXUS_AUTH_AUDIENCE"); authAudience != "" {
-		cfg.Auth.Audience = authAudience
-	}
-	if authPublicKey := os.Getenv("CONEXUS_AUTH_PUBLIC_KEY"); authPublicKey != "" {
-		cfg.Auth.PublicKey = authPublicKey
-	}
-	if authPrivateKey := os.Getenv("CONEXUS_AUTH_PRIVATE_KEY"); authPrivateKey != "" {
-		cfg.Auth.PrivateKey = authPrivateKey
-	}
-	if authTokenExpiry := os.Getenv("CONEXUS_AUTH_TOKEN_EXPIRY"); authTokenExpiry != "" {
-		if expiry, err := strconv.Atoi(authTokenExpiry); err == nil {
+	if tokenExpiry := os.Getenv("CONEXUS_AUTH_TOKEN_EXPIRY"); tokenExpiry != "" {
+		if expiry, err := strconv.Atoi(tokenExpiry); err == nil {
 			cfg.Auth.TokenExpiry = expiry
 		}
 	}
 
+	// Rate limiting config
+	if rateLimitEnabled := os.Getenv("CONEXUS_RATELIMIT_ENABLED"); rateLimitEnabled != "" {
+		if enabled, err := strconv.ParseBool(rateLimitEnabled); err == nil {
+			cfg.RateLimit.Enabled = enabled
+		}
+	}
+	if rateLimitAlgorithm := os.Getenv("CONEXUS_RATELIMIT_ALGORITHM"); rateLimitAlgorithm != "" {
+		cfg.RateLimit.Algorithm = rateLimitAlgorithm
+	}
+	if rateLimitRPS := os.Getenv("CONEXUS_RATELIMIT_REQUESTS_PER_SECOND"); rateLimitRPS != "" {
+		if rps, err := strconv.Atoi(rateLimitRPS); err == nil {
+			cfg.RateLimit.Default.RequestsPerSecond = rps
+		}
+	}
+	if rateLimitBurst := os.Getenv("CONEXUS_RATELIMIT_BURST"); rateLimitBurst != "" {
+		if burst, err := strconv.Atoi(rateLimitBurst); err == nil {
+			cfg.RateLimit.Default.Burst = burst
+		}
+	}
+
 	// Security config
-	if securityCSPEnabled := os.Getenv("CONEXUS_SECURITY_CSP_ENABLED"); securityCSPEnabled != "" {
-		if enabled, err := strconv.ParseBool(securityCSPEnabled); err == nil {
+	if securityEnabled := os.Getenv("CONEXUS_SECURITY_ENABLED"); securityEnabled != "" {
+		if enabled, err := strconv.ParseBool(securityEnabled); err == nil {
+			cfg.Security.Enabled = enabled
+		}
+	}
+	if frameOptions := os.Getenv("CONEXUS_SECURITY_FRAME_OPTIONS"); frameOptions != "" {
+		cfg.Security.FrameOptions = frameOptions
+	}
+	if cspEnabled := os.Getenv("CONEXUS_SECURITY_CSP_ENABLED"); cspEnabled != "" {
+		if enabled, err := strconv.ParseBool(cspEnabled); err == nil {
 			cfg.Security.CSP.Enabled = enabled
 		}
 	}
-	if securityHSTSEnabled := os.Getenv("CONEXUS_SECURITY_HSTS_ENABLED"); securityHSTSEnabled != "" {
-		if enabled, err := strconv.ParseBool(securityHSTSEnabled); err == nil {
-			cfg.Security.HSTS.Enabled = enabled
-		}
-	}
-	if securityHSTSMaxAge := os.Getenv("CONEXUS_SECURITY_HSTS_MAX_AGE"); securityHSTSMaxAge != "" {
-		if maxAge, err := strconv.Atoi(securityHSTSMaxAge); err == nil {
+	if hstsMaxAge := os.Getenv("CONEXUS_SECURITY_HSTS_MAX_AGE"); hstsMaxAge != "" {
+		if maxAge, err := strconv.Atoi(hstsMaxAge); err == nil {
 			cfg.Security.HSTS.MaxAge = maxAge
 		}
-	}
-	if securityHSTSIncludeSubdomains := os.Getenv("CONEXUS_SECURITY_HSTS_INCLUDE_SUBDOMAINS"); securityHSTSIncludeSubdomains != "" {
-		if include, err := strconv.ParseBool(securityHSTSIncludeSubdomains); err == nil {
-			cfg.Security.HSTS.IncludeSubdomains = include
-		}
-	}
-	if securityHSTSPreload := os.Getenv("CONEXUS_SECURITY_HSTS_PRELOAD"); securityHSTSPreload != "" {
-		if preload, err := strconv.ParseBool(securityHSTSPreload); err == nil {
-			cfg.Security.HSTS.Preload = preload
-		}
-	}
-	if securityXFrameOptions := os.Getenv("CONEXUS_SECURITY_X_FRAME_OPTIONS"); securityXFrameOptions != "" {
-		cfg.Security.XFrameOptions = securityXFrameOptions
-	}
-	if securityXContentTypeOptions := os.Getenv("CONEXUS_SECURITY_X_CONTENT_TYPE_OPTIONS"); securityXContentTypeOptions != "" {
-		cfg.Security.XContentTypeOptions = securityXContentTypeOptions
-	}
-	if securityReferrerPolicy := os.Getenv("CONEXUS_SECURITY_REFERRER_POLICY"); securityReferrerPolicy != "" {
-		cfg.Security.ReferrerPolicy = securityReferrerPolicy
-	}
-	if securityPermissionsPolicy := os.Getenv("CONEXUS_SECURITY_PERMISSIONS_POLICY"); securityPermissionsPolicy != "" {
-		cfg.Security.PermissionsPolicy = securityPermissionsPolicy
 	}
 
 	// CORS config
@@ -564,235 +621,9 @@ func loadEnv(cfg *Config) *Config {
 			cfg.CORS.Enabled = enabled
 		}
 	}
-	if corsAllowedOrigins := os.Getenv("CONEXUS_CORS_ALLOWED_ORIGINS"); corsAllowedOrigins != "" {
-		// Parse comma-separated list
-		if origins := strings.Split(corsAllowedOrigins, ","); len(origins) > 0 {
-			cfg.CORS.AllowedOrigins = make([]string, 0, len(origins))
-			for _, origin := range origins {
-				if trimmed := strings.TrimSpace(origin); trimmed != "" {
-					cfg.CORS.AllowedOrigins = append(cfg.CORS.AllowedOrigins, trimmed)
-				}
-			}
-		}
-	}
-	if corsAllowedMethods := os.Getenv("CONEXUS_CORS_ALLOWED_METHODS"); corsAllowedMethods != "" {
-		// Parse comma-separated list
-		if methods := strings.Split(corsAllowedMethods, ","); len(methods) > 0 {
-			cfg.CORS.AllowedMethods = make([]string, 0, len(methods))
-			for _, method := range methods {
-				if trimmed := strings.TrimSpace(method); trimmed != "" {
-					cfg.CORS.AllowedMethods = append(cfg.CORS.AllowedMethods, trimmed)
-				}
-			}
-		}
-	}
-	if corsAllowedHeaders := os.Getenv("CONEXUS_CORS_ALLOWED_HEADERS"); corsAllowedHeaders != "" {
-		// Parse comma-separated list
-		if headers := strings.Split(corsAllowedHeaders, ","); len(headers) > 0 {
-			cfg.CORS.AllowedHeaders = make([]string, 0, len(headers))
-			for _, header := range headers {
-				if trimmed := strings.TrimSpace(header); trimmed != "" {
-					cfg.CORS.AllowedHeaders = append(cfg.CORS.AllowedHeaders, trimmed)
-				}
-			}
-		}
-	}
-	if corsExposedHeaders := os.Getenv("CONEXUS_CORS_EXPOSED_HEADERS"); corsExposedHeaders != "" {
-		// Parse comma-separated list
-		if headers := strings.Split(corsExposedHeaders, ","); len(headers) > 0 {
-			cfg.CORS.ExposedHeaders = make([]string, 0, len(headers))
-			for _, header := range headers {
-				if trimmed := strings.TrimSpace(header); trimmed != "" {
-					cfg.CORS.ExposedHeaders = append(cfg.CORS.ExposedHeaders, trimmed)
-				}
-			}
-		}
-	}
-	if corsAllowCredentials := os.Getenv("CONEXUS_CORS_ALLOW_CREDENTIALS"); corsAllowCredentials != "" {
-		if allow, err := strconv.ParseBool(corsAllowCredentials); err == nil {
-			cfg.CORS.AllowCredentials = allow
-		}
-	}
 	if corsMaxAge := os.Getenv("CONEXUS_CORS_MAX_AGE"); corsMaxAge != "" {
 		if maxAge, err := strconv.Atoi(corsMaxAge); err == nil {
 			cfg.CORS.MaxAge = maxAge
-		}
-	}
-
-	// TLS config
-	if tlsEnabled := os.Getenv("CONEXUS_TLS_ENABLED"); tlsEnabled != "" {
-		if enabled, err := strconv.ParseBool(tlsEnabled); err == nil {
-			cfg.TLS.Enabled = enabled
-		}
-	}
-	if tlsCertFile := os.Getenv("CONEXUS_TLS_CERT_FILE"); tlsCertFile != "" {
-		cfg.TLS.CertFile = tlsCertFile
-	}
-	if tlsKeyFile := os.Getenv("CONEXUS_TLS_KEY_FILE"); tlsKeyFile != "" {
-		cfg.TLS.KeyFile = tlsKeyFile
-	}
-	if tlsAutoCert := os.Getenv("CONEXUS_TLS_AUTO_CERT"); tlsAutoCert != "" {
-		if auto, err := strconv.ParseBool(tlsAutoCert); err == nil {
-			cfg.TLS.AutoCert = auto
-		}
-	}
-	if tlsAutoCertDomains := os.Getenv("CONEXUS_TLS_AUTO_CERT_DOMAINS"); tlsAutoCertDomains != "" {
-		// Parse comma-separated list
-		if domains := strings.Split(tlsAutoCertDomains, ","); len(domains) > 0 {
-			cfg.TLS.AutoCertDomains = make([]string, 0, len(domains))
-			for _, domain := range domains {
-				if trimmed := strings.TrimSpace(domain); trimmed != "" {
-					cfg.TLS.AutoCertDomains = append(cfg.TLS.AutoCertDomains, trimmed)
-				}
-			}
-		}
-	}
-	if tlsAutoCertEmail := os.Getenv("CONEXUS_TLS_AUTO_CERT_EMAIL"); tlsAutoCertEmail != "" {
-		cfg.TLS.AutoCertEmail = tlsAutoCertEmail
-	}
-	if tlsAutoCertCacheDir := os.Getenv("CONEXUS_TLS_AUTO_CERT_CACHE_DIR"); tlsAutoCertCacheDir != "" {
-		cfg.TLS.AutoCertCacheDir = tlsAutoCertCacheDir
-	}
-	if tlsMinVersion := os.Getenv("CONEXUS_TLS_MIN_VERSION"); tlsMinVersion != "" {
-		cfg.TLS.MinVersion = tlsMinVersion
-	}
-	if tlsCipherSuites := os.Getenv("CONEXUS_TLS_CIPHER_SUITES"); tlsCipherSuites != "" {
-		// Parse comma-separated list
-		if suites := strings.Split(tlsCipherSuites, ","); len(suites) > 0 {
-			cfg.TLS.CipherSuites = make([]string, 0, len(suites))
-			for _, suite := range suites {
-				if trimmed := strings.TrimSpace(suite); trimmed != "" {
-					cfg.TLS.CipherSuites = append(cfg.TLS.CipherSuites, trimmed)
-				}
-			}
-		}
-	}
-	if tlsCurvePreferences := os.Getenv("CONEXUS_TLS_CURVE_PREFERENCES"); tlsCurvePreferences != "" {
-		// Parse comma-separated list
-		if curves := strings.Split(tlsCurvePreferences, ","); len(curves) > 0 {
-			cfg.TLS.CurvePreferences = make([]string, 0, len(curves))
-			for _, curve := range curves {
-				if trimmed := strings.TrimSpace(curve); trimmed != "" {
-					cfg.TLS.CurvePreferences = append(cfg.TLS.CurvePreferences, trimmed)
-				}
-			}
-		}
-	}
-	if tlsHTTPRedirectPort := os.Getenv("CONEXUS_TLS_HTTP_REDIRECT_PORT"); tlsHTTPRedirectPort != "" {
-		if port, err := strconv.Atoi(tlsHTTPRedirectPort); err == nil {
-			cfg.TLS.HTTPRedirectPort = port
-		}
-	}
-
-	// RateLimit config
-	if rateLimitEnabled := os.Getenv("CONEXUS_RATE_LIMIT_ENABLED"); rateLimitEnabled != "" {
-		if enabled, err := strconv.ParseBool(rateLimitEnabled); err == nil {
-			cfg.RateLimit.Enabled = enabled
-		}
-	}
-	if rateLimitAlgorithm := os.Getenv("CONEXUS_RATE_LIMIT_ALGORITHM"); rateLimitAlgorithm != "" {
-		cfg.RateLimit.Algorithm = rateLimitAlgorithm
-	}
-	if rateLimitRedisEnabled := os.Getenv("CONEXUS_RATE_LIMIT_REDIS_ENABLED"); rateLimitRedisEnabled != "" {
-		if enabled, err := strconv.ParseBool(rateLimitRedisEnabled); err == nil {
-			cfg.RateLimit.Redis.Enabled = enabled
-		}
-	}
-	if rateLimitRedisAddr := os.Getenv("CONEXUS_RATE_LIMIT_REDIS_ADDR"); rateLimitRedisAddr != "" {
-		cfg.RateLimit.Redis.Addr = rateLimitRedisAddr
-	}
-	if rateLimitRedisPassword := os.Getenv("CONEXUS_RATE_LIMIT_REDIS_PASSWORD"); rateLimitRedisPassword != "" {
-		cfg.RateLimit.Redis.Password = rateLimitRedisPassword
-	}
-	if rateLimitRedisDB := os.Getenv("CONEXUS_RATE_LIMIT_REDIS_DB"); rateLimitRedisDB != "" {
-		if db, err := strconv.Atoi(rateLimitRedisDB); err == nil {
-			cfg.RateLimit.Redis.DB = db
-		}
-	}
-	if rateLimitRedisKeyPrefix := os.Getenv("CONEXUS_RATE_LIMIT_REDIS_KEY_PREFIX"); rateLimitRedisKeyPrefix != "" {
-		cfg.RateLimit.Redis.KeyPrefix = rateLimitRedisKeyPrefix
-	}
-	if rateLimitDefaultRequests := os.Getenv("CONEXUS_RATE_LIMIT_DEFAULT_REQUESTS"); rateLimitDefaultRequests != "" {
-		if requests, err := strconv.Atoi(rateLimitDefaultRequests); err == nil {
-			cfg.RateLimit.Default.Requests = requests
-		}
-	}
-	if rateLimitDefaultWindow := os.Getenv("CONEXUS_RATE_LIMIT_DEFAULT_WINDOW"); rateLimitDefaultWindow != "" {
-		if window, err := time.ParseDuration(rateLimitDefaultWindow); err == nil {
-			cfg.RateLimit.Default.Window = window
-		}
-	}
-	if rateLimitHealthRequests := os.Getenv("CONEXUS_RATE_LIMIT_HEALTH_REQUESTS"); rateLimitHealthRequests != "" {
-		if requests, err := strconv.Atoi(rateLimitHealthRequests); err == nil {
-			cfg.RateLimit.Health.Requests = requests
-		}
-	}
-	if rateLimitHealthWindow := os.Getenv("CONEXUS_RATE_LIMIT_HEALTH_WINDOW"); rateLimitHealthWindow != "" {
-		if window, err := time.ParseDuration(rateLimitHealthWindow); err == nil {
-			cfg.RateLimit.Health.Window = window
-		}
-	}
-	if rateLimitWebhookRequests := os.Getenv("CONEXUS_RATE_LIMIT_WEBHOOK_REQUESTS"); rateLimitWebhookRequests != "" {
-		if requests, err := strconv.Atoi(rateLimitWebhookRequests); err == nil {
-			cfg.RateLimit.Webhook.Requests = requests
-		}
-	}
-	if rateLimitWebhookWindow := os.Getenv("CONEXUS_RATE_LIMIT_WEBHOOK_WINDOW"); rateLimitWebhookWindow != "" {
-		if window, err := time.ParseDuration(rateLimitWebhookWindow); err == nil {
-			cfg.RateLimit.Webhook.Window = window
-		}
-	}
-	if rateLimitAuthRequests := os.Getenv("CONEXUS_RATE_LIMIT_AUTH_REQUESTS"); rateLimitAuthRequests != "" {
-		if requests, err := strconv.Atoi(rateLimitAuthRequests); err == nil {
-			cfg.RateLimit.Auth.Requests = requests
-		}
-	}
-	if rateLimitAuthWindow := os.Getenv("CONEXUS_RATE_LIMIT_AUTH_WINDOW"); rateLimitAuthWindow != "" {
-		if window, err := time.ParseDuration(rateLimitAuthWindow); err == nil {
-			cfg.RateLimit.Auth.Window = window
-		}
-	}
-	if rateLimitBurstMultiplier := os.Getenv("CONEXUS_RATE_LIMIT_BURST_MULTIPLIER"); rateLimitBurstMultiplier != "" {
-		if multiplier, err := strconv.ParseFloat(rateLimitBurstMultiplier, 64); err == nil {
-			cfg.RateLimit.BurstMultiplier = multiplier
-		}
-	}
-	if rateLimitCleanupInterval := os.Getenv("CONEXUS_RATE_LIMIT_CLEANUP_INTERVAL"); rateLimitCleanupInterval != "" {
-		if interval, err := time.ParseDuration(rateLimitCleanupInterval); err == nil {
-			cfg.RateLimit.CleanupInterval = interval
-		}
-	}
-	if rateLimitSkipPaths := os.Getenv("CONEXUS_RATE_LIMIT_SKIP_PATHS"); rateLimitSkipPaths != "" {
-		// Parse comma-separated list
-		if paths := strings.Split(rateLimitSkipPaths, ","); len(paths) > 0 {
-			cfg.RateLimit.SkipPaths = make([]string, 0, len(paths))
-			for _, path := range paths {
-				if trimmed := strings.TrimSpace(path); trimmed != "" {
-					cfg.RateLimit.SkipPaths = append(cfg.RateLimit.SkipPaths, trimmed)
-				}
-			}
-		}
-	}
-	if rateLimitSkipIPs := os.Getenv("CONEXUS_RATE_LIMIT_SKIP_IPS"); rateLimitSkipIPs != "" {
-		// Parse comma-separated list
-		if ips := strings.Split(rateLimitSkipIPs, ","); len(ips) > 0 {
-			cfg.RateLimit.SkipIPs = make([]string, 0, len(ips))
-			for _, ip := range ips {
-				if trimmed := strings.TrimSpace(ip); trimmed != "" {
-					cfg.RateLimit.SkipIPs = append(cfg.RateLimit.SkipIPs, trimmed)
-				}
-			}
-		}
-	}
-	if rateLimitTrustedProxies := os.Getenv("CONEXUS_RATE_LIMIT_TRUSTED_PROXIES"); rateLimitTrustedProxies != "" {
-		// Parse comma-separated list
-		if proxies := strings.Split(rateLimitTrustedProxies, ","); len(proxies) > 0 {
-			cfg.RateLimit.TrustedProxies = make([]string, 0, len(proxies))
-			for _, proxy := range proxies {
-				if trimmed := strings.TrimSpace(proxy); trimmed != "" {
-					cfg.RateLimit.TrustedProxies = append(cfg.RateLimit.TrustedProxies, trimmed)
-				}
-			}
 		}
 	}
 
@@ -825,20 +656,6 @@ func merge(base, override *Config) *Config {
 	}
 	if override.Indexer.ChunkOverlap != 0 {
 		result.Indexer.ChunkOverlap = override.Indexer.ChunkOverlap
-	}
-
-	// Embedding
-	if override.Embedding.Provider != "" {
-		result.Embedding.Provider = override.Embedding.Provider
-	}
-	if override.Embedding.Model != "" {
-		result.Embedding.Model = override.Embedding.Model
-	}
-	if override.Embedding.Dimensions != 0 {
-		result.Embedding.Dimensions = override.Embedding.Dimensions
-	}
-	if override.Embedding.Config != nil {
-		result.Embedding.Config = override.Embedding.Config
 	}
 
 	// Logging
@@ -889,90 +706,103 @@ func merge(base, override *Config) *Config {
 		result.Observability.Sentry.Release = override.Observability.Sentry.Release
 	}
 
+	// Merge TLS config
+	if override.TLS.Enabled != DefaultTLSEnabled {
+		result.TLS.Enabled = override.TLS.Enabled
+	}
+	if override.TLS.CertFile != "" {
+		result.TLS.CertFile = override.TLS.CertFile
+	}
+	if override.TLS.KeyFile != "" {
+		result.TLS.KeyFile = override.TLS.KeyFile
+	}
+	if override.TLS.AutoCert != DefaultTLSEnabled {
+		result.TLS.AutoCert = override.TLS.AutoCert
+	}
+	if len(override.TLS.AutoCertDomains) > 0 {
+		result.TLS.AutoCertDomains = override.TLS.AutoCertDomains
+	}
+	if override.TLS.AutoCertEmail != "" {
+		result.TLS.AutoCertEmail = override.TLS.AutoCertEmail
+	}
+	if override.TLS.AutoCertCacheDir != DefaultAutoCertCacheDir {
+		result.TLS.AutoCertCacheDir = override.TLS.AutoCertCacheDir
+	}
+	if override.TLS.MinVersion != DefaultTLSMinVersion {
+		result.TLS.MinVersion = override.TLS.MinVersion
+	}
+	if len(override.TLS.CipherSuites) > 0 {
+		result.TLS.CipherSuites = override.TLS.CipherSuites
+	}
+	if len(override.TLS.CurvePreferences) > 0 {
+		result.TLS.CurvePreferences = override.TLS.CurvePreferences
+	}
+	if override.TLS.HTTPRedirectPort != DefaultTLSHTTPRedirectPort {
+		result.TLS.HTTPRedirectPort = override.TLS.HTTPRedirectPort
+	}
+
+	// Embedding
+	if override.Embedding.Provider != "" {
+		result.Embedding.Provider = override.Embedding.Provider
+	}
+	if override.Embedding.Model != "" {
+		result.Embedding.Model = override.Embedding.Model
+	}
+	if override.Embedding.Dimensions != 0 {
+		result.Embedding.Dimensions = override.Embedding.Dimensions
+	}
+
 	// Auth
 	if override.Auth.Enabled != DefaultAuthEnabled {
 		result.Auth.Enabled = override.Auth.Enabled
-	}
-	if override.Auth.Issuer != "" {
-		result.Auth.Issuer = override.Auth.Issuer
-	}
-	if override.Auth.Audience != "" {
-		result.Auth.Audience = override.Auth.Audience
-	}
-	if override.Auth.PublicKey != "" {
-		result.Auth.PublicKey = override.Auth.PublicKey
-	}
-	if override.Auth.PrivateKey != "" {
-		result.Auth.PrivateKey = override.Auth.PrivateKey
 	}
 	if override.Auth.TokenExpiry != 0 {
 		result.Auth.TokenExpiry = override.Auth.TokenExpiry
 	}
 
+	// RateLimit
+	if override.RateLimit.Enabled != DefaultRateLimitEnabled {
+		result.RateLimit.Enabled = override.RateLimit.Enabled
+	}
+	if override.RateLimit.Algorithm != "" {
+		result.RateLimit.Algorithm = override.RateLimit.Algorithm
+	}
+	if override.RateLimit.BurstMultiplier != 0 {
+		result.RateLimit.BurstMultiplier = override.RateLimit.BurstMultiplier
+	}
+	if override.RateLimit.Default.RequestsPerSecond != 0 {
+		result.RateLimit.Default.RequestsPerSecond = override.RateLimit.Default.RequestsPerSecond
+	}
+	if override.RateLimit.Default.Burst != 0 {
+		result.RateLimit.Default.Burst = override.RateLimit.Default.Burst
+	}
+
 	// Security
-	if override.Security.CSP.Enabled != DefaultSecurityCSPEnabled {
-		result.Security.CSP.Enabled = override.Security.CSP.Enabled
+	if override.Security.Enabled != DefaultSecurityEnabled {
+		result.Security.Enabled = override.Security.Enabled
 	}
-	if len(override.Security.CSP.Default) > 0 {
-		result.Security.CSP.Default = override.Security.CSP.Default
+	if override.Security.FrameOptions != "" {
+		result.Security.FrameOptions = override.Security.FrameOptions
 	}
-	if len(override.Security.CSP.Script) > 0 {
-		result.Security.CSP.Script = override.Security.CSP.Script
+	if override.Security.ContentType != DefaultContentType {
+		result.Security.ContentType = override.Security.ContentType
 	}
-	if len(override.Security.CSP.Style) > 0 {
-		result.Security.CSP.Style = override.Security.CSP.Style
-	}
-	if len(override.Security.CSP.Image) > 0 {
-		result.Security.CSP.Image = override.Security.CSP.Image
-	}
-	if len(override.Security.CSP.Font) > 0 {
-		result.Security.CSP.Font = override.Security.CSP.Font
-	}
-	if len(override.Security.CSP.Connect) > 0 {
-		result.Security.CSP.Connect = override.Security.CSP.Connect
-	}
-	if len(override.Security.CSP.Media) > 0 {
-		result.Security.CSP.Media = override.Security.CSP.Media
-	}
-	if len(override.Security.CSP.Object) > 0 {
-		result.Security.CSP.Object = override.Security.CSP.Object
-	}
-	if len(override.Security.CSP.Frame) > 0 {
-		result.Security.CSP.Frame = override.Security.CSP.Frame
-	}
-	if override.Security.CSP.Report != "" {
-		result.Security.CSP.Report = override.Security.CSP.Report
-	}
-
-	if override.Security.HSTS.Enabled != DefaultSecurityHSTSEnabled {
-		result.Security.HSTS.Enabled = override.Security.HSTS.Enabled
-	}
-	if override.Security.HSTS.MaxAge != 0 {
-		result.Security.HSTS.MaxAge = override.Security.HSTS.MaxAge
-	}
-	if override.Security.HSTS.IncludeSubdomains {
-		result.Security.HSTS.IncludeSubdomains = override.Security.HSTS.IncludeSubdomains
-	}
-	if override.Security.HSTS.Preload {
-		result.Security.HSTS.Preload = override.Security.HSTS.Preload
-	}
-
-	if override.Security.XFrameOptions != "" {
-		result.Security.XFrameOptions = override.Security.XFrameOptions
-	}
-	if override.Security.XContentTypeOptions != "" {
-		result.Security.XContentTypeOptions = override.Security.XContentTypeOptions
+	if override.Security.BrowserXSSBlock != DefaultBrowserXSSBlock {
+		result.Security.BrowserXSSBlock = override.Security.BrowserXSSBlock
 	}
 	if override.Security.ReferrerPolicy != "" {
 		result.Security.ReferrerPolicy = override.Security.ReferrerPolicy
 	}
-	if override.Security.PermissionsPolicy != "" {
-		result.Security.PermissionsPolicy = override.Security.PermissionsPolicy
+	if override.Security.HSTS.MaxAge != 0 {
+		result.Security.HSTS.MaxAge = override.Security.HSTS.MaxAge
 	}
 
 	// CORS
 	if override.CORS.Enabled != DefaultCORSEnabled {
 		result.CORS.Enabled = override.CORS.Enabled
+	}
+	if override.CORS.MaxAge != 0 {
+		result.CORS.MaxAge = override.CORS.MaxAge
 	}
 	if len(override.CORS.AllowedOrigins) > 0 {
 		result.CORS.AllowedOrigins = override.CORS.AllowedOrigins
@@ -986,118 +816,15 @@ func merge(base, override *Config) *Config {
 	if len(override.CORS.ExposedHeaders) > 0 {
 		result.CORS.ExposedHeaders = override.CORS.ExposedHeaders
 	}
-	if override.CORS.AllowCredentials {
-		result.CORS.AllowCredentials = override.CORS.AllowCredentials
-	}
-	if override.CORS.MaxAge != 0 {
-		result.CORS.MaxAge = override.CORS.MaxAge
-	}
-
-	// TLS
-	if override.TLS.Enabled != DefaultTLSEnabled {
-		result.TLS.Enabled = override.TLS.Enabled
-	}
-	if override.TLS.CertFile != "" {
-		result.TLS.CertFile = override.TLS.CertFile
-	}
-	if override.TLS.KeyFile != "" {
-		result.TLS.KeyFile = override.TLS.KeyFile
-	}
-	if override.TLS.AutoCert != DefaultTLSAutoCert {
-		result.TLS.AutoCert = override.TLS.AutoCert
-	}
-	if len(override.TLS.AutoCertDomains) > 0 {
-		result.TLS.AutoCertDomains = override.TLS.AutoCertDomains
-	}
-	if override.TLS.AutoCertEmail != "" {
-		result.TLS.AutoCertEmail = override.TLS.AutoCertEmail
-	}
-	if override.TLS.AutoCertCacheDir != "" {
-		result.TLS.AutoCertCacheDir = override.TLS.AutoCertCacheDir
-	}
-	if override.TLS.MinVersion != "" {
-		result.TLS.MinVersion = override.TLS.MinVersion
-	}
-	if len(override.TLS.CipherSuites) > 0 {
-		result.TLS.CipherSuites = override.TLS.CipherSuites
-	}
-	if len(override.TLS.CurvePreferences) > 0 {
-		result.TLS.CurvePreferences = override.TLS.CurvePreferences
-	}
-	if override.TLS.HTTPRedirectPort != 0 {
-		result.TLS.HTTPRedirectPort = override.TLS.HTTPRedirectPort
-	}
-
-	// RateLimit
-	if override.RateLimit.Enabled {
-		result.RateLimit.Enabled = override.RateLimit.Enabled
-	}
-	if override.RateLimit.Algorithm != "" {
-		result.RateLimit.Algorithm = override.RateLimit.Algorithm
-	}
-	if override.RateLimit.Redis.Enabled {
-		result.RateLimit.Redis.Enabled = override.RateLimit.Redis.Enabled
-	}
-	if override.RateLimit.Redis.Addr != "" {
-		result.RateLimit.Redis.Addr = override.RateLimit.Redis.Addr
-	}
-	if override.RateLimit.Redis.Password != "" {
-		result.RateLimit.Redis.Password = override.RateLimit.Redis.Password
-	}
-	if override.RateLimit.Redis.DB != 0 {
-		result.RateLimit.Redis.DB = override.RateLimit.Redis.DB
-	}
-	if override.RateLimit.Redis.KeyPrefix != "" {
-		result.RateLimit.Redis.KeyPrefix = override.RateLimit.Redis.KeyPrefix
-	}
-	if override.RateLimit.Default.Requests != 0 {
-		result.RateLimit.Default.Requests = override.RateLimit.Default.Requests
-	}
-	if override.RateLimit.Default.Window != 0 {
-		result.RateLimit.Default.Window = override.RateLimit.Default.Window
-	}
-	if override.RateLimit.Health.Requests != 0 {
-		result.RateLimit.Health.Requests = override.RateLimit.Health.Requests
-	}
-	if override.RateLimit.Health.Window != 0 {
-		result.RateLimit.Health.Window = override.RateLimit.Health.Window
-	}
-	if override.RateLimit.Webhook.Requests != 0 {
-		result.RateLimit.Webhook.Requests = override.RateLimit.Webhook.Requests
-	}
-	if override.RateLimit.Webhook.Window != 0 {
-		result.RateLimit.Webhook.Window = override.RateLimit.Webhook.Window
-	}
-	if override.RateLimit.Auth.Requests != 0 {
-		result.RateLimit.Auth.Requests = override.RateLimit.Auth.Requests
-	}
-	if override.RateLimit.Auth.Window != 0 {
-		result.RateLimit.Auth.Window = override.RateLimit.Auth.Window
-	}
-	if override.RateLimit.BurstMultiplier != 0 {
-		result.RateLimit.BurstMultiplier = override.RateLimit.BurstMultiplier
-	}
-	if override.RateLimit.CleanupInterval != 0 {
-		result.RateLimit.CleanupInterval = override.RateLimit.CleanupInterval
-	}
-	if len(override.RateLimit.SkipPaths) > 0 {
-		result.RateLimit.SkipPaths = override.RateLimit.SkipPaths
-	}
-	if len(override.RateLimit.SkipIPs) > 0 {
-		result.RateLimit.SkipIPs = override.RateLimit.SkipIPs
-	}
-	if len(override.RateLimit.TrustedProxies) > 0 {
-		result.RateLimit.TrustedProxies = override.RateLimit.TrustedProxies
-	}
 
 	return &result
 }
 
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
-	// Validate server config - port 0 is allowed for stdio mode
+	// Validate server config
 	if c.Server.Port < 0 || c.Server.Port > 65535 {
-		return fmt.Errorf("invalid port: %d (must be 0-65535, 0 for stdio mode)", c.Server.Port)
+		return fmt.Errorf("invalid port: %d (must be 1-65535)", c.Server.Port)
 	}
 
 	// Validate database config
@@ -1158,54 +885,102 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Validate TLS config
+	if c.TLS.Enabled {
+		// Manual TLS: requires cert and key files
+		if !c.TLS.AutoCert {
+			if c.TLS.CertFile == "" {
+				return fmt.Errorf("TLS cert file cannot be empty when TLS is enabled")
+			}
+			if c.TLS.KeyFile == "" {
+				return fmt.Errorf("TLS key file cannot be empty when TLS is enabled")
+			}
+		}
+
+		// AutoCert: requires domains and email
+		if c.TLS.AutoCert {
+			if len(c.TLS.AutoCertDomains) == 0 {
+				return fmt.Errorf("AutoCert domains cannot be empty when AutoCert is enabled")
+			}
+			if c.TLS.AutoCertEmail == "" {
+				return fmt.Errorf("AutoCert email cannot be empty when AutoCert is enabled")
+			}
+		}
+
+		// Validate MinVersion
+		validVersions := []string{"1.0", "1.1", "1.2", "1.3"}
+		if !contains(validVersions, c.TLS.MinVersion) {
+			return fmt.Errorf("invalid TLS min version: %s (valid: %v)", c.TLS.MinVersion, validVersions)
+		}
+
+		// Validate HTTPRedirectPort
+		if c.TLS.HTTPRedirectPort < 1 || c.TLS.HTTPRedirectPort > 65535 {
+			return fmt.Errorf("invalid TLS HTTP redirect port: %d (must be 1-65535)", c.TLS.HTTPRedirectPort)
+		}
+	}
+
+	// Validate embedding config
+	validProviders := []string{"mock", "anthropic", "openai", "cohere"}
+	if !contains(validProviders, c.Embedding.Provider) {
+		return fmt.Errorf("invalid embedding provider: %s (valid: %v)", c.Embedding.Provider, validProviders)
+	}
+	if c.Embedding.Model == "" {
+		return fmt.Errorf("embedding model cannot be empty")
+	}
+	if c.Embedding.Dimensions < 1 {
+		return fmt.Errorf("embedding dimensions must be positive: %d", c.Embedding.Dimensions)
+	}
+
 	// Validate auth config
 	if c.Auth.Enabled {
-		if c.Auth.Issuer == "" {
-			return fmt.Errorf("auth issuer cannot be empty when auth enabled")
-		}
-		if c.Auth.Audience == "" {
-			return fmt.Errorf("auth audience cannot be empty when auth enabled")
-		}
-		if c.Auth.PublicKey == "" {
-			return fmt.Errorf("auth public key cannot be empty when auth enabled")
-		}
-		if c.Auth.PrivateKey == "" {
-			return fmt.Errorf("auth private key cannot be empty when auth enabled")
-		}
-		if c.Auth.TokenExpiry <= 0 {
+		if c.Auth.TokenExpiry < 1 {
 			return fmt.Errorf("auth token expiry must be positive: %d", c.Auth.TokenExpiry)
 		}
 	}
 
-	// Validate TLS config
-	if c.TLS.Enabled {
-		// If not using auto-cert, cert and key files are required
-		if !c.TLS.AutoCert {
-			if c.TLS.CertFile == "" {
-				return fmt.Errorf("TLS cert file cannot be empty when TLS enabled and auto-cert disabled")
-			}
-			if c.TLS.KeyFile == "" {
-				return fmt.Errorf("TLS key file cannot be empty when TLS enabled and auto-cert disabled")
-			}
-		} else {
-			// Auto-cert requires domains and email
-			if len(c.TLS.AutoCertDomains) == 0 {
-				return fmt.Errorf("auto-cert domains cannot be empty when auto-cert enabled")
-			}
-			if c.TLS.AutoCertEmail == "" {
-				return fmt.Errorf("auto-cert email cannot be empty when auto-cert enabled")
-			}
+	// Validate rate limit config
+	if c.RateLimit.Enabled {
+		validAlgorithms := []string{"token_bucket", "sliding_window", "fixed_window"}
+		if !contains(validAlgorithms, c.RateLimit.Algorithm) {
+			return fmt.Errorf("invalid rate limit algorithm: %s (valid: %v)", c.RateLimit.Algorithm, validAlgorithms)
 		}
-
-		// Validate TLS version
-		validTLSVersions := []string{"1.0", "1.1", "1.2", "1.3"}
-		if c.TLS.MinVersion != "" && !contains(validTLSVersions, c.TLS.MinVersion) {
-			return fmt.Errorf("invalid TLS min version: %s (valid: %v)", c.TLS.MinVersion, validTLSVersions)
+		if c.RateLimit.BurstMultiplier < 1.0 {
+			return fmt.Errorf("rate limit burst multiplier must be >= 1.0: %f", c.RateLimit.BurstMultiplier)
 		}
+		// Validate default limits
+		if c.RateLimit.Default.RequestsPerSecond < 0 {
+			return fmt.Errorf("default rate limit requests per second cannot be negative: %d", c.RateLimit.Default.RequestsPerSecond)
+		}
+		if c.RateLimit.Default.Burst < 0 {
+			return fmt.Errorf("default rate limit burst cannot be negative: %d", c.RateLimit.Default.Burst)
+		}
+	}
 
-		// Validate HTTP redirect port (only if TLS is enabled)
-		if c.TLS.HTTPRedirectPort != 0 && (c.TLS.HTTPRedirectPort < 1 || c.TLS.HTTPRedirectPort > 65535) {
-			return fmt.Errorf("invalid HTTP redirect port: %d (must be 1-65535 or 0 to disable)", c.TLS.HTTPRedirectPort)
+	// Validate security config
+	if c.Security.Enabled {
+		validFrameOptions := []string{"DENY", "SAMEORIGIN"}
+		if !contains(validFrameOptions, c.Security.FrameOptions) {
+			return fmt.Errorf("invalid security frame options: %s (valid: %v)", c.Security.FrameOptions, validFrameOptions)
+		}
+		validReferrerPolicies := []string{"no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"}
+		if !contains(validReferrerPolicies, c.Security.ReferrerPolicy) {
+			return fmt.Errorf("invalid security referrer policy: %s (valid: %v)", c.Security.ReferrerPolicy, validReferrerPolicies)
+		}
+		if c.Security.HSTS.MaxAge < 0 {
+			return fmt.Errorf("security HSTS max age cannot be negative: %d", c.Security.HSTS.MaxAge)
+		}
+	}
+
+	// Validate CORS config
+	if c.CORS.Enabled {
+		if c.CORS.MaxAge < 0 {
+			return fmt.Errorf("CORS max age cannot be negative: %d", c.CORS.MaxAge)
+		}
+		if len(c.CORS.AllowedOrigins) == 0 {
+			return fmt.Errorf("CORS allowed origins cannot be empty when CORS is enabled")
+		}
+		if len(c.CORS.AllowedMethods) == 0 {
+			return fmt.Errorf("CORS allowed methods cannot be empty when CORS is enabled")
 		}
 	}
 
@@ -1241,50 +1016,10 @@ func Default() *Config {
 			Provider:   DefaultEmbeddingProvider,
 			Model:      DefaultEmbeddingModel,
 			Dimensions: DefaultEmbeddingDimensions,
-			Config:     make(map[string]interface{}),
 		},
 		Logging: LoggingConfig{
 			Level:  DefaultLogLevel,
 			Format: DefaultLogFormat,
-		},
-		Auth: AuthConfig{
-			Enabled:     DefaultAuthEnabled,
-			Issuer:      DefaultAuthIssuer,
-			Audience:    DefaultAuthAudience,
-			TokenExpiry: DefaultAuthTokenExpiry,
-		},
-		Security: SecurityConfig{
-			CSP: CSPConfig{
-				Enabled: DefaultSecurityCSPEnabled,
-				Default: []string{"'none'"},
-				Script:  []string{"'self'"},
-				Style:   []string{"'self'"},
-				Image:   []string{"'self'"},
-				Font:    []string{"'self'"},
-				Connect: []string{"'self'"},
-				Media:   []string{"'none'"},
-				Object:  []string{"'none'"},
-				Frame:   []string{"'none'"},
-			},
-			HSTS: HSTSConfig{
-				Enabled:           DefaultSecurityHSTSEnabled,
-				MaxAge:            DefaultSecurityHSTSMaxAge,
-				IncludeSubdomains: true,
-				Preload:           false,
-			},
-			XFrameOptions:       "DENY",
-			XContentTypeOptions: "nosniff",
-			ReferrerPolicy:      "strict-origin-when-cross-origin",
-			PermissionsPolicy:   "camera=(), microphone=(), geolocation=(), payment=()",
-		},
-		CORS: CORSConfig{
-			Enabled:          DefaultCORSEnabled,
-			AllowedOrigins:   []string{},
-			AllowedMethods:   []string{"GET", "POST"},
-			AllowedHeaders:   []string{"Content-Type", "Authorization"},
-			ExposedHeaders:   []string{},
-			AllowCredentials: false,
-			MaxAge:           DefaultCORSMaxAge,
 		},
 		Observability: ObservabilityConfig{
 			Metrics: MetricsConfig{
@@ -1304,6 +1039,39 @@ func Default() *Config {
 				SampleRate:  DefaultSentrySampleRate,
 				Release:     DefaultSentryRelease,
 			},
+		},
+		TLS: TLSConfig{
+			Enabled:          DefaultTLSEnabled,
+			MinVersion:       DefaultTLSMinVersion,
+			HTTPRedirectPort: DefaultTLSHTTPRedirectPort,
+			AutoCertCacheDir: DefaultAutoCertCacheDir,
+		},
+		Auth: AuthConfig{
+			Enabled:     DefaultAuthEnabled,
+			TokenExpiry: DefaultTokenExpiry,
+		},
+		RateLimit: RateLimitConfig{
+			Enabled:   DefaultRateLimitEnabled,
+			Algorithm: DefaultRateLimitAlgorithm,
+			Default: LimitConfig{
+				RequestsPerSecond: DefaultRequestsPerSecond,
+				Burst:             DefaultBurst,
+			},
+			BurstMultiplier: DefaultBurstMultiplier,
+		},
+		Security: SecurityConfig{
+			Enabled:         DefaultSecurityEnabled,
+			FrameOptions:    DefaultFrameOptions,
+			ContentType:     DefaultContentType,
+			BrowserXSSBlock: DefaultBrowserXSSBlock,
+			ReferrerPolicy:  DefaultReferrerPolicy,
+			HSTS: HSTSConfig{
+				MaxAge: DefaultHSTSMaxAge,
+			},
+		},
+		CORS: CORSConfig{
+			Enabled: DefaultCORSEnabled,
+			MaxAge:  DefaultCORSMaxAge,
 		},
 	}
 }

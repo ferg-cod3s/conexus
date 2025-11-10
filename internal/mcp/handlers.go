@@ -4,20 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
-	"github.com/ferg-cod3s/conexus/internal/connectors/github"
-	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/indexer"
 	"github.com/ferg-cod3s/conexus/internal/observability"
 	"github.com/ferg-cod3s/conexus/internal/protocol"
+	"github.com/ferg-cod3s/conexus/internal/security"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 )
 
@@ -44,7 +41,7 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 	}
 
 	// Validate required fields
-	if req.Query == "" {
+	if req.Query == "" || strings.TrimSpace(req.Query) == "" {
 		return nil, &protocol.Error{
 			Code:    protocol.InvalidParams,
 			Message: "query is required",
@@ -71,6 +68,9 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 
 	if s.searchCache != nil {
 		filters := make(map[string]interface{})
+		// Include pagination parameters in cache key
+		filters["offset"] = offset
+		filters["limit"] = topK
 		if req.Filters != nil {
 			if len(req.Filters.SourceTypes) > 0 {
 				filters["source_types"] = req.Filters.SourceTypes
@@ -120,7 +120,7 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 
 		// Prepare search options
 		opts := vectorstore.SearchOptions{
-			Limit:   topK,
+			Limit:   topK + 1, // Request one extra to detect HasMore
 			Offset:  offset,
 			Filters: make(map[string]interface{}),
 		}
@@ -146,10 +146,6 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 				}
 				if len(req.Filters.WorkContext.OpenTicketIDs) > 0 {
 					opts.Filters["ticket_ids"] = req.Filters.WorkContext.OpenTicketIDs
-				}
-				// Add story context filtering
-				if req.Filters.WorkContext.CurrentStoryID != "" {
-					opts.Filters["story_ids"] = []string{req.Filters.WorkContext.CurrentStoryID}
 				}
 			}
 		}
@@ -191,6 +187,9 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		// Cache results
 		if s.searchCache != nil {
 			filters := make(map[string]interface{})
+			// Include pagination parameters in cache key
+			filters["offset"] = offset
+			filters["limit"] = topK
 			if req.Filters != nil {
 				if len(req.Filters.SourceTypes) > 0 {
 					filters["source_types"] = req.Filters.SourceTypes
@@ -216,27 +215,6 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		results = s.applyWorkContextBoosting(results, req.Filters.WorkContext)
 	}
 
-	// Apply semantic reranking for better relevance
-	if len(results) > 1 {
-		results = s.applySemanticReranking(ctx, results, req.Query)
-	}
-
-	// Get total count for pagination
-	totalCount, countErr := s.vectorStore.Count(ctx)
-	if countErr != nil {
-		countErrorCtx := observability.ExtractErrorContext(ctx, "context.search")
-		countErrorCtx.ErrorType = "count_error"
-		countErrorCtx.ErrorCode = protocol.InternalError
-		countErrorCtx.Duration = time.Since(startTime)
-
-		if s.errorHandler != nil {
-			s.errorHandler.GracefulDegradation(ctx, "vector_store_count", countErr)
-		}
-
-		// Log error but don't fail the request
-		totalCount = int64(len(results))
-	}
-
 	// Log successful search operation
 	if s.errorHandler != nil {
 		successCtx := observability.ExtractErrorContext(ctx, "context.search")
@@ -246,6 +224,14 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 
 		// Log success (no error to report)
 		s.errorHandler.HandleError(ctx, nil, successCtx)
+	}
+
+	// Determine if there are more results (we requested topK + 1)
+	hasMore := len(results) > topK
+
+	// Trim to requested limit if we got extra
+	if hasMore {
+		results = results[:topK]
 	}
 
 	// Convert results to response format
@@ -272,7 +258,7 @@ func (s *Server) handleContextSearch(ctx context.Context, args json.RawMessage) 
 		QueryTime:  queryTime,
 		Offset:     offset,
 		Limit:      topK,
-		HasMore:    int64(offset+len(results)) < totalCount,
+		HasMore:    hasMore,
 	}, nil
 }
 
@@ -294,46 +280,427 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 		}
 	}
 
-	// Build search query and filters based on provided identifiers
-	var query string
-	opts := vectorstore.SearchOptions{
-		Limit:   20,
-		Filters: make(map[string]interface{}),
-	}
-
+	// Validate file path for security if provided
 	if req.FilePath != "" {
-		query = req.FilePath
-		opts.Filters["file_path"] = req.FilePath
-	} else {
-		query = req.TicketID
-		opts.Filters["ticket_id"] = req.TicketID
+		safePath, err := security.ValidatePath(req.FilePath, s.rootPath)
+		if err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: fmt.Sprintf("invalid file path: %v", err),
+			}
+		}
+		req.FilePath = safePath
 	}
 
-	// Search for related documents
-	queryVec, err := s.embedder.Embed(ctx, query)
+	// Route to appropriate flow
+	if req.FilePath != "" {
+		return s.handleFilePathFlow(ctx, req)
+	}
+	return s.handleTicketIDFlow(ctx, req)
+}
+
+// handleFilePathFlow implements the file path-based relationship discovery
+func (s *Server) handleFilePathFlow(ctx context.Context, req GetRelatedInfoRequest) (*GetRelatedInfoResponse, error) {
+	detector := NewRelationshipDetector(req.FilePath)
+
+	// Step 1: Get chunks for the source file (future optimization: use for symbol extraction)
+	_, err := s.vectorStore.GetFileChunks(ctx, req.FilePath)
+	if err != nil {
+		// File not found is acceptable - we can still find related files
+		// Log but don't fail
+	}
+
+	// Step 2: Get all indexed files for relationship detection
+	allFiles, err := s.vectorStore.ListIndexedFiles(ctx)
 	if err != nil {
 		return nil, &protocol.Error{
 			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("failed to generate embedding: %v", err),
+			Message: fmt.Sprintf("failed to list indexed files: %v", err),
 		}
 	}
 
-	results, err := s.vectorStore.SearchHybrid(ctx, query, queryVec.Vector, opts)
-	if err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("search failed: %v", err),
+	// Step 3: Find related files and score them
+	type relatedFileScore struct {
+		filePath     string
+		relationType string
+		score        float32
+		chunks       []vectorstore.Document
+	}
+
+	relatedFiles := make(map[string]*relatedFileScore)
+
+	for _, candidateFile := range allFiles {
+		// Skip the source file itself
+		if candidateFile == req.FilePath {
+			continue
+		}
+
+		// Detect relationship type
+		// Note: We pass empty chunkType and nil metadata here since we're checking file-level
+		// relationships. Chunk-level relationships are detected later.
+		relationType := detector.DetectRelationType(candidateFile, "", nil)
+
+		if relationType != "" {
+			// Get chunks for this related file
+			chunks, err := s.vectorStore.GetFileChunks(ctx, candidateFile)
+			if err != nil {
+				// Log error but continue with other files
+				continue
+			}
+
+			// Calculate base score from relationship type
+			score := s.getRelationshipScore(relationType)
+
+			relatedFiles[candidateFile] = &relatedFileScore{
+				filePath:     candidateFile,
+				relationType: relationType,
+				score:        score,
+				chunks:       chunks,
+			}
 		}
 	}
 
-	// Group results by type and build RelatedItems
+	// Step 4: Build RelatedItems from related file chunks
+	relatedItems := make([]RelatedItem, 0)
+
+	for _, rf := range relatedFiles {
+		for _, chunk := range rf.chunks {
+			// Extract metadata
+			sourceType, _ := chunk.Metadata["source_type"].(string)
+			startLine, _ := s.extractLineNumber(chunk.Metadata, "start_line")
+			endLine, _ := s.extractLineNumber(chunk.Metadata, "end_line")
+			chunkType, _ := chunk.Metadata["type"].(string)
+
+			// Refine relationship type at chunk level if needed
+			chunkRelationType := detector.DetectRelationType(rf.filePath, chunkType, chunk.Metadata)
+			if chunkRelationType == "" {
+				chunkRelationType = rf.relationType
+			}
+
+			// Adjust score based on chunk-level relationship
+			chunkScore := rf.score
+			if chunkRelationType != rf.relationType {
+				chunkScore = s.getRelationshipScore(chunkRelationType)
+			}
+
+			relatedItems = append(relatedItems, RelatedItem{
+				ID:           chunk.ID,
+				Content:      chunk.Content,
+				Score:        chunkScore,
+				SourceType:   sourceType,
+				FilePath:     rf.filePath,
+				RelationType: chunkRelationType,
+				StartLine:    startLine,
+				EndLine:      endLine,
+				Metadata:     chunk.Metadata,
+			})
+		}
+	}
+
+	// Step 5: Sort by score (descending) and relationship priority
+	sort.Slice(relatedItems, func(i, j int) bool {
+		// Primary sort by score
+		if relatedItems[i].Score != relatedItems[j].Score {
+			return relatedItems[i].Score > relatedItems[j].Score
+		}
+		// Secondary sort by relationship type priority
+		return s.getRelationshipPriority(relatedItems[i].RelationType) <
+			s.getRelationshipPriority(relatedItems[j].RelationType)
+	})
+
+	// Step 6: Limit results to top N (default 50)
+	limit := 50
+	if len(relatedItems) > limit {
+		relatedItems = relatedItems[:limit]
+	}
+
+	// Step 7: Build response with summaries
 	var relatedPRs, relatedIssues []string
 	var discussions []DiscussionSummary
-	relatedItems := make([]RelatedItem, 0, len(results))
+	fileCount := len(relatedFiles)
+
+	for _, item := range relatedItems {
+		switch item.SourceType {
+		case "github_pr":
+			if prNum, ok := item.Metadata["pr_number"].(string); ok {
+				relatedPRs = append(relatedPRs, prNum)
+			}
+		case "github_issue", "jira":
+			if issueID, ok := item.Metadata["issue_id"].(string); ok {
+				relatedIssues = append(relatedIssues, issueID)
+			}
+		case "slack":
+			channel, _ := item.Metadata["channel"].(string)
+			timestamp, _ := item.Metadata["timestamp"].(string)
+			discussions = append(discussions, DiscussionSummary{
+				Channel:   channel,
+				Timestamp: timestamp,
+				Summary:   item.Content[:min(200, len(item.Content))],
+			})
+		}
+	}
+
+	summary := fmt.Sprintf("Found %d related files with %d chunks for %s (%d PRs, %d issues, %d discussions)",
+		fileCount, len(relatedItems), req.FilePath, len(relatedPRs), len(relatedIssues), len(discussions))
+
+	return &GetRelatedInfoResponse{
+		Summary:       summary,
+		RelatedPRs:    relatedPRs,
+		RelatedIssues: relatedIssues,
+		Discussions:   discussions,
+		RelatedItems:  relatedItems,
+	}, nil
+}
+
+// validateTicketID checks if a ticket ID is safe to use
+func validateTicketID(ticketID string) error {
+	// Check for empty
+	if ticketID == "" {
+		return &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "ticket ID cannot be empty",
+		}
+	}
+
+	// Check length (prevent extremely long inputs)
+	if len(ticketID) > 100 {
+		return &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "ticket ID too long (max 100 characters)",
+		}
+	}
+
+	// Check for path traversal attempts
+	if strings.Contains(ticketID, "..") || strings.Contains(ticketID, "/") || strings.Contains(ticketID, "\\") {
+		return &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "ticket ID contains invalid path characters",
+		}
+	}
+
+	// Check for command injection attempts
+	dangerousChars := []string{";", "|", "`", "$", "\n", "\r", "&", ">", "<"}
+	for _, char := range dangerousChars {
+		if strings.Contains(ticketID, char) {
+			return &protocol.Error{
+				Code:    protocol.InvalidParams,
+				Message: "ticket ID contains invalid characters",
+			}
+		}
+	}
+
+	return nil
+}
+
+// handleTicketIDFlow implements ticket ID-based relationship discovery with semantic fallback
+func (s *Server) handleTicketIDFlow(ctx context.Context, req GetRelatedInfoRequest) (*GetRelatedInfoResponse, error) {
+	// Step 0: Validate ticket ID for security
+	if err := validateTicketID(req.TicketID); err != nil {
+		return nil, err
+	}
+
+	// Step 1: Get repository root
+	repoRoot, err := getRepoRoot(req.FilePath)
+	if err != nil {
+		// Not in a git repo - fall back to semantic search
+		return s.fallbackToSemanticSearch(ctx, req.TicketID, "Git history search unavailable (not in repository)")
+	}
+
+	// Step 2: Find ticket in git history
+	gitInfo, err := s.findTicketInGit(ctx, req.TicketID, repoRoot)
+	if err != nil {
+		// Git search failed - fall back to semantic search
+		return s.fallbackToSemanticSearch(ctx, req.TicketID, fmt.Sprintf("Git history search failed: %v", err))
+	}
+
+	// Step 3: Check if we found any matches in git
+	if len(gitInfo.Branches) == 0 && len(gitInfo.Commits) == 0 {
+		// No git matches - fall back to semantic search
+		return s.fallbackToSemanticSearch(ctx, req.TicketID, "No git history found")
+	}
+
+	// Step 4: Query vector store for each modified file to get context
+	relatedItems := make([]RelatedItem, 0)
+	filesSeen := make(map[string]bool)
+
+	for _, filePath := range gitInfo.ModifiedFiles {
+		if filesSeen[filePath] {
+			continue
+		}
+		filesSeen[filePath] = true
+
+		// Query vector store for this file
+		queryVec, err := s.embedder.Embed(ctx, fmt.Sprintf("file:%s", filePath))
+		if err != nil {
+			continue // Skip files we can't embed
+		}
+
+		opts := vectorstore.SearchOptions{
+			Limit: 5, // Limit per file to avoid overwhelming results
+			Filters: map[string]interface{}{
+				"file_path": filePath,
+			},
+		}
+
+		results, err := s.vectorStore.SearchHybrid(ctx, filePath, queryVec.Vector, opts)
+		if err != nil {
+			continue // Skip files with search errors
+		}
+
+		// Add chunks for this file
+		for _, r := range results {
+			sourceType, _ := r.Document.Metadata["source_type"].(string)
+			startLine, _ := s.extractLineNumber(r.Document.Metadata, "start_line")
+			endLine, _ := s.extractLineNumber(r.Document.Metadata, "end_line")
+
+			relatedItems = append(relatedItems, RelatedItem{
+				ID:         r.Document.ID,
+				Content:    r.Document.Content,
+				Score:      r.Score + 0.3, // Boost score since from git history
+				SourceType: sourceType,
+				FilePath:   filePath,
+				StartLine:  startLine,
+				EndLine:    endLine,
+				Metadata:   r.Document.Metadata,
+			})
+		}
+	}
+
+	// Step 5: Search for PR descriptions and issue metadata in vector store
+	var relatedPRs, relatedIssues []string
+	var discussions []DiscussionSummary
+
+	// Search for ticket ID in PR/issue metadata
+	queryVec, err := s.embedder.Embed(ctx, fmt.Sprintf("ticket:%s", req.TicketID))
+	if err == nil {
+		opts := vectorstore.SearchOptions{
+			Limit: 20,
+		}
+
+		results, err := s.vectorStore.SearchHybrid(ctx, req.TicketID, queryVec.Vector, opts)
+		if err == nil {
+			for _, r := range results {
+				sourceType, _ := r.Document.Metadata["source_type"].(string)
+
+				switch sourceType {
+				case "github_pr":
+					if prNum, ok := r.Document.Metadata["pr_number"].(string); ok {
+						relatedPRs = append(relatedPRs, prNum)
+					}
+				case "github_issue", "jira":
+					if issueID, ok := r.Document.Metadata["issue_id"].(string); ok {
+						relatedIssues = append(relatedIssues, issueID)
+					}
+				case "slack":
+					channel, _ := r.Document.Metadata["channel"].(string)
+					timestamp, _ := r.Document.Metadata["timestamp"].(string)
+					discussions = append(discussions, DiscussionSummary{
+						Channel:   channel,
+						Timestamp: timestamp,
+						Summary:   r.Document.Content[:min(200, len(r.Document.Content))],
+					})
+				}
+			}
+		}
+	}
+
+	// Step 6: Build summary
+	summary := fmt.Sprintf(
+		"Ticket %s: found in %d branches, %d commits, %d modified files. Related: %d PRs, %d issues, %d discussions",
+		req.TicketID,
+		len(gitInfo.Branches),
+		len(gitInfo.Commits),
+		len(gitInfo.ModifiedFiles),
+		len(relatedPRs),
+		len(relatedIssues),
+		len(discussions),
+	)
+
+	// Add git commit information to summary
+	if len(gitInfo.Commits) > 0 {
+		summary += fmt.Sprintf("\n\nRecent commits:\n")
+		for i, commit := range gitInfo.Commits {
+			if i >= 5 { // Limit to 5 most recent
+				break
+			}
+			summary += fmt.Sprintf("- %s: %s (%s)\n",
+				commit.Hash[:8],
+				commit.Message[:min(80, len(commit.Message))],
+				commit.Author,
+			)
+		}
+	}
+
+	if len(gitInfo.Branches) > 0 {
+		summary += fmt.Sprintf("\nBranches: %s", strings.Join(gitInfo.Branches, ", "))
+	}
+
+	return &GetRelatedInfoResponse{
+		Summary:       summary,
+		RelatedPRs:    relatedPRs,
+		RelatedIssues: relatedIssues,
+		Discussions:   discussions,
+		RelatedItems:  relatedItems,
+	}, nil
+}
+
+// fallbackToSemanticSearch performs semantic search when git history is unavailable
+func (s *Server) fallbackToSemanticSearch(ctx context.Context, ticketID, reason string) (*GetRelatedInfoResponse, error) {
+	// Perform semantic search on ticket ID
+	queryVec, err := s.embedder.Embed(ctx, ticketID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to embed ticket ID: %v", err),
+		}
+	}
+
+	opts := vectorstore.SearchOptions{
+		Limit: 20,
+	}
+
+	results, err := s.vectorStore.SearchHybrid(ctx, ticketID, queryVec.Vector, opts)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("semantic search failed: %v", err),
+		}
+	}
+
+	// Process results with per-file chunk limiting
+	relatedItems := make([]RelatedItem, 0)
+	var relatedPRs, relatedIssues []string
+	var discussions []DiscussionSummary
+	fileChunkCounts := make(map[string]int)
+	const maxChunksPerFile = 5
 
 	for _, r := range results {
 		sourceType, _ := r.Document.Metadata["source_type"].(string)
+		filePath, _ := r.Document.Metadata["file_path"].(string)
 
+		// For file-based chunks, apply per-file limit
+		if sourceType == "file" && filePath != "" {
+			if fileChunkCounts[filePath] >= maxChunksPerFile {
+				continue // Skip this chunk - already have max for this file
+			}
+			fileChunkCounts[filePath]++
+		}
+
+		startLine, _ := s.extractLineNumber(r.Document.Metadata, "start_line")
+		endLine, _ := s.extractLineNumber(r.Document.Metadata, "end_line")
+
+		relatedItems = append(relatedItems, RelatedItem{
+			ID:         r.Document.ID,
+			Content:    r.Document.Content,
+			Score:      r.Score,
+			SourceType: sourceType,
+			FilePath:   filePath,
+			StartLine:  startLine,
+			EndLine:    endLine,
+			Metadata:   r.Document.Metadata,
+		})
+
+		// Extract PR/issue/discussion metadata
 		switch sourceType {
 		case "github_pr":
 			if prNum, ok := r.Document.Metadata["pr_number"].(string); ok {
@@ -352,53 +719,79 @@ func (s *Server) handleGetRelatedInfo(ctx context.Context, args json.RawMessage)
 				Summary:   r.Document.Content[:min(200, len(r.Document.Content))],
 			})
 		}
-
-		// Build RelatedItem for all results
-		filePath, _ := r.Document.Metadata["file_path"].(string)
-		startLine, _ := r.Document.Metadata["start_line"].(int)
-		endLine, _ := r.Document.Metadata["end_line"].(int)
-
-		// Handle different numeric types for line numbers
-		if startLine == 0 {
-			if sl, ok := r.Document.Metadata["start_line"].(float64); ok {
-				startLine = int(sl)
-			}
-		}
-		if endLine == 0 {
-			if el, ok := r.Document.Metadata["end_line"].(float64); ok {
-				endLine = int(el)
-			}
-		}
-
-		relatedItems = append(relatedItems, RelatedItem{
-			ID:         r.Document.ID,
-			Content:    r.Document.Content,
-			Score:      r.Score,
-			SourceType: sourceType,
-			FilePath:   filePath,
-			StartLine:  startLine,
-			EndLine:    endLine,
-			Metadata:   r.Document.Metadata,
-		})
 	}
 
-	// Generate summary
-	summary := fmt.Sprintf("Found %d related items", len(results))
-	if req.FilePath != "" {
-		summary = fmt.Sprintf("Related information for %s: %d items (%d PRs, %d issues, %d discussions)",
-			req.FilePath, len(relatedItems), len(relatedPRs), len(relatedIssues), len(discussions))
-	} else {
-		summary = fmt.Sprintf("Related information for ticket %s: %d items (%d PRs, %d issues, %d discussions)",
-			req.TicketID, len(relatedItems), len(relatedPRs), len(relatedIssues), len(discussions))
-	}
+	summary := fmt.Sprintf(
+		"%s - performed semantic search for ticket %s: found %d related items (%d PRs, %d issues, %d discussions)",
+		reason,
+		ticketID,
+		len(relatedItems),
+		len(relatedPRs),
+		len(relatedIssues),
+		len(discussions),
+	)
 
-	return GetRelatedInfoResponse{
+	return &GetRelatedInfoResponse{
 		Summary:       summary,
 		RelatedPRs:    relatedPRs,
 		RelatedIssues: relatedIssues,
 		Discussions:   discussions,
 		RelatedItems:  relatedItems,
 	}, nil
+}
+
+func (s *Server) getRelationshipScore(relationType string) float32 {
+	switch relationType {
+	case RelationTypeTestFile:
+		return 1.0
+	case RelationTypeDocumentation:
+		return 0.9
+	case RelationTypeSymbolRef:
+		return 0.8
+	case RelationTypeImport:
+		return 0.7
+	case RelationTypeCommitHistory:
+		return 0.6
+	case RelationTypeSimilarCode:
+		return 0.5
+	default:
+		return 0.3
+	}
+}
+
+// getRelationshipPriority returns priority order for sorting (lower is higher priority)
+func (s *Server) getRelationshipPriority(relationType string) int {
+	switch relationType {
+	case RelationTypeTestFile:
+		return 1
+	case RelationTypeDocumentation:
+		return 2
+	case RelationTypeSymbolRef:
+		return 3
+	case RelationTypeImport:
+		return 4
+	case RelationTypeCommitHistory:
+		return 5
+	case RelationTypeSimilarCode:
+		return 6
+	default:
+		return 99
+	}
+}
+
+// extractLineNumber safely extracts line numbers from metadata
+func (s *Server) extractLineNumber(metadata map[string]interface{}, key string) (int, bool) {
+	if val, ok := metadata[key]; ok {
+		switch v := val.(type) {
+		case int:
+			return v, true
+		case float64:
+			return int(v), true
+		case int64:
+			return int(v), true
+		}
+	}
+	return 0, false
 }
 
 // handleIndexControl implements the context.index_control tool
@@ -418,8 +811,6 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 		"status":        true,
 		"force_reindex": true,
 		"reindex_paths": true,
-		"index":         true,
-		"sync_github":   true,
 	}
 
 	if !validActions[req.Action] {
@@ -509,7 +900,7 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 
 		// Load ignore patterns
 		ignorePatterns := []string{".git"}
-		if gitignore, err := loadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
+		if gitignore, err := indexer.LoadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
 			ignorePatterns = append(ignorePatterns, gitignore...)
 		}
 
@@ -559,7 +950,7 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 
 		// Load ignore patterns
 		ignorePatterns := []string{".git"}
-		if gitignore, err := loadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
+		if gitignore, err := indexer.LoadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
 			ignorePatterns = append(ignorePatterns, gitignore...)
 		}
 
@@ -603,7 +994,7 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 
 		// Load ignore patterns
 		ignorePatterns := []string{".git"}
-		if gitignore, err := loadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
+		if gitignore, err := indexer.LoadGitignore(filepath.Join(rootPath, ".gitignore"), rootPath); err == nil {
 			ignorePatterns = append(ignorePatterns, gitignore...)
 		}
 
@@ -626,203 +1017,6 @@ func (s *Server) handleIndexControl(ctx context.Context, args json.RawMessage) (
 		return IndexControlResponse{
 			Status:  "ok",
 			Message: fmt.Sprintf("Reindexing %d paths", len(req.Paths)),
-		}, nil
-
-	case "index":
-		// Handle single document indexing
-		if req.Content == nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InvalidParams,
-				Message: "content is required for index action",
-			}
-		}
-
-		// Validate content fields
-		if req.Content.Path == "" {
-			return nil, &protocol.Error{
-				Code:    protocol.InvalidParams,
-				Message: "content.path is required",
-			}
-		}
-		if req.Content.Content == "" {
-			return nil, &protocol.Error{
-				Code:    protocol.InvalidParams,
-				Message: "content.content is required",
-			}
-		}
-		if req.Content.SourceType == "" {
-			return nil, &protocol.Error{
-				Code:    protocol.InvalidParams,
-				Message: "content.source_type is required",
-			}
-		}
-
-		// Create metadata for the document
-		metadata := map[string]interface{}{
-			"file_path":   req.Content.Path,
-			"source_type": req.Content.SourceType,
-			"indexed_at":  time.Now().Format(time.RFC3339),
-		}
-
-		// Add line range information if provided
-		if req.Content.StartLine != nil {
-			metadata["start_line"] = *req.Content.StartLine
-		}
-		if req.Content.EndLine != nil {
-			metadata["end_line"] = *req.Content.EndLine
-		}
-
-		// Generate embedding for the content
-		embedding, err := s.embedder.Embed(ctx, req.Content.Content)
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to generate embedding: %v", err),
-			}
-		}
-
-		// Create document record
-		doc := vectorstore.Document{
-			ID:       req.Content.Path,
-			Content:  req.Content.Content,
-			Vector:   embedding.Vector,
-			Metadata: metadata,
-		}
-
-		// Store in vector store
-		if err := s.vectorStore.Upsert(ctx, doc); err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to store document: %v", err),
-			}
-		}
-
-		return IndexControlResponse{
-			Status:  "ok",
-			Message: fmt.Sprintf("Successfully indexed document: %s", req.Content.Path),
-			Details: map[string]interface{}{
-				"document_id":    req.Content.Path,
-				"content_length": len(req.Content.Content),
-			},
-		}, nil
-
-	case "sync_github":
-		if req.ConnectorID == "" {
-			return nil, &protocol.Error{
-				Code:    protocol.InvalidParams,
-				Message: "connector_id is required for sync_github action",
-			}
-		}
-
-		// Sync GitHub issues and PRs using the connector manager
-		issues, err := s.connectorManager.SyncGitHubIssues(ctx, req.ConnectorID)
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to sync GitHub issues: %v", err),
-			}
-		}
-
-		prs, err := s.connectorManager.SyncGitHubPullRequests(ctx, req.ConnectorID)
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to sync GitHub PRs: %v", err),
-			}
-		}
-
-		// Convert issues to documents and store them
-		for _, issue := range issues {
-			content := fmt.Sprintf("%s\n\n%s", issue.Title, issue.Description)
-			if content == "" {
-				content = issue.Title
-			}
-
-			doc := vectorstore.Document{
-				ID:      fmt.Sprintf("github-issue-%d", issue.Number),
-				Content: content,
-				Metadata: map[string]interface{}{
-					"source_type":  "github_issue",
-					"issue_number": issue.Number,
-					"title":        issue.Title,
-					"state":        issue.State,
-					"labels":       issue.Labels,
-					"assignee":     issue.Assignee,
-					"created_at":   issue.CreatedAt.Format(time.RFC3339),
-					"updated_at":   issue.UpdatedAt.Format(time.RFC3339),
-					"connector_id": req.ConnectorID,
-				},
-				CreatedAt: issue.CreatedAt,
-				UpdatedAt: issue.UpdatedAt,
-			}
-
-			// Generate embedding
-			embedding, err := s.embedder.Embed(ctx, doc.Content)
-			if err != nil {
-				continue // Skip if embedding fails
-			}
-			doc.Vector = embedding.Vector
-
-			if err := s.vectorStore.Upsert(ctx, doc); err != nil {
-				return nil, &protocol.Error{
-					Code:    protocol.InternalError,
-					Message: fmt.Sprintf("failed to store issue %d: %v", issue.Number, err),
-				}
-			}
-		}
-
-		// Convert PRs to documents and store them
-		for _, pr := range prs {
-			content := fmt.Sprintf("%s\n\n%s", pr.Title, pr.Description)
-			if content == "" {
-				content = pr.Title
-			}
-
-			doc := vectorstore.Document{
-				ID:      fmt.Sprintf("github-pr-%d", pr.Number),
-				Content: content,
-				Metadata: map[string]interface{}{
-					"source_type":   "github_pr",
-					"pr_number":     pr.Number,
-					"title":         pr.Title,
-					"state":         pr.State,
-					"labels":        pr.Labels,
-					"assignee":      pr.Assignee,
-					"created_at":    pr.CreatedAt.Format(time.RFC3339),
-					"updated_at":    pr.UpdatedAt.Format(time.RFC3339),
-					"linked_issues": pr.LinkedIssues,
-					"connector_id":  req.ConnectorID,
-					"merged":        pr.Merged,
-					"head_branch":   pr.HeadBranch,
-					"base_branch":   pr.BaseBranch,
-				},
-				CreatedAt: pr.CreatedAt,
-				UpdatedAt: pr.UpdatedAt,
-				PRNumbers: []string{fmt.Sprintf("%d", pr.Number)},
-			}
-
-			// Generate embedding
-			embedding, err := s.embedder.Embed(ctx, doc.Content)
-			if err != nil {
-				continue // Skip if embedding fails
-			}
-			doc.Vector = embedding.Vector
-
-			if err := s.vectorStore.Upsert(ctx, doc); err != nil {
-				return nil, &protocol.Error{
-					Code:    protocol.InternalError,
-					Message: fmt.Sprintf("failed to store PR %d: %v", pr.Number, err),
-				}
-			}
-		}
-
-		return IndexControlResponse{
-			Status:  "ok",
-			Message: fmt.Sprintf("Successfully synced %d issues and %d pull requests", len(issues), len(prs)),
-			Details: map[string]interface{}{
-				"issues_synced": len(issues),
-				"prs_synced":    len(prs),
-			},
 		}, nil
 
 	default:
@@ -882,7 +1076,7 @@ func (s *Server) handleConnectorManagement(ctx context.Context, args json.RawMes
 		return ConnectorManagementResponse{
 			Connectors: connectorInfos,
 			Status:     "ok",
-			Message:    fmt.Sprintf("Retrieved %d connectors", len(connectors)),
+			Message:    "Retrieved connector list",
 		}, nil
 
 	case "add":
@@ -919,13 +1113,6 @@ func (s *Server) handleConnectorManagement(ctx context.Context, args json.RawMes
 		return ConnectorManagementResponse{
 			Status:  "ok",
 			Message: fmt.Sprintf("Connector %s added successfully", req.ConnectorID),
-			Connectors: []ConnectorInfo{{
-				ID:     connector.ID,
-				Type:   connector.Type,
-				Name:   connector.Name,
-				Status: connector.Status,
-				Config: connector.Config,
-			}},
 		}, nil
 
 	case "update":
@@ -936,31 +1123,21 @@ func (s *Server) handleConnectorManagement(ctx context.Context, args json.RawMes
 			}
 		}
 
-		// Get existing connector first
-		existing, err := s.connectorStore.Get(ctx, req.ConnectorID)
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get connector: %v", err),
-			}
+		connector := &connectors.Connector{
+			Type:   "filesystem", // Default type
+			Config: req.ConnectorConfig,
+			Status: "active",
 		}
 
-		// Update fields from request
+		// Extract type and name from config if provided
 		if configType, ok := req.ConnectorConfig["type"].(string); ok {
-			existing.Type = configType
+			connector.Type = configType
 		}
 		if configName, ok := req.ConnectorConfig["name"].(string); ok {
-			existing.Name = configName
-		}
-		if configStatus, ok := req.ConnectorConfig["status"].(string); ok {
-			existing.Status = configStatus
-		}
-		// Merge configs (request config overrides existing)
-		for k, v := range req.ConnectorConfig {
-			existing.Config[k] = v
+			connector.Name = configName
 		}
 
-		if err := s.connectorStore.Update(ctx, req.ConnectorID, existing); err != nil {
+		if err := s.connectorStore.Update(ctx, req.ConnectorID, connector); err != nil {
 			return nil, &protocol.Error{
 				Code:    protocol.InternalError,
 				Message: fmt.Sprintf("failed to update connector: %v", err),
@@ -970,13 +1147,6 @@ func (s *Server) handleConnectorManagement(ctx context.Context, args json.RawMes
 		return ConnectorManagementResponse{
 			Status:  "ok",
 			Message: fmt.Sprintf("Connector %s updated successfully", req.ConnectorID),
-			Connectors: []ConnectorInfo{{
-				ID:     existing.ID,
-				Type:   existing.Type,
-				Name:   existing.Name,
-				Status: existing.Status,
-				Config: existing.Config,
-			}},
 		}, nil
 
 	case "remove":
@@ -984,15 +1154,6 @@ func (s *Server) handleConnectorManagement(ctx context.Context, args json.RawMes
 			return nil, &protocol.Error{
 				Code:    protocol.InvalidParams,
 				Message: "connector_id is required",
-			}
-		}
-
-		// Get connector info before removal for response
-		existing, err := s.connectorStore.Get(ctx, req.ConnectorID)
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get connector: %v", err),
 			}
 		}
 
@@ -1006,13 +1167,6 @@ func (s *Server) handleConnectorManagement(ctx context.Context, args json.RawMes
 		return ConnectorManagementResponse{
 			Status:  "ok",
 			Message: fmt.Sprintf("Connector %s removed successfully", req.ConnectorID),
-			Connectors: []ConnectorInfo{{
-				ID:     existing.ID,
-				Type:   existing.Type,
-				Name:   existing.Name,
-				Status: existing.Status,
-				Config: existing.Config,
-			}},
 		}, nil
 
 	default:
@@ -1079,776 +1233,10 @@ func (s *Server) applyWorkContextBoosting(results []vectorstore.SearchResult, wo
 	return boosted
 }
 
-// applySemanticReranking improves result relevance using cross-attention
-func (s *Server) applySemanticReranking(ctx context.Context, results []vectorstore.SearchResult, query string) []vectorstore.SearchResult {
-	if len(results) <= 1 {
-		return results
-	}
-
-	// Generate query embedding for reranking
-	queryVec, err := s.embedder.Embed(ctx, query)
-	if err != nil {
-		// If embedding fails, return original results
-		return results
-	}
-
-	// Calculate semantic similarity scores
-	for i := range results {
-		docVec := results[i].Document.Vector
-		if len(docVec) > 0 && len(queryVec.Vector) > 0 {
-			// Simple cosine similarity for reranking
-			similarity := s.calculateCosineSimilarity(queryVec.Vector, docVec)
-			// Combine original score with semantic similarity (weighted average)
-			results[i].Score = results[i].Score*0.7 + float32(similarity)*0.3
-		}
-	}
-
-	// Re-sort by reranked scores
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Score > results[j].Score
-	})
-
-	return results
-}
-
-// calculateCosineSimilarity computes cosine similarity between two vectors
-func (s *Server) calculateCosineSimilarity(a, b embedding.Vector) float64 {
-	if len(a) != len(b) {
-		return 0.0
-	}
-
-	var dotProduct, normA, normB float64
-	for i := 0; i < len(a); i++ {
-		dotProduct += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
-	}
-
-	if normA == 0 || normB == 0 {
-		return 0.0
-	}
-
-	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
-}
-
 // min returns the minimum of two integers
 func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
-}
-
-// loadGitignore loads .gitignore patterns if available.
-func loadGitignore(gitignorePath, rootPath string) ([]string, error) {
-	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
-		return nil, nil
-	}
-
-	content, err := os.ReadFile(gitignorePath)
-	if err != nil {
-		return nil, fmt.Errorf("read .gitignore: %w", err)
-	}
-
-	var patterns []string
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasPrefix(line, "#") {
-			// Convert to absolute path for proper matching
-			if !filepath.IsAbs(line) {
-				patterns = append(patterns, line)
-			}
-		}
-	}
-
-	return patterns, nil
-}
-
-// extractStoryIDsFromIssue extracts story IDs from GitHub issue content
-func extractStoryIDsFromIssue(issue github.Issue) []string {
-	var storyIDs []string
-
-	// Extract from issue title and description
-	content := fmt.Sprintf("%s\n%s", issue.Title, issue.Description)
-
-	// Pattern for issue references: #123, PROJ-456, JIRA-999
-	issuePattern := regexp.MustCompile(`(?:#|PROJ-|JIRA-)(\d+)`)
-	if matches := issuePattern.FindAllStringSubmatch(content, -1); matches != nil {
-		for _, match := range matches {
-			if len(match) > 1 {
-				storyIDs = append(storyIDs, match[1])
-			}
-		}
-	}
-
-	// Extract from labels (e.g., "story: PROJ-123")
-	for _, label := range issue.Labels {
-		labelPattern := regexp.MustCompile(`(?:story|feature|bug):?\s*([A-Z]+-\d+)`)
-		if matches := labelPattern.FindAllStringSubmatch(label, -1); matches != nil {
-			for _, match := range matches {
-				if len(match) > 1 {
-					storyIDs = append(storyIDs, match[1])
-				}
-			}
-		}
-	}
-
-	return storyIDs
-}
-
-// syncGitHubData syncs GitHub issues and PRs using the connector configuration
-func (s *Server) syncGitHubData(ctx context.Context, connector *connectors.Connector) ([]github.Issue, []github.PullRequest, error) {
-	// Extract GitHub configuration
-	config := connector.Config
-	repoURL, _ := config["repo_url"].(string)
-
-	if repoURL == "" {
-		return nil, nil, fmt.Errorf("repo_url not configured for connector %s", connector.ID)
-	}
-
-	// Parse repository information from URL
-	// Expected format: https://github.com/owner/repo
-	parts := strings.TrimPrefix(repoURL, "https://github.com/")
-	parts = strings.TrimSuffix(parts, "/")
-	ownerRepo := strings.Split(parts, "/")
-	if len(ownerRepo) != 2 {
-		return nil, nil, fmt.Errorf("invalid GitHub repository URL: %s", repoURL)
-	}
-
-	// TODO: Implement actual GitHub API integration
-	// This would require:
-	// 1. GitHub API client setup
-	// 2. Authentication using token from config
-	// 3. Fetching issues and PRs from the repository
-	// 4. Converting API responses to internal types
-
-	// For now, return empty results as this would require external API integration
-	return []github.Issue{}, []github.PullRequest{}, nil
-}
-
-// handleContextExplain implements the context.explain tool
-func (s *Server) handleContextExplain(ctx context.Context, args json.RawMessage) (interface{}, error) {
-	var req ExplainRequest
-	if err := json.Unmarshal(args, &req); err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: fmt.Sprintf("invalid request: %v", err),
-		}
-	}
-
-	// Validate required fields
-	if req.Target == "" {
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: "target is required",
-		}
-	}
-
-	// Set defaults
-	if req.Depth == "" {
-		req.Depth = "detailed"
-	}
-
-	// Search for relevant code and documentation
-	queryVec, err := s.embedder.Embed(ctx, req.Target)
-	if err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("failed to generate embedding: %v", err),
-		}
-	}
-
-	// Search with broader context for explanations
-	opts := vectorstore.SearchOptions{
-		Limit:   15, // Get more results for comprehensive explanations
-		Filters: make(map[string]interface{}),
-	}
-
-	results, err := s.vectorStore.SearchHybrid(ctx, req.Target, queryVec.Vector, opts)
-	if err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("search failed: %v", err),
-		}
-	}
-
-	// Generate explanation based on results
-	explanation := s.generateExplanation(req.Target, req.Context, req.Depth, results)
-
-	// Find related examples
-	var examples []CodeExample
-	var related []RelatedItem
-
-	for _, result := range results[:min(5, len(results))] {
-		// Add as related item
-		filePath, _ := result.Document.Metadata["file_path"].(string)
-		startLine, _ := result.Document.Metadata["start_line"].(float64)
-		endLine, _ := result.Document.Metadata["end_line"].(float64)
-
-		related = append(related, RelatedItem{
-			ID:         result.Document.ID,
-			Content:    result.Document.Content,
-			Score:      result.Score,
-			SourceType: getStringFromMetadata(result.Document.Metadata, "source_type"),
-			FilePath:   filePath,
-			StartLine:  int(startLine),
-			EndLine:    int(endLine),
-			Metadata:   result.Document.Metadata,
-		})
-
-		// Extract code examples from function/struct definitions
-		if chunkType, ok := result.Document.Metadata["chunk_type"].(string); ok {
-			if chunkType == "function" || chunkType == "struct" {
-				examples = append(examples, CodeExample{
-					Code:        result.Document.Content,
-					Description: fmt.Sprintf("Example %s from %s", chunkType, filePath),
-					Language:    getStringFromMetadata(result.Document.Metadata, "language"),
-				})
-			}
-		}
-	}
-
-	// Determine complexity
-	complexity := s.assessComplexity(results)
-
-	return ExplainResponse{
-		Explanation: explanation,
-		Examples:    examples,
-		Related:     related,
-		Complexity:  complexity,
-		Metadata: map[string]interface{}{
-			"search_results":     len(results),
-			"explanation_length": len(explanation),
-		},
-	}, nil
-}
-
-// handleContextGrep implements the context.grep tool
-func (s *Server) handleContextGrep(ctx context.Context, args json.RawMessage) (interface{}, error) {
-	var req GrepRequest
-	if err := json.Unmarshal(args, &req); err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: fmt.Sprintf("invalid request: %v", err),
-		}
-	}
-
-	// Validate required fields
-	if req.Pattern == "" {
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: "pattern is required",
-		}
-	}
-
-	// Set defaults
-	if req.Context == 0 {
-		req.Context = 3
-	}
-	if req.Path == "" {
-		req.Path = "."
-	}
-
-	startTime := time.Now()
-
-	// Use ripgrep for fast pattern matching
-	var results []GrepResult
-	var err error
-
-	if req.Include != "" {
-		// Search in specific file types
-		results, err = s.grepInFiles(ctx, req.Pattern, req.Path, req.Include, req.CaseInsensitive, req.Context)
-	} else {
-		// Search in all files
-		results, err = s.grepInFiles(ctx, req.Pattern, req.Path, "*", req.CaseInsensitive, req.Context)
-	}
-
-	if err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("grep failed: %v", err),
-		}
-	}
-
-	searchTime := float64(time.Since(startTime).Nanoseconds()) / 1e6 // Convert to milliseconds
-
-	return GrepResponse{
-		Results:    results,
-		TotalCount: len(results),
-		SearchTime: searchTime,
-	}, nil
-}
-
-// generateExplanation creates a detailed explanation from search results
-func (s *Server) generateExplanation(target, context, depth string, results []vectorstore.SearchResult) string {
-	if len(results) == 0 {
-		return fmt.Sprintf("No information found for '%s'. Try broadening your search or check if the code has been indexed.", target)
-	}
-
-	var explanation strings.Builder
-	explanation.WriteString(fmt.Sprintf("## Explanation of: %s\n\n", target))
-
-	// Add context if provided
-	if context != "" {
-		explanation.WriteString(fmt.Sprintf("**Context:** %s\n\n", context))
-	}
-
-	// Group results by type for better organization
-	var functions, structs, files []vectorstore.SearchResult
-	for _, result := range results {
-		chunkType := getStringFromMetadata(result.Document.Metadata, "chunk_type")
-		switch chunkType {
-		case "function":
-			functions = append(functions, result)
-		case "struct":
-			structs = append(structs, result)
-		default:
-			files = append(files, result)
-		}
-	}
-
-	// Explain functions
-	if len(functions) > 0 {
-		explanation.WriteString("### Functions:\n")
-		for _, fn := range functions[:min(3, len(functions))] {
-			funcName := getStringFromMetadata(fn.Document.Metadata, "function_name")
-			if funcName == "" {
-				funcName = "unnamed function"
-			}
-			explanation.WriteString(fmt.Sprintf("- **%s**: %s\n",
-				funcName, s.summarizeContent(fn.Document.Content, 100)))
-		}
-		explanation.WriteString("\n")
-	}
-
-	// Explain structs/types
-	if len(structs) > 0 {
-		explanation.WriteString("### Data Structures:\n")
-		for _, st := range structs[:min(3, len(structs))] {
-			structName := getStringFromMetadata(st.Document.Metadata, "type_name")
-			if structName == "" {
-				structName = "unnamed struct"
-			}
-			explanation.WriteString(fmt.Sprintf("- **%s**: %s\n",
-				structName, s.summarizeContent(st.Document.Content, 100)))
-		}
-		explanation.WriteString("\n")
-	}
-
-	// Add implementation details based on depth
-	if depth == "comprehensive" || depth == "detailed" {
-		explanation.WriteString("### Implementation Details:\n")
-		for _, result := range results[:min(5, len(results))] {
-			filePath := getStringFromMetadata(result.Document.Metadata, "file_path")
-			if filePath != "" {
-				explanation.WriteString(fmt.Sprintf("- **%s**: Located in %s\n",
-					getStringFromMetadata(result.Document.Metadata, "chunk_type"),
-					filePath))
-			}
-		}
-		explanation.WriteString("\n")
-	}
-
-	// Add usage guidance
-	if depth == "comprehensive" {
-		explanation.WriteString("### Usage Guidance:\n")
-		explanation.WriteString("Consider the context and related functions when using this code. ")
-		explanation.WriteString("Check for error handling patterns and ensure proper resource cleanup.\n\n")
-	}
-
-	return explanation.String()
-}
-
-// grepInFiles performs pattern matching across files
-func (s *Server) grepInFiles(ctx context.Context, pattern, basePath, filePattern string, caseInsensitive bool, contextLines int) ([]GrepResult, error) {
-	// Get list of files to search
-	files, err := s.getFilesToSearch(basePath, filePattern)
-	if err != nil {
-		return nil, err
-	}
-
-	var results []GrepResult
-
-	// For each file, search for the pattern
-	for _, file := range files {
-		matches, err := s.grepInFile(file, pattern, caseInsensitive, contextLines)
-		if err != nil {
-			continue // Skip files with errors
-		}
-		results = append(results, matches...)
-	}
-
-	return results, nil
-}
-
-// getFilesToSearch returns list of files matching the pattern
-func (s *Server) getFilesToSearch(basePath, filePattern string) ([]string, error) {
-	var files []string
-
-	// If filePattern is just "*" or empty, search all files
-	if filePattern == "*" || filePattern == "" {
-		err := filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return nil // Skip errors
-			}
-			if !d.IsDir() {
-				files = append(files, path)
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
-		return files, nil
-	}
-
-	// Use glob for specific patterns
-	pattern := filepath.Join(basePath, "**", filePattern)
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	// Filter out directories and validate paths
-	for _, match := range matches {
-		if info, err := os.Stat(match); err == nil && !info.IsDir() {
-			files = append(files, match)
-		}
-	}
-
-	return files, nil
-}
-
-// grepInFile searches for pattern in a single file
-func (s *Server) grepInFile(filePath, pattern string, caseInsensitive bool, contextLines int) ([]GrepResult, error) {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	lines := strings.Split(string(content), "\n")
-	var results []GrepResult
-
-	// Compile regex pattern - escape special regex characters for literal matches
-	regexPattern := regexp.QuoteMeta(pattern)
-	if caseInsensitive {
-		regexPattern = "(?i)" + regexPattern
-	}
-
-	re, err := regexp.Compile(regexPattern)
-	if err != nil {
-		return nil, err
-	}
-
-	// Search each line
-	for i, line := range lines {
-		if re.MatchString(line) {
-			// Extract the matching part (first match)
-			match := re.FindString(line)
-			if match == "" {
-				continue
-			}
-
-			// Get context lines
-			start := i - contextLines
-			if start < 0 {
-				start = 0
-			}
-			end := i + contextLines + 1
-			if end > len(lines) {
-				end = len(lines)
-			}
-
-			contextContent := strings.Join(lines[start:end], "\n")
-
-			results = append(results, GrepResult{
-				File:    filePath,
-				Line:    i + 1,
-				Content: contextContent,
-				Match:   match,
-			})
-		}
-	}
-
-	return results, nil
-}
-
-// assessComplexity determines the complexity level of the code
-func (s *Server) assessComplexity(results []vectorstore.SearchResult) string {
-	if len(results) == 0 {
-		return "unknown"
-	}
-
-	// Simple heuristic based on number of results and content length
-	totalContentLength := 0
-	maxScore := float32(0)
-
-	for _, result := range results {
-		totalContentLength += len(result.Document.Content)
-		if result.Score > maxScore {
-			maxScore = result.Score
-		}
-	}
-
-	avgContentLength := totalContentLength / len(results)
-
-	if len(results) <= 2 && avgContentLength < 200 && maxScore > 0.8 {
-		return "simple"
-	} else if len(results) <= 5 && avgContentLength < 500 {
-		return "moderate"
-	} else {
-		return "complex"
-	}
-}
-
-// summarizeContent creates a brief summary of content
-func (s *Server) summarizeContent(content string, maxLength int) string {
-	lines := strings.Split(content, "\n")
-	var summaryLines []string
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasPrefix(line, "//") && !strings.HasPrefix(line, "/*") && !strings.HasPrefix(line, "*") {
-			summaryLines = append(summaryLines, line)
-			if len(summaryLines) >= 2 {
-				break
-			}
-		}
-	}
-
-	summary := strings.Join(summaryLines, " ")
-	if len(summary) > maxLength {
-		summary = summary[:maxLength-3] + "..."
-	}
-
-	return summary
-}
-
-// handleGitHubSyncStatus implements the github.sync_status tool
-func (s *Server) handleGitHubSyncStatus(ctx context.Context, args json.RawMessage) (interface{}, error) {
-	var req GitHubSyncStatusRequest
-	if err := json.Unmarshal(args, &req); err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: fmt.Sprintf("invalid request: %v", err),
-		}
-	}
-
-	// Get all connectors or specific connector
-	var connectorList []*connectors.Connector
-	var err error
-
-	if req.ConnectorID != "" {
-		connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to get connector: %v", err),
-			}
-		}
-		connectorList = []*connectors.Connector{connector}
-	} else {
-		connectorList, err = s.connectorStore.List(ctx)
-		if err != nil {
-			return nil, &protocol.Error{
-				Code:    protocol.InternalError,
-				Message: fmt.Sprintf("failed to list connectors: %v", err),
-			}
-		}
-	}
-
-	// Collect sync status for all GitHub connectors
-	var githubConnectors []map[string]interface{}
-	for _, connector := range connectorList {
-		if connector.Type == "github" {
-			// Get sync status from connector
-			if conn, err := s.connectorManager.GetConnector(ctx, connector.ID); err == nil {
-				if githubConn, ok := conn.(*github.Connector); ok {
-					syncStatus := githubConn.GetSyncStatus()
-					rateLimit := githubConn.GetRateLimit()
-
-					githubConnectors = append(githubConnectors, map[string]interface{}{
-						"connector_id":   connector.ID,
-						"connector_name": connector.Name,
-						"sync_status":    syncStatus,
-						"rate_limit":     rateLimit,
-					})
-				}
-			}
-		}
-	}
-
-	if len(githubConnectors) == 0 {
-		return GitHubSyncStatusResponse{
-			Status:  "ok",
-			Message: "No GitHub connectors found",
-			Details: map[string]interface{}{
-				"github_connectors": githubConnectors,
-			},
-		}, nil
-	}
-
-	return GitHubSyncStatusResponse{
-		Status:  "ok",
-		Message: fmt.Sprintf("Retrieved status for %d GitHub connector(s)", len(githubConnectors)),
-		Details: map[string]interface{}{
-			"github_connectors": githubConnectors,
-		},
-	}, nil
-}
-
-// handleGitHubSyncTrigger implements the github.sync_trigger tool
-func (s *Server) handleGitHubSyncTrigger(ctx context.Context, args json.RawMessage) (interface{}, error) {
-	var req GitHubSyncTriggerRequest
-	if err := json.Unmarshal(args, &req); err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: fmt.Sprintf("invalid request: %v", err),
-		}
-	}
-
-	// Validate required fields
-	if req.ConnectorID == "" {
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: "connector_id is required",
-		}
-	}
-
-	// Check if connector exists and is GitHub type
-	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
-	if err != nil {
-		return nil, &protocol.Error{
-			Code:    protocol.InternalError,
-			Message: fmt.Sprintf("failed to get connector: %v", err),
-		}
-	}
-
-	if connector.Type != "github" {
-		return nil, &protocol.Error{
-			Code:    protocol.InvalidParams,
-			Message: fmt.Sprintf("connector %s is not a GitHub connector", req.ConnectorID),
-		}
-	}
-
-	// Generate job ID for tracking
-	jobID := fmt.Sprintf("github-sync-%s-%d", req.ConnectorID, time.Now().Unix())
-
-	// Start sync in background
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-		defer cancel()
-
-		// Sync issues
-		issues, err := s.connectorManager.SyncGitHubIssues(ctx, req.ConnectorID)
-		if err != nil {
-			s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_sync_issues"))
-			return
-		}
-
-		// Sync pull requests
-		prs, err := s.connectorManager.SyncGitHubPullRequests(ctx, req.ConnectorID)
-		if err != nil {
-			s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_sync_prs"))
-			return
-		}
-
-		// Store issues in vector store
-		for _, issue := range issues {
-			content := fmt.Sprintf("%s\n\n%s", issue.Title, issue.Description)
-			if content == "" {
-				content = issue.Title
-			}
-
-			doc := vectorstore.Document{
-				ID:      fmt.Sprintf("github-issue-%d", issue.Number),
-				Content: content,
-				Metadata: map[string]interface{}{
-					"source_type":  "github_issue",
-					"issue_number": issue.Number,
-					"title":        issue.Title,
-					"state":        issue.State,
-					"labels":       issue.Labels,
-					"assignee":     issue.Assignee,
-					"created_at":   issue.CreatedAt.Format(time.RFC3339),
-					"updated_at":   issue.UpdatedAt.Format(time.RFC3339),
-					"connector_id": req.ConnectorID,
-				},
-				CreatedAt: issue.CreatedAt,
-				UpdatedAt: issue.UpdatedAt,
-			}
-
-			// Generate embedding
-			embedding, err := s.embedder.Embed(ctx, doc.Content)
-			if err != nil {
-				continue // Skip if embedding fails
-			}
-			doc.Vector = embedding.Vector
-
-			if err := s.vectorStore.Upsert(ctx, doc); err != nil {
-				s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_store_issue"))
-			}
-		}
-
-		// Store PRs in vector store
-		for _, pr := range prs {
-			content := fmt.Sprintf("%s\n\n%s", pr.Title, pr.Description)
-			if content == "" {
-				content = pr.Title
-			}
-
-			doc := vectorstore.Document{
-				ID:      fmt.Sprintf("github-pr-%d", pr.Number),
-				Content: content,
-				Metadata: map[string]interface{}{
-					"source_type":   "github_pr",
-					"pr_number":     pr.Number,
-					"title":         pr.Title,
-					"state":         pr.State,
-					"labels":        pr.Labels,
-					"assignee":      pr.Assignee,
-					"created_at":    pr.CreatedAt.Format(time.RFC3339),
-					"updated_at":    pr.UpdatedAt.Format(time.RFC3339),
-					"linked_issues": pr.LinkedIssues,
-					"connector_id":  req.ConnectorID,
-					"merged":        pr.Merged,
-					"head_branch":   pr.HeadBranch,
-					"base_branch":   pr.BaseBranch,
-				},
-				CreatedAt: pr.CreatedAt,
-				UpdatedAt: pr.UpdatedAt,
-				PRNumbers: []string{fmt.Sprintf("%d", pr.Number)},
-			}
-
-			// Generate embedding
-			embedding, err := s.embedder.Embed(ctx, doc.Content)
-			if err != nil {
-				continue // Skip if embedding fails
-			}
-			doc.Vector = embedding.Vector
-
-			if err := s.vectorStore.Upsert(ctx, doc); err != nil {
-				s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_store_pr"))
-			}
-		}
-	}()
-
-	return GitHubSyncTriggerResponse{
-		Status:      "ok",
-		Message:     fmt.Sprintf("GitHub sync started for connector %s", req.ConnectorID),
-		JobID:       jobID,
-		ConnectorID: req.ConnectorID,
-		Details: map[string]interface{}{
-			"force": req.Force,
-		},
-	}, nil
-}
-
-// getStringFromMetadata safely extracts string from metadata
-func getStringFromMetadata(metadata map[string]interface{}, key string) string {
-	if value, ok := metadata[key].(string); ok {
-		return value
-	}
-	return ""
 }
