@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,7 @@ func TestNewFileOutput(t *testing.T) {
 		{
 			name: "valid file path",
 			config: OutputConfig{
+				Type:       OutputTypeFile,
 				FilePath:   filepath.Join(tmpDir, "audit.log"),
 				MaxSize:    1024 * 1024,
 				MaxBackups: 5,
@@ -30,6 +32,7 @@ func TestNewFileOutput(t *testing.T) {
 		{
 			name: "empty file path",
 			config: OutputConfig{
+				Type:     OutputTypeFile,
 				FilePath: "",
 			},
 			wantErr: true,
@@ -37,6 +40,7 @@ func TestNewFileOutput(t *testing.T) {
 		{
 			name: "path traversal attempt",
 			config: OutputConfig{
+				Type:     OutputTypeFile,
 				FilePath: "../../../etc/passwd",
 			},
 			wantErr: true,
@@ -44,6 +48,7 @@ func TestNewFileOutput(t *testing.T) {
 		{
 			name: "valid path with defaults",
 			config: OutputConfig{
+				Type:     OutputTypeFile,
 				FilePath: filepath.Join(tmpDir, "test.log"),
 			},
 			wantErr: false,
@@ -75,6 +80,7 @@ func TestFileOutput_Write(t *testing.T) {
 	logFile := filepath.Join(tmpDir, "audit.log")
 
 	output, err := newFileOutput(OutputConfig{
+		Type:       OutputTypeFile,
 		FilePath:   logFile,
 		MaxSize:    1024,
 		MaxBackups: 3,
@@ -84,12 +90,13 @@ func TestFileOutput_Write(t *testing.T) {
 	defer output.Close()
 
 	event := AuditEvent{
-		Type:      EventTypeToolExecution,
-		Timestamp: "2025-01-01T00:00:00Z",
-		User:      "test-user",
-		Action:    "test-action",
-		Resource:  "test-resource",
-		Result:    "success",
+		Timestamp:    time.Now(),
+		EventType:    EventTypeToolExecution,
+		Category:     CategoryAccess,
+		Outcome:      OutcomeSuccess,
+		Username:     "test-user",
+		Action:       "test-action",
+		ResourceType: "test-resource",
 	}
 
 	err = output.Write(event)

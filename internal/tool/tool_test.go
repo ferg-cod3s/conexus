@@ -80,10 +80,19 @@ func TestExecutor_PermissionValidation(t *testing.T) {
 }
 
 func TestExecutor_PathValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create test file with double dots in filename
+	testFile := filepath.Join(tmpDir, "file..txt")
+	err := os.WriteFile(testFile, []byte("test content"), 0644)
+	if err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
 	exec := NewExecutor()
 	ctx := context.Background()
 	perms := schema.Permissions{
-		AllowedDirectories: []string{"/tmp"},
+		AllowedDirectories: []string{tmpDir},
 		ReadOnly:           true,
 		MaxFileSize:        1024,
 	}
@@ -105,7 +114,7 @@ func TestExecutor_PathValidation(t *testing.T) {
 		},
 		{
 			name:    "path with double dots in filename",
-			path:    "/tmp/file..txt",
+			path:    testFile,
 			wantErr: false, // should be allowed after our fix
 		},
 	}
