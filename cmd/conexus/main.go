@@ -434,10 +434,7 @@ func runHTTPServer(
 	}
 
 	// Initialize security middleware
-	xContentTypeOptions := ""
-	if cfg.Security.ContentType {
-		xContentTypeOptions = "nosniff"
-	}
+	xContentTypeOptions := map[bool]string{true: "nosniff", false: ""}[cfg.Security.ContentType]
 
 	securityMiddleware := middleware.NewSecurityMiddleware(middleware.SecurityConfig{
 		CSP: middleware.CSPConfig{
