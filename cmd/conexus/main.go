@@ -34,6 +34,21 @@ import (
 
 const Version = "0.1.3-alpha"
 
+// parseDuration parses a duration string, returning a default if parsing fails
+func parseDuration(s string, logger *observability.Logger) time.Duration {
+	if s == "" {
+		return time.Minute // default to 1 minute
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		if logger != nil {
+			logger.Warn("Invalid duration string, using default", "duration", s, "error", err)
+		}
+		return time.Minute
+	}
+	return d
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -354,19 +369,6 @@ func runHTTPServer(
 	// Initialize rate limiting middleware if enabled
 	var rateLimitMiddleware *middleware.RateLimitMiddleware
 	if cfg.RateLimit.Enabled {
-		// Helper function to parse duration strings
-		parseDuration := func(s string) time.Duration {
-			if s == "" {
-				return time.Minute // default to 1 minute
-			}
-			d, err := time.ParseDuration(s)
-			if err != nil {
-				logger.Warn("Invalid duration string, using default", "duration", s, "error", err)
-				return time.Minute
-			}
-			return d
-		}
-
 		// Convert config to ratelimit package format
 		rateLimitConfig := ratelimit.Config{
 			Enabled: cfg.RateLimit.Enabled,
@@ -389,22 +391,22 @@ func runHTTPServer(
 			},
 			Default: ratelimit.LimitConfig{
 				Requests: cfg.RateLimit.Default.Requests,
-				Window:   parseDuration(cfg.RateLimit.Default.Window),
+				Window:   parseDuration(cfg.RateLimit.Default.Window, logger),
 			},
 			Health: ratelimit.LimitConfig{
 				Requests: cfg.RateLimit.Health.Requests,
-				Window:   parseDuration(cfg.RateLimit.Health.Window),
+				Window:   parseDuration(cfg.RateLimit.Health.Window, logger),
 			},
 			Webhook: ratelimit.LimitConfig{
 				Requests: cfg.RateLimit.Webhook.Requests,
-				Window:   parseDuration(cfg.RateLimit.Webhook.Window),
+				Window:   parseDuration(cfg.RateLimit.Webhook.Window, logger),
 			},
 			Auth: ratelimit.LimitConfig{
 				Requests: cfg.RateLimit.Auth.Requests,
-				Window:   parseDuration(cfg.RateLimit.Auth.Window),
+				Window:   parseDuration(cfg.RateLimit.Auth.Window, logger),
 			},
 			BurstMultiplier: cfg.RateLimit.BurstMultiplier,
-			CleanupInterval: parseDuration(cfg.RateLimit.CleanupInterval),
+			CleanupInterval: parseDuration(cfg.RateLimit.CleanupInterval, logger),
 		}
 
 		// Initialize rate limiter
@@ -434,10 +436,7 @@ func runHTTPServer(
 	}
 
 	// Initialize security middleware
-	xContentTypeOptions := ""
-	if cfg.Security.ContentType {
-		xContentTypeOptions = "nosniff"
-	}
+	xContentTypeOptions := map[bool]string{true: "nosniff", false: ""}[cfg.Security.ContentType]
 
 	securityMiddleware := middleware.NewSecurityMiddleware(middleware.SecurityConfig{
 		CSP: middleware.CSPConfig{
