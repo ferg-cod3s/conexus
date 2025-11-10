@@ -595,7 +595,6 @@ func TestReindexPaths_PathValidation(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "test.go")
 	require.NoError(t, os.WriteFile(testFile, []byte("package main"), 0644))
 
-	idx := NewIndexer(statePath)
 	ctx := context.Background()
 
 	opts := IndexOptions{
@@ -627,6 +626,10 @@ func TestReindexPaths_PathValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create fresh indexer for each test case to avoid "indexing already running" race condition
+			testStatePath := filepath.Join(tmpDir, fmt.Sprintf("state_%s.json", tt.name))
+			idx := NewIndexer(testStatePath)
+
 			err := idx.ReindexPaths(ctx, opts, tt.paths)
 			if tt.wantErr {
 				require.Error(t, err)
