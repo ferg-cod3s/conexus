@@ -19,7 +19,8 @@ const (
 	// SlidingWindow uses a sliding window algorithm for smooth rate limiting
 	SlidingWindow Algorithm = "sliding_window"
 	// TokenBucket uses a token bucket algorithm allowing burst capacity
-	TokenBucket Algorithm = "token_bucket"
+	// nosemgrep: go-hardcoded-credentials
+	TokenBucket Algorithm = "token_bucket" // Algorithm name, not a credential
 )
 
 // LimiterType represents the type of rate limiter (IP-based or token-based)
@@ -29,7 +30,8 @@ const (
 	// IPLimiter limits by client IP address
 	IPLimiter LimiterType = "ip"
 	// TokenLimiter limits by authentication token/API key
-	TokenLimiter LimiterType = "token"
+	// nosemgrep: go-hardcoded-credentials
+	TokenLimiter LimiterType = "token" // Limiter type name, not a credential
 )
 
 // Config holds rate limiting configuration

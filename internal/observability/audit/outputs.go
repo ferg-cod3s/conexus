@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/observability"
+	"github.com/ferg-cod3s/conexus/internal/security"
 )
 
 // fileOutput implements file-based audit logging with rotation
@@ -26,6 +27,13 @@ type fileOutput struct {
 }
 
 func newFileOutput(config OutputConfig) (*fileOutput, error) {
+	// Validate and clean the file path to prevent path traversal
+	cleanPath, err := security.ValidatePath(config.FilePath, "")
+	if err != nil {
+		return nil, fmt.Errorf("invalid audit log file path: %w", err)
+	}
+	config.FilePath = cleanPath
+
 	// Set defaults
 	if config.MaxSize == 0 {
 		config.MaxSize = 100 * 1024 * 1024 // 100MB
@@ -103,6 +111,7 @@ func (fo *fileOutput) openFile() error {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
+	// #nosec G304 - FilePath validated in newFileOutput constructor at line 31
 	file, err := os.OpenFile(fo.config.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %w", err)
@@ -179,13 +188,25 @@ func (fo *fileOutput) rotateFiles() error {
 }
 
 func (fo *fileOutput) compressFile(src, dst string) error {
-	srcFile, err := os.Open(src)
+	// Validate paths to prevent traversal attacks
+	safeSrc, err := security.ValidatePath(src, "")
+	if err != nil {
+		return fmt.Errorf("invalid source path: %w", err)
+	}
+	safeDst, err := security.ValidatePath(dst, "")
+	if err != nil {
+		return fmt.Errorf("invalid destination path: %w", err)
+	}
+
+	// #nosec G304 - Paths validated above with security.ValidatePath
+	srcFile, err := os.Open(safeSrc)
 	if err != nil {
 		return err
 	}
 	defer srcFile.Close()
 
-	dstFile, err := os.Create(dst)
+	// #nosec G304 - Paths validated above with security.ValidatePath
+	dstFile, err := os.Create(safeDst)
 	if err != nil {
 		return err
 	}

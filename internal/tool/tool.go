@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ferg-cod3s/conexus/internal/security"
 	"github.com/ferg-cod3s/conexus/pkg/schema"
 )
 
@@ -143,7 +144,14 @@ func (t *ReadTool) Execute(ctx context.Context, params ToolParams, perms schema.
 		return ToolResult{}, fmt.Errorf("path parameter required")
 	}
 
-	content, err := os.ReadFile(params.Path)
+	// Validate path to prevent path traversal attacks
+	safePath, err := security.ValidatePath(params.Path, "")
+	if err != nil {
+		return ToolResult{}, fmt.Errorf("invalid path: %w", err)
+	}
+
+	// #nosec G304 - Path validated above with security.ValidatePath
+	content, err := os.ReadFile(safePath)
 	if err != nil {
 		return ToolResult{Success: false, Error: err.Error()}, err
 	}

@@ -12,7 +12,8 @@ const (
 	// Authentication events
 	EventTypeAuthSuccess         EventType = "auth.success"
 	EventTypeAuthFailure         EventType = "auth.failure"
-	EventTypeAuthTokenValidation EventType = "auth.token_validation"
+	// nosemgrep: go-hardcoded-credentials
+	EventTypeAuthTokenValidation EventType = "auth.token_validation" // Type constant, not a credential
 
 	// Authorization events
 	EventTypeAuthzSuccess EventType = "authz.success"

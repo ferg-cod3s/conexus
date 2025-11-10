@@ -50,10 +50,14 @@ type AuthConfig struct {
 type TokenType string
 
 const (
-	TokenTypePersonal TokenType = "personal"
-	TokenTypeApp      TokenType = "app"
-	TokenTypeOAuth    TokenType = "oauth"
-	TokenTypeWebhook  TokenType = "webhook"
+	// nosemgrep: go-hardcoded-credentials
+	TokenTypePersonal TokenType = "personal" // Type constant, not a credential
+	// nosemgrep: go-hardcoded-credentials
+	TokenTypeApp TokenType = "app" // Type constant, not a credential
+	// nosemgrep: go-hardcoded-credentials
+	TokenTypeOAuth TokenType = "oauth" // Type constant, not a credential
+	// nosemgrep: go-hardcoded-credentials
+	TokenTypeWebhook TokenType = "webhook" // Type constant, not a credential
 )
 
 // TokenInfo contains information about a token
