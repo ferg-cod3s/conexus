@@ -215,12 +215,16 @@
 - ✅ Integration tests verified
 - ✅ All 8 MCP tools correctly registered and tested
 
-**Security Update (2025-11-10)**: Socket SAST findings addressed in commit 417fa08
-- ✅ Fixed 6 critical path traversal vulnerabilities
-- ✅ Suppressed 16 false positive findings
-- ✅ Added proper path validation using security.ValidatePath()
+**Security Update (2025-11-10)**: Socket SAST findings addressed
+- ✅ Fixed 6 critical path traversal vulnerabilities (commit 417fa08)
+- ✅ Suppressed 16 false positive findings (commit 417fa08)
+- ✅ Added proper path validation using security.ValidatePath() (commit 324ae01)
 - ✅ All fixes documented in docs/security/SOCKET_SAST_FIXES.md
-- ⏳ Tests pending (blocked by network issues in environment)
+- ✅ Test coverage added for security validation (commit 66bfe80)
+- ✅ Test runtime errors fixed (commit 0f06c1f)
+- ✅ Test method name corrected (commit 2eedc05)
+- ✅ Test race condition resolved (commit 611161a)
+- ⏳ **Awaiting CI**: Full test suite and Socket SAST rescan on PR
 
 ### Release Checklist
 
@@ -231,10 +235,14 @@
    - ✅ All tests passing (854+ tests across 41 packages)
    - ✅ New MCP tools verified: `context.explain`, `context.grep`, `github.sync_status`, `github.sync_trigger`
 
-1a. **✅ Address Socket SAST Security Findings** - COMPLETED (commit 417fa08)
-   - ✅ Fixed 6 critical path traversal vulnerabilities
-   - ✅ Suppressed 16 false positive findings
+1a. **✅ Address Socket SAST Security Findings** - COMPLETED
+   - ✅ Fixed 6 critical path traversal vulnerabilities (commit 417fa08)
+   - ✅ Suppressed 16 false positive findings (commit 417fa08)
    - ✅ Added comprehensive documentation in docs/security/SOCKET_SAST_FIXES.md
+   - ✅ Fixed security.ValidatePath() double-dot handling (commit 324ae01)
+   - ✅ Added test coverage for security validation (commit 66bfe80)
+   - ✅ Fixed test build and runtime errors (commits 0f06c1f, 2eedc05)
+   - ✅ Resolved TestReindexPaths_PathValidation race condition (commit 611161a)
    - ⏳ **Automated**: CI will run full test suite on PR (go test ./... -race -cover)
    - ⏳ **Automated**: Socket SAST will rescan on PR and verify 0 critical/high findings
    - 📝 See .github/workflows/ci.yml for complete CI automation
