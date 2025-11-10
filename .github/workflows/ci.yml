@@ -75,7 +75,11 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -85,15 +89,15 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Run Gosec Security Scanner
-        uses: securecodewarrior/github-action-gosec@master
+      - name: Run Socket Security Scan
+        uses: SocketDev/socket-basics@1.0.25
+        env:
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
-          args: '-no-fail -fmt sarif -out results.sarif ./...'
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: results.sarif
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          go_sast_enabled: 'true'
+          secret_scanning_enabled: 'true'
+          console_tabular_enabled: 'true'
 
   build:
     name: Build
