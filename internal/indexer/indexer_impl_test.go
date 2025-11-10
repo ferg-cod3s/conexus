@@ -586,3 +586,53 @@ func BenchmarkIndexIncremental_NoChanges(b *testing.B) {
 		require.NoError(b, err)
 	}
 }
+
+func TestIndexFiles_PathValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	statePath := filepath.Join(tmpDir, "state.json")
+	
+	// Create a test file
+	testFile := filepath.Join(tmpDir, "test.go")
+	require.NoError(t, os.WriteFile(testFile, []byte("package main"), 0644))
+	
+	idx := NewIndexer(statePath)
+	ctx := context.Background()
+	
+	opts := IndexOptions{
+		RootPath:    tmpDir,
+		MaxFileSize: 1024,
+	}
+	
+	tests := []struct {
+		name    string
+		paths   []string
+		wantErr bool
+	}{
+		{
+			name:    "valid file path",
+			paths:   []string{testFile},
+			wantErr: false,
+		},
+		{
+			name:    "path traversal attempt",
+			paths:   []string{"../../../etc/passwd"},
+			wantErr: false, // Should skip invalid paths, not error
+		},
+		{
+			name:    "non-existent path",
+			paths:   []string{filepath.Join(tmpDir, "nonexistent.go")},
+			wantErr: false, // Should skip non-existent paths
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := idx.IndexFiles(ctx, opts, tt.paths)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

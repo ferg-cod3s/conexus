@@ -79,6 +79,53 @@ func TestExecutor_PermissionValidation(t *testing.T) {
 	}
 }
 
+func TestExecutor_PathValidation(t *testing.T) {
+	exec := NewExecutor()
+	ctx := context.Background()
+	perms := schema.Permissions{
+		AllowedDirectories: []string{"/tmp"},
+		ReadOnly:           true,
+		MaxFileSize:        1024,
+	}
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{
+			name:    "empty path",
+			path:    "",
+			wantErr: true,
+		},
+		{
+			name:    "path traversal attempt",
+			path:    "../../../etc/passwd",
+			wantErr: true,
+		},
+		{
+			name:    "path with double dots in filename",
+			path:    "/tmp/file..txt",
+			wantErr: false, // should be allowed after our fix
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := exec.Execute(ctx, "read", ToolParams{
+				Path: tt.path,
+			}, perms)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error for path %q", tt.path)
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error for path %q: %v", tt.path, err)
+			}
+		})
+	}
+}
+
 func TestExecutor_GlobTool(t *testing.T) {
 	tmpDir := t.TempDir()
 
