@@ -589,7 +589,6 @@ func BenchmarkIndexIncremental_NoChanges(b *testing.B) {
 
 func TestReindexPaths_PathValidation(t *testing.T) {
 	tmpDir := t.TempDir()
-	statePath := filepath.Join(tmpDir, "state.json")
 
 	// Create a test file
 	testFile := filepath.Join(tmpDir, "test.go")
