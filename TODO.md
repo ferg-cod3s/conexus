@@ -215,6 +215,13 @@
 - ✅ Integration tests verified
 - ✅ All 8 MCP tools correctly registered and tested
 
+**Security Update (2025-11-10)**: Socket SAST findings addressed in commit 417fa08
+- ✅ Fixed 6 critical path traversal vulnerabilities
+- ✅ Suppressed 16 false positive findings
+- ✅ Added proper path validation using security.ValidatePath()
+- ✅ All fixes documented in docs/security/SOCKET_SAST_FIXES.md
+- ⏳ Tests pending (blocked by network issues in environment)
+
 ### Release Checklist
 
 1. **✅ Address Build Errors** - COMPLETED (commit 190ab55)
@@ -223,6 +230,13 @@
    - ✅ Fixed `internal/mcp/resources_test.go` and `server_test.go` NewServer signature mismatches
    - ✅ All tests passing (854+ tests across 41 packages)
    - ✅ New MCP tools verified: `context.explain`, `context.grep`, `github.sync_status`, `github.sync_trigger`
+
+1a. **✅ Address Socket SAST Security Findings** - COMPLETED (commit 417fa08)
+   - ✅ Fixed 6 critical path traversal vulnerabilities
+   - ✅ Suppressed 16 false positive findings
+   - ✅ Added comprehensive documentation
+   - ⏳ **TODO**: Run full test suite to verify fixes don't break functionality
+   - ⏳ **TODO**: Verify Socket SAST rescan shows 0 critical/high findings
 
 2. **Create Release Notes** (~1 hour) 🔴 HIGH PRIORITY
    - Document v0.2.1-alpha changes and improvements
