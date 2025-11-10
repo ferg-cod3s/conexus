@@ -34,6 +34,18 @@ import (
 
 const Version = "0.1.3-alpha"
 
+// parseDuration parses a duration string with a fallback to 1 minute
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return time.Minute // default to 1 minute
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return time.Minute
+	}
+	return d
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -354,19 +366,6 @@ func runHTTPServer(
 	// Initialize rate limiting middleware if enabled
 	var rateLimitMiddleware *middleware.RateLimitMiddleware
 	if cfg.RateLimit.Enabled {
-		// Helper function to parse duration strings
-		parseDuration := func(s string) time.Duration {
-			if s == "" {
-				return time.Minute // default to 1 minute
-			}
-			d, err := time.ParseDuration(s)
-			if err != nil {
-				logger.Warn("Invalid duration string, using default", "duration", s, "error", err)
-				return time.Minute
-			}
-			return d
-		}
-
 		// Convert config to ratelimit package format
 		rateLimitConfig := ratelimit.Config{
 			Enabled: cfg.RateLimit.Enabled,
@@ -434,11 +433,6 @@ func runHTTPServer(
 	}
 
 	// Initialize security middleware
-	xContentTypeOptions := ""
-	if cfg.Security.ContentType {
-		xContentTypeOptions = "nosniff"
-	}
-
 	securityMiddleware := middleware.NewSecurityMiddleware(middleware.SecurityConfig{
 		CSP: middleware.CSPConfig{
 			Enabled: cfg.Security.CSP.Enabled,
@@ -459,9 +453,14 @@ func runHTTPServer(
 			IncludeSubdomains: cfg.Security.HSTS.IncludeSubdomains,
 			Preload:           cfg.Security.HSTS.Preload,
 		},
-		XFrameOptions:       cfg.Security.FrameOptions,
-		XContentTypeOptions: xContentTypeOptions,
-		ReferrerPolicy:      cfg.Security.ReferrerPolicy,
+		XFrameOptions: cfg.Security.FrameOptions,
+		XContentTypeOptions: func() string {
+			if cfg.Security.ContentType {
+				return "nosniff"
+			}
+			return ""
+		}(),
+		ReferrerPolicy: cfg.Security.ReferrerPolicy,
 	}, logger)
 
 	// Initialize CORS middleware

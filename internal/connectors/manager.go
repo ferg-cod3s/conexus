@@ -4,6 +4,7 @@ package connectors
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 )
@@ -54,8 +55,10 @@ func (m *Manager) Initialize(ctx context.Context, connector *Connector) error {
 	// Execute post-init hooks
 	if err := m.hooks.ExecutePostInit(ctx, connector); err != nil {
 		// Rollback: remove from store if post-init fails
-		// #nosec G104 - Best-effort cleanup in error path
-		_ = m.store.Remove(ctx, connector.ID)
+		if removeErr := m.store.Remove(ctx, connector.ID); removeErr != nil {
+			// Log rollback failure to stderr since we don't have a logger
+			fmt.Fprintf(os.Stderr, "Warning: failed to rollback connector %s after post-init failure: %v\n", connector.ID, removeErr)
+		}
 		return fmt.Errorf("post-init failed: %w", err)
 	}
 
