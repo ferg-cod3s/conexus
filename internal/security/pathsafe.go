@@ -32,8 +32,13 @@ func ValidatePath(path string, basePath string) (string, error) {
 	cleaned := filepath.Clean(path)
 
 	// Check for path traversal attempts
-	if strings.Contains(cleaned, "..") {
-		return "", fmt.Errorf("%w: path contains '..'", ErrPathTraversal)
+	// After cleaning, .. should not appear as a path element
+	// Check for "../", "/..", or path starting with ".."
+	if strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) ||
+		strings.Contains(cleaned, string(filepath.Separator)+".."+string(filepath.Separator)) ||
+		strings.HasSuffix(cleaned, string(filepath.Separator)+"..") ||
+		cleaned == ".." {
+		return "", fmt.Errorf("%w: path contains '..' element", ErrPathTraversal)
 	}
 
 	// If no base path specified, return cleaned path

@@ -51,6 +51,18 @@ func TestValidatePath(t *testing.T) {
 			errType:  ErrPathTraversal,
 		},
 		{
+			name:     "filename with double dots",
+			path:     "path/to/file..txt",
+			basePath: "",
+			wantErr:  false,
+		},
+		{
+			name:     "filename with only double dots",
+			path:     "file..config..bak",
+			basePath: "",
+			wantErr:  false,
+		},
+		{
 			name:      "valid path within base",
 			path:      "subdir/file.txt",
 			basePath:  "/tmp/safe",
@@ -99,8 +111,14 @@ func TestValidatePath(t *testing.T) {
 				assert.True(t, filepath.IsAbs(result), "expected absolute path")
 			}
 
-			// Should never contain .. after validation
-			assert.NotContains(t, result, "..")
+			// Should not contain .. as a path element (but may contain in filename like "file..txt")
+			// Check it doesn't start with .., contain /../, or end with /..
+			sep := string(filepath.Separator)
+			assert.False(t, result == "..", "path should not be exactly '..'")
+			assert.False(t, filepath.Base(result) == "..", "path should not end with '..'")
+			if len(result) > 2 {
+				assert.False(t, result[:3] == ".."+sep, "path should not start with '../'")
+			}
 		})
 	}
 }
@@ -204,7 +222,13 @@ func TestSafeJoin(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotEmpty(t, result)
 			assert.True(t, filepath.IsAbs(result))
-			assert.NotContains(t, result, "..")
+
+			// Should not contain .. as a path element
+			sep := string(filepath.Separator)
+			assert.False(t, filepath.Base(result) == "..", "path should not end with '..'")
+			if len(result) > 2 {
+				assert.False(t, result[:3] == ".."+sep, "path should not start with '../'")
+			}
 		})
 	}
 }
