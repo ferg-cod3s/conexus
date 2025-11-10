@@ -388,6 +388,85 @@ go list -json -m all | nancy sleuth
 
 ---
 
+## 📋 Task Management
+
+### TODO List Maintenance
+
+**CRITICAL**: Always keep [@TODO.md](./TODO.md) up-to-date throughout development.
+
+#### When to Update TODO.md
+
+1. **Task Started**: Mark status as `🚧 In Progress`
+2. **Task Blocked**: Update with blocker details
+3. **Task Complete**: ✅ Mark as `COMPLETE` immediately
+4. **New Task Discovered**: Add to appropriate section
+5. **Task Obsolete**: Remove or mark as deferred
+
+#### Task Completion Checklist
+
+When completing ANY task:
+```bash
+# 1. Mark task complete in TODO.md
+# 2. Update task status line
+# 3. Update completion date
+# 4. Update phase percentage if applicable
+# 5. Commit the TODO.md update with task completion
+```
+
+#### Example Task Update
+
+```markdown
+# Before (in TODO.md)
+#### **Task 8.3: Implement Feature X** (4-6 hours)
+- **Status**: 🚧 In Progress
+- **Priority**: 🔴 HIGH
+
+# After (in TODO.md)
+#### **Task 8.3: Implement Feature X** (4-6 hours)
+- **Status**: ✅ COMPLETE
+- **Completion Date**: 2025-11-10
+- **Priority**: 🔴 HIGH
+```
+
+#### Task Tracking Best Practices
+
+1. **Update Immediately**: Don't batch TODO updates - update as you complete tasks
+2. **Be Specific**: Include completion dates and any relevant notes
+3. **Cross-Reference**: Link to completion docs (e.g., `TASK_8.3_COMPLETION.md`)
+4. **Update Metrics**: Refresh test counts, coverage percentages, etc.
+5. **Sync with Phase Status**: Update phase completion documents
+
+#### Integration with Development
+
+```bash
+# After completing a task, always:
+1. Run tests: go test ./...
+2. Update TODO.md with completion status
+3. Commit code changes
+4. Commit TODO.md update
+5. Push all changes together
+
+# Example workflow:
+git add internal/feature/new-feature.go
+git commit -m "feat: implement feature X"
+git add TODO.md
+git commit -m "docs: mark Task 8.3 as complete in TODO.md"
+git push
+```
+
+#### TODO.md Structure Reference
+
+The TODO.md follows this structure:
+- **Phase Overview**: Current phase and strategic goals
+- **Task List**: Organized by priority (High/Medium/Low)
+- **Success Criteria**: Must-have vs should-have features
+- **Immediate Next Actions**: Ordered by priority with time estimates
+- **Project Status**: Current metrics and phase completion
+
+Always maintain this structure when updating.
+
+---
+
 ## 🔄 Development Workflow and Processes
 
 ### Git Workflow

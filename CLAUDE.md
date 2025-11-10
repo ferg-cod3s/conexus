@@ -9,11 +9,19 @@ This guide provides context for AI assistants (like Claude, GPT, etc.) working w
 ## 📚 Essential Documentation
 
 ### 🔧 Development Guidelines
-- **[AGENTS.md](./AGENTS.md)** - Complete development guide for AI agents
+- **[@AGENTS.md](./AGENTS.md)** - Complete development guide for AI agents
   - Build/lint/test commands
-  - Code style guidelines  
+  - Code style guidelines
   - Project structure notes
   - Testing patterns
+  - **[@AGENTS.md#task-management](./AGENTS.md#-task-management)** - Task management and TODO tracking
+
+### 📋 Task Management
+- **[@TODO.md](./TODO.md)** - Current project TODO list and phase tracking
+  - **CRITICAL**: Update immediately when completing tasks
+  - Mark tasks as ✅ COMPLETE with completion date
+  - Update metrics and phase status
+  - See [@AGENTS.md#task-management](./AGENTS.md#-task-management) for detailed workflow
 
 ### 📋 Version Management
 - **[Versioning Criteria](./docs/VERSIONING_CRITERIA.md)** - When and how to bump versions
@@ -33,10 +41,11 @@ This guide provides context for AI assistants (like Claude, GPT, etc.) working w
 ## 🎯 Quick Reference for AI Assistants
 
 ### When Making Changes
-1. **Check Version Impact**: Reference [Versioning Criteria](docs/VERSIONING_CRITERIA.md)
-2. **Follow Code Style**: Use [AGENTS.md](./AGENTS.md) guidelines
+1. **Check Version Impact**: Reference [@docs/VERSIONING_CRITERIA.md](docs/VERSIONING_CRITERIA.md)
+2. **Follow Code Style**: Use [@AGENTS.md](./AGENTS.md) guidelines
 3. **Test Thoroughly**: Run `go test ./...` before committing
-4. **Document Changes**: Update relevant documentation
+4. **Update TODO**: Mark completed tasks in [@TODO.md](./TODO.md) immediately
+5. **Document Changes**: Update relevant documentation
 
 ### Common Tasks
 ```bash
@@ -93,6 +102,8 @@ Is it breaking/enterprise? → Major (1.0.0)
 - **Conservative Versioning**: When in doubt, use patch
 - **Clear Communication**: Explain reasoning for all changes
 - **Cross-Reference**: Link to relevant documentation
+- **Task Tracking**: Update [@TODO.md](./TODO.md) immediately when tasks complete
+  - See [@AGENTS.md#task-management](./AGENTS.md#-task-management) for workflow
 
 ---
 
@@ -100,22 +111,32 @@ Is it breaking/enterprise? → Major (1.0.0)
 
 | Topic | Location | Purpose |
 |--------|----------|---------|
-| Development Commands | [AGENTS.md](./AGENTS.md) | Build, test, lint |
-| Version Decisions | [docs/VERSIONING_CRITERIA.md](./docs/VERSIONING_CRITERIA.md) | When to bump versions |
-| Contributing | [docs/contributing/contributing-guide.md](./docs/contributing/contributing-guide.md) | How to contribute |
-| Testing | [docs/contributing/testing-strategy.md](./docs/contributing/testing-strategy.md) | Testing requirements |
-| Architecture | [docs/Technical-Architecture.md](./docs/Technical-Architecture.md) | System design |
-| API Reference | [docs/api-reference.md](./docs/api-reference.md) | Complete API docs |
+| Development Commands | [@AGENTS.md](./AGENTS.md) | Build, test, lint |
+| Task Management | [@AGENTS.md#task-management](./AGENTS.md#-task-management) | TODO tracking workflow |
+| Current Tasks | [@TODO.md](./TODO.md) | Active TODO list |
+| Version Decisions | [@docs/VERSIONING_CRITERIA.md](./docs/VERSIONING_CRITERIA.md) | When to bump versions |
+| Contributing | [@docs/contributing/contributing-guide.md](./docs/contributing/contributing-guide.md) | How to contribute |
+| Testing | [@docs/contributing/testing-strategy.md](./docs/contributing/testing-strategy.md) | Testing requirements |
+| Architecture | [@docs/Technical-Architecture.md](./docs/Technical-Architecture.md) | System design |
+| API Reference | [@docs/api-reference.md](./docs/api-reference.md) | Complete API docs |
 
 ---
 
 ## 💡 Tips for AI Assistants
 
 ### Before Making Changes
-1. **Search First**: Use `git grep` and existing tools
-2. **Read Context**: Check related files and documentation
-3. **Understand Impact**: Consider version implications
-4. **Test Locally**: Verify changes work
+1. **Check TODO**: Review [@TODO.md](./TODO.md) for current tasks and priorities
+2. **Search First**: Use `git grep` and existing tools
+3. **Read Context**: Check related files and documentation
+4. **Understand Impact**: Consider version implications
+5. **Test Locally**: Verify changes work
+
+### After Completing Tasks
+1. **Mark Complete**: Update [@TODO.md](./TODO.md) with ✅ COMPLETE status
+2. **Add Completion Date**: Include the date task was finished
+3. **Update Metrics**: Refresh test counts, coverage percentages
+4. **Commit TODO**: Always commit TODO.md updates with your changes
+5. **See Full Workflow**: [@AGENTS.md#task-management](./AGENTS.md#-task-management)
 
 ### When Proposing Versions
 - **Reference Criteria**: Link to specific versioning rules
