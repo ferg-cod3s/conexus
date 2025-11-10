@@ -119,6 +119,26 @@ New comprehensive guide covering:
 #### Made test-inspector.js executable
 - Enables direct execution: `./tests/integration/inspector/test-inspector.js`
 
+### 4. CI/CD Security Scanner Update 🔒
+
+#### .github/workflows/ci.yml - Socket.dev Integration
+**Problem**: securecodewarrior/github-action-gosec was failing on PR setup
+**Solution**: Replaced with Socket.dev security scanning
+
+**Changes**:
+- Removed failing `securecodewarrior/github-action-gosec@master`
+- Added `SocketDev/socket-basics@1.0.25` with Go SAST enabled
+- Enabled secret scanning for comprehensive coverage
+- Added tabular console output for better readability
+- Added required permissions for PR comments and issues
+
+**Benefits**:
+- ✅ Fixes failing security job in CI pipeline
+- ✅ Go SAST (Static Application Security Testing)
+- ✅ Secret scanning to catch leaked credentials
+- ✅ Automatic PR comments with security findings
+- ✅ Supply chain attack protection
+
 ## Test Results
 
 All changes verified:
@@ -181,5 +201,5 @@ After merge:
 
 **Branch**: `claude/update-todo-list-011CUyEsb2DW2p55xm4KufLg`
 **Base**: `alpha`
-**Commits**: 4
-**Files Changed**: 6
+**Commits**: 6
+**Files Changed**: 7
