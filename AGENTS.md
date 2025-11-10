@@ -410,7 +410,26 @@ When completing ANY task:
 # 2. Update task status line
 # 3. Update completion date
 # 4. Update phase percentage if applicable
-# 5. Commit the TODO.md update with task completion
+# 5. Update GitHub project task (if associated)
+# 6. Commit the TODO.md update with task completion
+```
+
+**GitHub Integration**: Many tasks are tracked in GitHub Projects. When completing a task:
+1. Check if task has an associated GitHub issue/project item
+2. Use GitHub CLI or subagent to update the task status
+3. Add completion notes and link to commits
+4. Move task to "Done" column in project board
+
+Example:
+```bash
+# Check for GitHub issue
+gh issue list --label "phase-8"
+
+# Update issue status
+gh issue edit <issue-number> --add-label "completed" --add-comment "Task completed in commit abc123"
+
+# Or use GitHub subagent (if available)
+# The subagent can automatically sync TODO.md with GitHub Projects
 ```
 
 #### Example Task Update
@@ -435,6 +454,7 @@ When completing ANY task:
 3. **Cross-Reference**: Link to completion docs (e.g., `TASK_8.3_COMPLETION.md`)
 4. **Update Metrics**: Refresh test counts, coverage percentages, etc.
 5. **Sync with Phase Status**: Update phase completion documents
+6. **GitHub Integration**: Update associated GitHub issues/projects using `gh` CLI or GitHub subagent
 
 #### Integration with Development
 
@@ -442,16 +462,55 @@ When completing ANY task:
 # After completing a task, always:
 1. Run tests: go test ./...
 2. Update TODO.md with completion status
-3. Commit code changes
-4. Commit TODO.md update
-5. Push all changes together
+3. Update GitHub project (if applicable)
+4. Commit code changes
+5. Commit TODO.md update
+6. Push all changes together
 
 # Example workflow:
 git add internal/feature/new-feature.go
 git commit -m "feat: implement feature X"
+
+# Update GitHub if task has associated issue
+gh issue edit 56 --add-label "completed" --add-comment "Completed in commit $(git rev-parse --short HEAD)"
+
 git add TODO.md
 git commit -m "docs: mark Task 8.3 as complete in TODO.md"
 git push
+```
+
+#### GitHub Project Management
+
+**Check for Associated Tasks**:
+```bash
+# List issues for current phase
+gh issue list --label "phase-8" --json number,title,state
+
+# View specific issue details
+gh issue view <issue-number>
+
+# Update issue status
+gh issue edit <issue-number> --add-label "completed"
+gh issue comment <issue-number> --body "✅ Completed - see commit abc123"
+
+# Close issue when task is done
+gh issue close <issue-number> --comment "Task complete. See TODO.md for details."
+```
+
+**Using GitHub Subagent** (if available):
+The GitHub subagent/skill can automatically:
+- Sync TODO.md with GitHub Projects
+- Update issue status when tasks complete
+- Create project cards from TODO items
+- Generate progress reports
+
+Example:
+```bash
+# Check if GitHub subagent is available
+gh extension list | grep project
+
+# Sync TODO with GitHub (conceptual - actual command depends on subagent)
+# The subagent would read TODO.md and update corresponding GitHub issues
 ```
 
 #### TODO.md Structure Reference

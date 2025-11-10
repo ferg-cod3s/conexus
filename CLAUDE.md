@@ -21,6 +21,7 @@ This guide provides context for AI assistants (like Claude, GPT, etc.) working w
   - **CRITICAL**: Update immediately when completing tasks
   - Mark tasks as ✅ COMPLETE with completion date
   - Update metrics and phase status
+  - Update associated GitHub issues/projects
   - See [@AGENTS.md#task-management](./AGENTS.md#-task-management) for detailed workflow
 
 ### 📋 Version Management
@@ -104,6 +105,7 @@ Is it breaking/enterprise? → Major (1.0.0)
 - **Cross-Reference**: Link to relevant documentation
 - **Task Tracking**: Update [@TODO.md](./TODO.md) immediately when tasks complete
   - See [@AGENTS.md#task-management](./AGENTS.md#-task-management) for workflow
+  - Update GitHub issues/projects using `gh` CLI or GitHub subagent
 
 ---
 
@@ -135,8 +137,27 @@ Is it breaking/enterprise? → Major (1.0.0)
 1. **Mark Complete**: Update [@TODO.md](./TODO.md) with ✅ COMPLETE status
 2. **Add Completion Date**: Include the date task was finished
 3. **Update Metrics**: Refresh test counts, coverage percentages
-4. **Commit TODO**: Always commit TODO.md updates with your changes
-5. **See Full Workflow**: [@AGENTS.md#task-management](./AGENTS.md#-task-management)
+4. **Update GitHub**: Check for associated GitHub issues/projects and update status
+5. **Commit TODO**: Always commit TODO.md updates with your changes
+6. **See Full Workflow**: [@AGENTS.md#task-management](./AGENTS.md#-task-management)
+
+### GitHub Project Integration
+When completing tasks:
+```bash
+# Check for associated GitHub issues
+gh issue list --label "phase-8"
+
+# Update issue status when task complete
+gh issue edit <issue-number> --add-label "completed"
+
+# Add completion comment with commit reference
+gh issue comment <issue-number> --body "✅ Completed in commit $(git rev-parse --short HEAD)"
+
+# Close issue if task is fully done
+gh issue close <issue-number>
+```
+
+Use GitHub CLI (`gh`) or GitHub subagent to keep GitHub Projects synchronized with [@TODO.md](./TODO.md).
 
 ### When Proposing Versions
 - **Reference Criteria**: Link to specific versioning rules
