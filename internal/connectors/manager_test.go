@@ -191,6 +191,36 @@ func TestManager_InitializeWithHooks(t *testing.T) {
 		assert.False(t, exists)
 	})
 
+	t.Run("post-init hook failure with rollback error logs warning", func(t *testing.T) {
+		store := newMockStore()
+		// Set removeErr to simulate rollback failure
+		store.removeErr = errors.New("database locked")
+		manager := NewManager(store)
+		hook := &mockHook{postInitErr: errors.New("health check failed")}
+		manager.RegisterHook(hook)
+
+		connector := &Connector{ID: "test", Type: "mock"}
+		err := manager.Initialize(ctx, connector)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "post-init failed")
+		assert.Contains(t, err.Error(), "health check failed")
+
+		// Note: The log output will be captured by the test runner
+		// The main assertion is that the error is still returned correctly
+		// and the rollback error doesn't override the original post-init error
+
+		// Verify connector still in store (rollback failed)
+		stored, storeErr := store.Get(ctx, connector.ID)
+		require.NoError(t, storeErr)
+		assert.Equal(t, connector.ID, stored.ID)
+
+		// Verify connector NOT in memory (because post-init failed)
+		manager.mu.RLock()
+		_, exists := manager.connectors[connector.ID]
+		manager.mu.RUnlock()
+		assert.False(t, exists)
+	})
+
 	t.Run("store add failure", func(t *testing.T) {
 		store := newMockStore()
 		store.addErr = errors.New("store full")
