@@ -722,18 +722,179 @@ For detailed API documentation, see **[MCP Integration Guide](docs/getting-start
 
 ---
 
+## 🔗 Connectors
+
+Conexus supports **dynamic connector integration** with popular development platforms. Connectors extend Conexus with platform-specific tools - you only see tools for connectors you configure.
+
+### Supported Platforms
+
+| Platform | Status | Tools | Auth Methods |
+|----------|--------|-------|--------------|
+| **GitHub** | ✅ Ready | 6 tools | PAT, OAuth, GitHub App |
+| **Slack** | ✅ Ready | 3 tools | Bot Token, OAuth |
+| **Jira** | ✅ Ready | 3 tools | API Token, OAuth 2.0 |
+| **Discord** | ✅ Ready | 3 tools | Bot Token, OAuth |
+
+### How It Works
+
+**1. Configure connectors you need:**
+```json
+{
+  "connectors": [
+    {
+      "id": "github-main",
+      "type": "github",
+      "config": {
+        "token": "${GITHUB_TOKEN}",
+        "repository": "owner/repo"
+      }
+    },
+    {
+      "id": "slack-team",
+      "type": "slack",
+      "config": {
+        "token": "${SLACK_TOKEN}",
+        "channels": ["C01234567"]
+      }
+    }
+  ]
+}
+```
+
+**2. Tools automatically register:**
+- GitHub connector → `github.*` tools appear
+- Slack connector → `slack.*` tools appear
+- No connector → No tools (clean interface!)
+
+**3. Use connector-specific tools:**
+```json
+// Search GitHub issues
+{
+  "tool": "github.search_issues",
+  "arguments": {
+    "connector_id": "github-main",
+    "query": "is:open label:bug"
+  }
+}
+
+// Search Slack messages
+{
+  "tool": "slack.search",
+  "arguments": {
+    "connector_id": "slack-team",
+    "query": "deployment"
+  }
+}
+```
+
+### Available Tools by Connector
+
+**GitHub Tools:**
+- `github.search_issues` - Search issues with GitHub syntax
+- `github.get_issue` - Get issue with comments
+- `github.get_pr` - Get pull request with comments
+- `github.list_repos` - List accessible repositories
+- `github.sync_status` - Check sync status
+- `github.sync_trigger` - Trigger data sync
+
+**Slack Tools:**
+- `slack.search` - Search messages
+- `slack.list_channels` - List channels
+- `slack.get_thread` - Get message thread
+
+**Jira Tools:**
+- `jira.search` - Search with JQL
+- `jira.get_issue` - Get issue with comments
+- `jira.list_projects` - List projects
+
+**Discord Tools:**
+- `discord.search` - Search messages in channel
+- `discord.list_channels` - List channels
+- `discord.get_thread` - Get thread messages
+
+### Quick Setup
+
+**1. Get credentials:**
+- GitHub: https://github.com/settings/tokens (1 min)
+- Slack: https://api.slack.com/apps (5 min)
+- Jira: https://id.atlassian.com/manage-profile/security/api-tokens (2 min)
+- Discord: https://discord.com/developers/applications (5 min)
+
+**2. Configure:**
+```bash
+cp config/connectors.example.json config/connectors.json
+# Edit config/connectors.json with your credentials
+```
+
+**3. Start:**
+```bash
+export GITHUB_TOKEN="ghp_xxxxx"
+export SLACK_TOKEN="xoxb_xxxxx"
+
+conexus server --config config/connectors.json
+```
+
+### Multiple Instances
+
+Configure multiple instances of the same connector:
+
+```json
+{
+  "connectors": [
+    {"id": "github-backend", "type": "github", "config": {"repository": "company/backend"}},
+    {"id": "github-frontend", "type": "github", "config": {"repository": "company/frontend"}},
+    {"id": "slack-eng", "type": "slack", "config": {"channels": ["C111"]}},
+    {"id": "slack-product", "type": "slack", "config": {"channels": ["C222"]}}
+  ]
+}
+```
+
+Different `connector_id` values distinguish between instances.
+
+### OAuth Support
+
+All connectors support OAuth 2.0 for production deployments:
+
+```json
+{
+  "type": "github",
+  "config": {
+    "auth_type": "oauth",
+    "client_id": "xxx",
+    "client_secret": "${GITHUB_OAUTH_SECRET}",
+    "redirect_uri": "http://localhost:8080/oauth/github/callback"
+  }
+}
+```
+
+**Benefits:**
+- ✅ User-initiated authorization
+- ✅ Automatic token refresh
+- ✅ Better security
+- ✅ Granular permissions
+
+### Documentation
+
+- 📘 **[Connector Setup Guide](docs/CONNECTOR_SETUP.md)** - Complete setup instructions
+- 📙 **[OAuth Implementation](docs/OAUTH_IMPLEMENTATION.md)** - OAuth 2.0 configuration
+- 📗 **[Connector Configuration](docs/CONNECTOR_CONFIGURATION.md)** - Advanced configuration
+- 📕 **[Testing & Auth Guide](docs/CONNECTOR_TESTING_AUTH.md)** - Platform-specific auth details
+- 📔 **[Testing Quick Start](docs/TESTING_QUICK_START.md)** - Get testing in 5 minutes
+
+---
+
 ## 🚀 Future Enhancements
 
-While Conexus currently focuses on being a robust MCP server, we have plans for additional capabilities:
+While Conexus now provides robust connector support, we have plans for additional capabilities:
 
 ### Planned Features
 
 - **🤖 Multi-Agent Architecture**: Specialized agents for complex code analysis tasks
-- **✅ Evidence Validation**: Complete traceability for all code analysis results  
+- **✅ Evidence Validation**: Complete traceability for all code analysis results
 - **📊 Advanced Profiling**: Performance metrics and optimization recommendations
 - **🔄 Workflow Orchestration**: Complex multi-step analysis workflows
 - **🔐 Enterprise Features**: Authentication, authorization, and team management
-- **🌐 Enhanced Connectors**: GitHub, Jira, Slack, and other data source integrations
+- **🌐 Additional Connectors**: Bitbucket, GitLab, Linear, Notion, and more
 
 ### Enterprise Roadmap
 
@@ -742,9 +903,9 @@ For teams requiring advanced capabilities, we're planning:
 - **Multi-tenant Support**: Isolated workspaces and team collaboration
 - **Advanced Security**: RBAC, audit logging, and compliance features
 - **Scalable Architecture**: Distributed processing and cloud deployment
-- **Custom Integrations**: API for building custom data source connectors
+- **Custom Integrations**: SDK for building custom connectors
 
-These features are being designed based on user feedback and will be released in future versions. The current focus remains on providing the best MCP server experience for individual developers and teams.
+These features are being designed based on user feedback and will be released in future versions.
 
 ---
 
