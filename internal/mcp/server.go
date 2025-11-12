@@ -205,6 +205,12 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (i
 		return s.handleSlackListChannels(ctx, req.Arguments)
 	case ToolSlackGetThread:
 		return s.handleSlackGetThread(ctx, req.Arguments)
+	case ToolJiraSearch:
+		return s.handleJiraSearch(ctx, req.Arguments)
+	case ToolJiraGetIssue:
+		return s.handleJiraGetIssue(ctx, req.Arguments)
+	case ToolJiraListProjects:
+		return s.handleJiraListProjects(ctx, req.Arguments)
 	default:
 		errorCtx := observability.ExtractErrorContext(ctx, "tools/call")
 		errorCtx.ErrorType = "tool_not_found"

@@ -384,6 +384,88 @@ type SlackThread struct {
 	Messages     []SlackMessage `json:"messages"`
 }
 
+// JiraSearchRequest represents input for jira.search tool
+type JiraSearchRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	JQL         string `json:"jql"`          // JQL query string
+}
+
+// JiraSearchResponse represents output of jira.search tool
+type JiraSearchResponse struct {
+	Status  string                 `json:"status"` // "ok", "error"
+	Message string                 `json:"message"`
+	Issues  []JiraIssue            `json:"issues,omitempty"`
+	Details map[string]interface{} `json:"details,omitempty"`
+}
+
+// JiraIssue represents a Jira issue
+type JiraIssue struct {
+	ID          string    `json:"id"`
+	Key         string    `json:"key"`
+	Summary     string    `json:"summary"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	Priority    string    `json:"priority"`
+	IssueType   string    `json:"issue_type"`
+	Assignee    string    `json:"assignee"`
+	Reporter    string    `json:"reporter"`
+	Labels      []string  `json:"labels,omitempty"`
+	Components  []string  `json:"components,omitempty"`
+	FixVersions []string  `json:"fix_versions,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	ResolvedAt  time.Time `json:"resolved_at,omitempty"`
+	Project     string    `json:"project"`
+}
+
+// JiraGetIssueRequest represents input for jira.get_issue tool
+type JiraGetIssueRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	IssueKey    string `json:"issue_key"`    // Required - issue key (e.g., PROJ-123)
+}
+
+// JiraGetIssueResponse represents output of jira.get_issue tool
+type JiraGetIssueResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Issue    *JiraIssue             `json:"issue,omitempty"`
+	Comments []JiraComment          `json:"comments,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// JiraComment represents a Jira issue comment
+type JiraComment struct {
+	ID        string    `json:"id"`
+	IssueKey  string    `json:"issue_key"`
+	Author    string    `json:"author"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// JiraListProjectsRequest represents input for jira.list_projects tool
+type JiraListProjectsRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+}
+
+// JiraListProjectsResponse represents output of jira.list_projects tool
+type JiraListProjectsResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Projects []JiraProject          `json:"projects,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// JiraProject represents a Jira project
+type JiraProject struct {
+	ID          string `json:"id"`
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Lead        string `json:"lead,omitempty"`
+	Type        string `json:"type"`
+}
+
 // ToolDefinition represents an MCP tool definition
 type ToolDefinition struct {
 	Name        string          `json:"name"`
@@ -653,6 +735,56 @@ func GetToolDefinitions() []ToolDefinition {
 					}
 				},
 				"required": ["connector_id", "channel_id", "thread_ts"]
+			}`),
+		},
+		{
+			Name:        ToolJiraSearch,
+			Description: "Search for Jira issues using JQL (Jira Query Language)",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Jira connector ID to search in"
+					},
+					"jql": {
+						"type": "string",
+						"description": "JQL query string (e.g., 'project = PROJ AND status = Open')"
+					}
+				},
+				"required": ["connector_id", "jql"]
+			}`),
+		},
+		{
+			Name:        ToolJiraGetIssue,
+			Description: "Retrieve a specific Jira issue by key, including comments",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Jira connector ID"
+					},
+					"issue_key": {
+						"type": "string",
+						"description": "Jira issue key (e.g., PROJ-123)"
+					}
+				},
+				"required": ["connector_id", "issue_key"]
+			}`),
+		},
+		{
+			Name:        ToolJiraListProjects,
+			Description: "List all accessible Jira projects",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Jira connector ID"
+					}
+				},
+				"required": ["connector_id"]
 			}`),
 		},
 	}

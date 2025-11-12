@@ -14,6 +14,7 @@ import (
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
 	"github.com/ferg-cod3s/conexus/internal/connectors/github"
+	_ "github.com/ferg-cod3s/conexus/internal/connectors/jira" // Imported for types used by connectorManager
 	"github.com/ferg-cod3s/conexus/internal/connectors/slack"
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/indexer"
@@ -2068,6 +2069,251 @@ func (s *Server) handleSlackGetThread(ctx context.Context, args json.RawMessage)
 		Status:  "ok",
 		Message: fmt.Sprintf("Found thread with %d messages", len(mcpMessages)),
 		Thread:  mcpThread,
+	}, nil
+}
+
+// handleJiraSearch implements the jira.search tool
+func (s *Server) handleJiraSearch(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req JiraSearchRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.JQL == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "jql is required",
+		}
+	}
+
+	// Check if connector exists and is Jira type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "jira" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Jira connector", req.ConnectorID),
+		}
+	}
+
+	// Search issues
+	issues, err := s.connectorManager.SearchJiraIssues(ctx, req.ConnectorID, req.JQL)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to search Jira issues: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpIssues := make([]JiraIssue, 0, len(issues))
+	for _, issue := range issues {
+		mcpIssue := JiraIssue{
+			ID:          issue.ID,
+			Key:         issue.Key,
+			Summary:     issue.Summary,
+			Description: issue.Description,
+			Status:      issue.Status,
+			Priority:    issue.Priority,
+			IssueType:   issue.IssueType,
+			Assignee:    issue.Assignee,
+			Reporter:    issue.Reporter,
+			Labels:      issue.Labels,
+			Components:  issue.Components,
+			FixVersions: issue.FixVersions,
+			CreatedAt:   issue.CreatedAt,
+			UpdatedAt:   issue.UpdatedAt,
+			Project:     issue.Project,
+		}
+		if issue.ResolvedAt != nil {
+			mcpIssue.ResolvedAt = *issue.ResolvedAt
+		}
+		mcpIssues = append(mcpIssues, mcpIssue)
+	}
+
+	return JiraSearchResponse{
+		Status:  "ok",
+		Message: fmt.Sprintf("Found %d issues", len(mcpIssues)),
+		Issues:  mcpIssues,
+	}, nil
+}
+
+// handleJiraGetIssue implements the jira.get_issue tool
+func (s *Server) handleJiraGetIssue(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req JiraGetIssueRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.IssueKey == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "issue_key is required",
+		}
+	}
+
+	// Check if connector exists and is Jira type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "jira" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Jira connector", req.ConnectorID),
+		}
+	}
+
+	// Get issue
+	issue, err := s.connectorManager.GetJiraIssue(ctx, req.ConnectorID, req.IssueKey)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get Jira issue: %v", err),
+		}
+	}
+
+	// Get comments
+	comments, err := s.connectorManager.GetJiraIssueComments(ctx, req.ConnectorID, req.IssueKey)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get Jira issue comments: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpIssue := &JiraIssue{
+		ID:          issue.ID,
+		Key:         issue.Key,
+		Summary:     issue.Summary,
+		Description: issue.Description,
+		Status:      issue.Status,
+		Priority:    issue.Priority,
+		IssueType:   issue.IssueType,
+		Assignee:    issue.Assignee,
+		Reporter:    issue.Reporter,
+		Labels:      issue.Labels,
+		Components:  issue.Components,
+		FixVersions: issue.FixVersions,
+		CreatedAt:   issue.CreatedAt,
+		UpdatedAt:   issue.UpdatedAt,
+		Project:     issue.Project,
+	}
+	if issue.ResolvedAt != nil {
+		mcpIssue.ResolvedAt = *issue.ResolvedAt
+	}
+
+	mcpComments := make([]JiraComment, 0, len(comments))
+	for _, comment := range comments {
+		mcpComments = append(mcpComments, JiraComment{
+			ID:        comment.ID,
+			IssueKey:  comment.IssueKey,
+			Author:    comment.Author,
+			Body:      comment.Body,
+			CreatedAt: comment.CreatedAt,
+			UpdatedAt: comment.UpdatedAt,
+		})
+	}
+
+	return JiraGetIssueResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Retrieved issue %s with %d comments", req.IssueKey, len(mcpComments)),
+		Issue:    mcpIssue,
+		Comments: mcpComments,
+	}, nil
+}
+
+// handleJiraListProjects implements the jira.list_projects tool
+func (s *Server) handleJiraListProjects(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req JiraListProjectsRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+
+	// Check if connector exists and is Jira type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "jira" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Jira connector", req.ConnectorID),
+		}
+	}
+
+	// List projects
+	projects, err := s.connectorManager.ListJiraProjects(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to list Jira projects: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpProjects := make([]JiraProject, 0, len(projects))
+	for _, proj := range projects {
+		mcpProjects = append(mcpProjects, JiraProject{
+			ID:          proj.ID,
+			Key:         proj.Key,
+			Name:        proj.Name,
+			Description: proj.Description,
+			Lead:        proj.Lead,
+			Type:        proj.Type,
+		})
+	}
+
+	return JiraListProjectsResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Found %d projects", len(mcpProjects)),
+		Projects: mcpProjects,
 	}, nil
 }
 
