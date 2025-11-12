@@ -556,3 +556,377 @@ func (gc *Connector) WaitForRateLimit(ctx context.Context) error {
 
 	return nil
 }
+
+// SearchIssues searches for issues using GitHub search syntax
+func (gc *Connector) SearchIssues(ctx context.Context, query string, state string) ([]Issue, error) {
+	owner, repo := parseRepository(gc.config.Repository)
+
+	// Build search query with repository filter
+	searchQuery := fmt.Sprintf("repo:%s/%s %s", owner, repo, query)
+	if state != "" && state != "all" {
+		searchQuery = fmt.Sprintf("%s state:%s", searchQuery, state)
+	}
+
+	opts := &github.SearchOptions{
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	result, _, err := gc.client.SearchIssues(ctx, searchQuery, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search issues: %w", err)
+	}
+
+	var issues []Issue
+	for _, ghIssue := range result.Issues {
+		// Skip pull requests (GitHub API returns PRs in issue search)
+		if ghIssue.PullRequestLinks != nil {
+			continue
+		}
+
+		createdAt := time.Time{}
+		if ghIssue.CreatedAt != nil {
+			createdAt = *ghIssue.CreatedAt
+		}
+
+		updatedAt := time.Time{}
+		if ghIssue.UpdatedAt != nil {
+			updatedAt = *ghIssue.UpdatedAt
+		}
+
+		assignee := ""
+		if ghIssue.Assignee != nil {
+			assignee = ghIssue.Assignee.GetLogin()
+		}
+
+		var labels []string
+		for _, label := range ghIssue.Labels {
+			labels = append(labels, label.GetName())
+		}
+
+		issue := Issue{
+			ID:          ghIssue.GetID(),
+			Number:      ghIssue.GetNumber(),
+			Title:       ghIssue.GetTitle(),
+			Description: ghIssue.GetBody(),
+			State:       ghIssue.GetState(),
+			Labels:      labels,
+			Assignee:    assignee,
+			CreatedAt:   createdAt,
+			UpdatedAt:   updatedAt,
+		}
+
+		issues = append(issues, issue)
+	}
+
+	return issues, nil
+}
+
+// GetIssue retrieves a specific issue by number
+func (gc *Connector) GetIssue(ctx context.Context, issueNumber int) (*Issue, error) {
+	owner, repo := parseRepository(gc.config.Repository)
+
+	ghIssue, _, err := gc.client.GetIssue(ctx, owner, repo, issueNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue: %w", err)
+	}
+
+	createdAt := time.Time{}
+	if ghIssue.CreatedAt != nil {
+		createdAt = *ghIssue.CreatedAt
+	}
+
+	updatedAt := time.Time{}
+	if ghIssue.UpdatedAt != nil {
+		updatedAt = *ghIssue.UpdatedAt
+	}
+
+	assignee := ""
+	if ghIssue.Assignee != nil {
+		assignee = ghIssue.Assignee.GetLogin()
+	}
+
+	var labels []string
+	for _, label := range ghIssue.Labels {
+		labels = append(labels, label.GetName())
+	}
+
+	issue := &Issue{
+		ID:          ghIssue.GetID(),
+		Number:      ghIssue.GetNumber(),
+		Title:       ghIssue.GetTitle(),
+		Description: ghIssue.GetBody(),
+		State:       ghIssue.GetState(),
+		Labels:      labels,
+		Assignee:    assignee,
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
+	}
+
+	return issue, nil
+}
+
+// Comment represents a GitHub comment
+type Comment struct {
+	ID        int64     `json:"id"`
+	Author    string    `json:"author"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// GetIssueComments retrieves all comments for an issue
+func (gc *Connector) GetIssueComments(ctx context.Context, issueNumber int) ([]Comment, error) {
+	owner, repo := parseRepository(gc.config.Repository)
+
+	opts := &github.IssueListCommentsOptions{
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	var allComments []Comment
+	for {
+		comments, resp, err := gc.client.ListIssueComments(ctx, owner, repo, issueNumber, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list issue comments: %w", err)
+		}
+
+		for _, c := range comments {
+			createdAt := time.Time{}
+			if c.CreatedAt != nil {
+				createdAt = *c.CreatedAt
+			}
+
+			updatedAt := time.Time{}
+			if c.UpdatedAt != nil {
+				updatedAt = *c.UpdatedAt
+			}
+
+			author := ""
+			if c.User != nil {
+				author = c.User.GetLogin()
+			}
+
+			comment := Comment{
+				ID:        c.GetID(),
+				Author:    author,
+				Body:      c.GetBody(),
+				CreatedAt: createdAt,
+				UpdatedAt: updatedAt,
+			}
+			allComments = append(allComments, comment)
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allComments, nil
+}
+
+// GetPullRequest retrieves a specific pull request by number
+func (gc *Connector) GetPullRequest(ctx context.Context, prNumber int) (*PullRequest, error) {
+	owner, repo := parseRepository(gc.config.Repository)
+
+	ghPR, _, err := gc.client.GetPullRequest(ctx, owner, repo, prNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pull request: %w", err)
+	}
+
+	createdAt := time.Time{}
+	if ghPR.CreatedAt != nil {
+		createdAt = *ghPR.CreatedAt
+	}
+
+	updatedAt := time.Time{}
+	if ghPR.UpdatedAt != nil {
+		updatedAt = *ghPR.UpdatedAt
+	}
+
+	assignee := ""
+	if ghPR.Assignee != nil {
+		assignee = ghPR.Assignee.GetLogin()
+	}
+
+	headBranch := ""
+	if ghPR.Head != nil && ghPR.Head.Ref != nil {
+		headBranch = *ghPR.Head.Ref
+	}
+
+	baseBranch := ""
+	if ghPR.Base != nil && ghPR.Base.Ref != nil {
+		baseBranch = *ghPR.Base.Ref
+	}
+
+	var labels []string
+	for _, label := range ghPR.Labels {
+		labels = append(labels, label.GetName())
+	}
+
+	var linkedIssues []string
+	if ghPR.Body != nil {
+		linkedIssues = extractIssueReferences(*ghPR.Body)
+	}
+
+	pr := &PullRequest{
+		ID:           ghPR.GetID(),
+		Number:       ghPR.GetNumber(),
+		Title:        ghPR.GetTitle(),
+		Description:  ghPR.GetBody(),
+		State:        ghPR.GetState(),
+		Merged:       ghPR.GetMerged(),
+		Labels:       labels,
+		Assignee:     assignee,
+		HeadBranch:   headBranch,
+		BaseBranch:   baseBranch,
+		CreatedAt:    createdAt,
+		UpdatedAt:    updatedAt,
+		LinkedIssues: linkedIssues,
+	}
+
+	if ghPR.MergedAt != nil {
+		pr.MergedAt = ghPR.MergedAt
+	}
+
+	return pr, nil
+}
+
+// GetPRComments retrieves all comments for a pull request
+func (gc *Connector) GetPRComments(ctx context.Context, prNumber int) ([]Comment, error) {
+	owner, repo := parseRepository(gc.config.Repository)
+
+	opts := &github.IssueListCommentsOptions{
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	var allComments []Comment
+	for {
+		comments, resp, err := gc.client.ListIssueComments(ctx, owner, repo, prNumber, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list PR comments: %w", err)
+		}
+
+		for _, c := range comments {
+			createdAt := time.Time{}
+			if c.CreatedAt != nil {
+				createdAt = *c.CreatedAt
+			}
+
+			updatedAt := time.Time{}
+			if c.UpdatedAt != nil {
+				updatedAt = *c.UpdatedAt
+			}
+
+			author := ""
+			if c.User != nil {
+				author = c.User.GetLogin()
+			}
+
+			comment := Comment{
+				ID:        c.GetID(),
+				Author:    author,
+				Body:      c.GetBody(),
+				CreatedAt: createdAt,
+				UpdatedAt: updatedAt,
+			}
+			allComments = append(allComments, comment)
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allComments, nil
+}
+
+// Repository represents a GitHub repository
+type Repository struct {
+	Name          string    `json:"name"`
+	FullName      string    `json:"full_name"`
+	Description   string    `json:"description"`
+	Private       bool      `json:"private"`
+	DefaultBranch string    `json:"default_branch"`
+	Language      string    `json:"language"`
+	Stars         int       `json:"stars"`
+	Forks         int       `json:"forks"`
+	OpenIssues    int       `json:"open_issues"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	URL           string    `json:"url"`
+}
+
+// ListRepositories lists all accessible repositories for the authenticated user
+func (gc *Connector) ListRepositories(ctx context.Context) ([]Repository, error) {
+	opts := &github.RepositoryListOptions{
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	var allRepos []Repository
+	for {
+		repos, resp, err := gc.client.ListRepositories(ctx, "", opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list repositories: %w", err)
+		}
+
+		for _, r := range repos {
+			createdAt := time.Time{}
+			if r.CreatedAt != nil {
+				createdAt = r.CreatedAt.Time
+			}
+
+			updatedAt := time.Time{}
+			if r.UpdatedAt != nil {
+				updatedAt = r.UpdatedAt.Time
+			}
+
+			stars := 0
+			if r.StargazersCount != nil {
+				stars = *r.StargazersCount
+			}
+
+			forks := 0
+			if r.ForksCount != nil {
+				forks = *r.ForksCount
+			}
+
+			openIssues := 0
+			if r.OpenIssuesCount != nil {
+				openIssues = *r.OpenIssuesCount
+			}
+
+			repo := Repository{
+				Name:          r.GetName(),
+				FullName:      r.GetFullName(),
+				Description:   r.GetDescription(),
+				Private:       r.GetPrivate(),
+				DefaultBranch: r.GetDefaultBranch(),
+				Language:      r.GetLanguage(),
+				URL:           r.GetHTMLURL(),
+				Stars:         stars,
+				Forks:         forks,
+				OpenIssues:    openIssues,
+				CreatedAt:     createdAt,
+				UpdatedAt:     updatedAt,
+			}
+
+			allRepos = append(allRepos, repo)
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allRepos, nil
+}

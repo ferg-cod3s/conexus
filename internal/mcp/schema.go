@@ -16,6 +16,10 @@ const (
 	ToolContextGrep                = "context.grep"
 	ToolGitHubSyncStatus           = "github.sync_status"
 	ToolGitHubSyncTrigger          = "github.sync_trigger"
+	ToolGitHubSearchIssues         = "github.search_issues"
+	ToolGitHubGetIssue             = "github.get_issue"
+	ToolGitHubGetPR                = "github.get_pr"
+	ToolGitHubListRepos            = "github.list_repos"
 	// Slack connector tools
 	ToolSlackSearch       = "slack.search"
 	ToolSlackListChannels = "slack.list_channels"
@@ -310,6 +314,128 @@ type RateLimitInfo struct {
 	Limit     int       `json:"limit"`
 	Remaining int       `json:"remaining"`
 	Reset     time.Time `json:"reset"`
+}
+
+// GitHubSearchIssuesRequest represents input for github.search_issues tool
+type GitHubSearchIssuesRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	Query       string `json:"query"`        // Search query (supports GitHub search syntax)
+	State       string `json:"state,omitempty"` // Filter by state: "open", "closed", "all"
+}
+
+// GitHubSearchIssuesResponse represents output of github.search_issues tool
+type GitHubSearchIssuesResponse struct {
+	Status  string                 `json:"status"` // "ok", "error"
+	Message string                 `json:"message"`
+	Issues  []GitHubIssue          `json:"issues,omitempty"`
+	Details map[string]interface{} `json:"details,omitempty"`
+}
+
+// GitHubIssue represents a GitHub issue
+type GitHubIssue struct {
+	Number      int       `json:"number"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	State       string    `json:"state"`
+	Labels      []string  `json:"labels,omitempty"`
+	Assignee    string    `json:"assignee,omitempty"`
+	Author      string    `json:"author"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	ClosedAt    time.Time `json:"closed_at,omitempty"`
+	Repository  string    `json:"repository"`
+	URL         string    `json:"url"`
+}
+
+// GitHubGetIssueRequest represents input for github.get_issue tool
+type GitHubGetIssueRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	IssueNumber int    `json:"issue_number"` // Required
+	Repository  string `json:"repository,omitempty"` // Optional, uses default repo if not specified
+}
+
+// GitHubGetIssueResponse represents output of github.get_issue tool
+type GitHubGetIssueResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Issue    *GitHubIssue           `json:"issue,omitempty"`
+	Comments []GitHubComment        `json:"comments,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// GitHubComment represents a GitHub issue/PR comment
+type GitHubComment struct {
+	ID        int       `json:"id"`
+	Author    string    `json:"author"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// GitHubGetPRRequest represents input for github.get_pr tool
+type GitHubGetPRRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	PRNumber    int    `json:"pr_number"`    // Required
+	Repository  string `json:"repository,omitempty"` // Optional, uses default repo if not specified
+}
+
+// GitHubGetPRResponse represents output of github.get_pr tool
+type GitHubGetPRResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	PR       *GitHubPullRequest     `json:"pr,omitempty"`
+	Comments []GitHubComment        `json:"comments,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// GitHubPullRequest represents a GitHub pull request
+type GitHubPullRequest struct {
+	Number       int       `json:"number"`
+	Title        string    `json:"title"`
+	Description  string    `json:"description"`
+	State        string    `json:"state"`
+	Labels       []string  `json:"labels,omitempty"`
+	Assignee     string    `json:"assignee,omitempty"`
+	Author       string    `json:"author"`
+	HeadBranch   string    `json:"head_branch"`
+	BaseBranch   string    `json:"base_branch"`
+	Merged       bool      `json:"merged"`
+	LinkedIssues []string  `json:"linked_issues,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	MergedAt     time.Time `json:"merged_at,omitempty"`
+	ClosedAt     time.Time `json:"closed_at,omitempty"`
+	Repository   string    `json:"repository"`
+	URL          string    `json:"url"`
+}
+
+// GitHubListReposRequest represents input for github.list_repos tool
+type GitHubListReposRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+}
+
+// GitHubListReposResponse represents output of github.list_repos tool
+type GitHubListReposResponse struct {
+	Status       string                 `json:"status"` // "ok", "error"
+	Message      string                 `json:"message"`
+	Repositories []GitHubRepository     `json:"repositories,omitempty"`
+	Details      map[string]interface{} `json:"details,omitempty"`
+}
+
+// GitHubRepository represents a GitHub repository
+type GitHubRepository struct {
+	Name          string    `json:"name"`
+	FullName      string    `json:"full_name"`
+	Description   string    `json:"description,omitempty"`
+	Private       bool      `json:"private"`
+	DefaultBranch string    `json:"default_branch"`
+	Language      string    `json:"language,omitempty"`
+	Stars         int       `json:"stars"`
+	Forks         int       `json:"forks"`
+	OpenIssues    int       `json:"open_issues"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	URL           string    `json:"url"`
 }
 
 // SlackSearchRequest represents input for slack.search tool
@@ -740,6 +866,88 @@ func GetToolDefinitions() []ToolDefinition {
 						"type": "boolean",
 						"default": false,
 						"description": "Force sync even if recently synced"
+					}
+				},
+				"required": ["connector_id"]
+			}`),
+		},
+		{
+			Name:        ToolGitHubSearchIssues,
+			Description: "Search for GitHub issues using query syntax (supports filters like label:bug, is:open, etc.)",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "GitHub connector ID"
+					},
+					"query": {
+						"type": "string",
+						"description": "Search query (supports GitHub search syntax)"
+					},
+					"state": {
+						"type": "string",
+						"enum": ["open", "closed", "all"],
+						"default": "open",
+						"description": "Filter by issue state"
+					}
+				},
+				"required": ["connector_id", "query"]
+			}`),
+		},
+		{
+			Name:        ToolGitHubGetIssue,
+			Description: "Retrieve a specific GitHub issue by number, including all comments",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "GitHub connector ID"
+					},
+					"issue_number": {
+						"type": "integer",
+						"description": "Issue number"
+					},
+					"repository": {
+						"type": "string",
+						"description": "Repository name (optional, uses default if not specified)"
+					}
+				},
+				"required": ["connector_id", "issue_number"]
+			}`),
+		},
+		{
+			Name:        ToolGitHubGetPR,
+			Description: "Retrieve a specific GitHub pull request by number, including comments and linked issues",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "GitHub connector ID"
+					},
+					"pr_number": {
+						"type": "integer",
+						"description": "Pull request number"
+					},
+					"repository": {
+						"type": "string",
+						"description": "Repository name (optional, uses default if not specified)"
+					}
+				},
+				"required": ["connector_id", "pr_number"]
+			}`),
+		},
+		{
+			Name:        ToolGitHubListRepos,
+			Description: "List all accessible GitHub repositories for the connector",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "GitHub connector ID"
 					}
 				},
 				"required": ["connector_id"]
