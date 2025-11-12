@@ -2534,6 +2534,14 @@ func getStringFromMetadata(metadata map[string]interface{}, key string) string {
 	return ""
 }
 
+// getTimeValue safely converts *time.Time to time.Time
+func getTimeValue(t *time.Time) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return *t
+}
+
 // handleGitHubSearchIssues implements the github.search_issues tool
 func (s *Server) handleGitHubSearchIssues(ctx context.Context, args json.RawMessage) (interface{}, error) {
 	var req GitHubSearchIssuesRequest
@@ -2587,15 +2595,17 @@ func (s *Server) handleGitHubSearchIssues(ctx context.Context, args json.RawMess
 	mcpIssues := make([]GitHubIssue, 0, len(issues))
 	for _, issue := range issues {
 		mcpIssues = append(mcpIssues, GitHubIssue{
-			ID:          issue.ID,
 			Number:      issue.Number,
 			Title:       issue.Title,
 			Description: issue.Description,
 			State:       issue.State,
 			Labels:      issue.Labels,
 			Assignee:    issue.Assignee,
+			Author:      "", // TODO: Add Author field to connector Issue type
 			CreatedAt:   issue.CreatedAt,
 			UpdatedAt:   issue.UpdatedAt,
+			Repository:  "", // TODO: Add Repository field to connector Issue type
+			URL:         "", // TODO: Add URL field to connector Issue type
 		})
 	}
 
@@ -2666,21 +2676,23 @@ func (s *Server) handleGitHubGetIssue(ctx context.Context, args json.RawMessage)
 
 	// Convert to MCP response format
 	mcpIssue := &GitHubIssue{
-		ID:          issue.ID,
 		Number:      issue.Number,
 		Title:       issue.Title,
 		Description: issue.Description,
 		State:       issue.State,
 		Labels:      issue.Labels,
 		Assignee:    issue.Assignee,
+		Author:      "", // TODO: Add Author field to connector Issue type
 		CreatedAt:   issue.CreatedAt,
 		UpdatedAt:   issue.UpdatedAt,
+		Repository:  "", // TODO: Add Repository field to connector Issue type
+		URL:         "", // TODO: Add URL field to connector Issue type
 	}
 
 	mcpComments := make([]GitHubComment, 0, len(comments))
 	for _, comment := range comments {
 		mcpComments = append(mcpComments, GitHubComment{
-			ID:        comment.ID,
+			ID:        int(comment.ID),
 			Author:    comment.Author,
 			Body:      comment.Body,
 			CreatedAt: comment.CreatedAt,
@@ -2756,25 +2768,26 @@ func (s *Server) handleGitHubGetPR(ctx context.Context, args json.RawMessage) (i
 
 	// Convert to MCP response format
 	mcpPR := &GitHubPullRequest{
-		ID:           pr.ID,
 		Number:       pr.Number,
 		Title:        pr.Title,
 		Description:  pr.Description,
 		State:        pr.State,
 		Labels:       pr.Labels,
 		Assignee:     pr.Assignee,
+		Author:       "", // TODO: Add Author field to connector PullRequest type
 		HeadBranch:   pr.HeadBranch,
 		BaseBranch:   pr.BaseBranch,
 		Merged:       pr.Merged,
 		LinkedIssues: pr.LinkedIssues,
 		CreatedAt:    pr.CreatedAt,
 		UpdatedAt:    pr.UpdatedAt,
+		MergedAt:     getTimeValue(pr.MergedAt),
 	}
 
 	mcpComments := make([]GitHubComment, 0, len(comments))
 	for _, comment := range comments {
 		mcpComments = append(mcpComments, GitHubComment{
-			ID:        comment.ID,
+			ID:        int(comment.ID),
 			Author:    comment.Author,
 			Body:      comment.Body,
 			CreatedAt: comment.CreatedAt,
@@ -2837,17 +2850,18 @@ func (s *Server) handleGitHubListRepos(ctx context.Context, args json.RawMessage
 	mcpRepos := make([]GitHubRepository, 0, len(repos))
 	for _, repo := range repos {
 		mcpRepos = append(mcpRepos, GitHubRepository{
-			ID:          repo.ID,
-			Name:        repo.Name,
-			FullName:    repo.FullName,
-			Description: repo.Description,
-			URL:         repo.URL,
-			Private:     repo.Private,
-			Language:    repo.Language,
-			Stars:       repo.Stars,
-			Forks:       repo.Forks,
-			CreatedAt:   repo.CreatedAt,
-			UpdatedAt:   repo.UpdatedAt,
+			Name:          repo.Name,
+			FullName:      repo.FullName,
+			Description:   repo.Description,
+			Private:       repo.Private,
+			DefaultBranch: repo.DefaultBranch,
+			Language:      repo.Language,
+			Stars:         repo.Stars,
+			Forks:         repo.Forks,
+			OpenIssues:    repo.OpenIssues,
+			CreatedAt:     repo.CreatedAt,
+			UpdatedAt:     repo.UpdatedAt,
+			URL:           repo.URL,
 		})
 	}
 

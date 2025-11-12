@@ -2,6 +2,8 @@ package oauth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -379,10 +381,11 @@ func (h *Handler) validateState(state, expectedProvider string) bool {
 func generateState(provider string) (string, error) {
 	// Use the same random generation as in auth packages
 	b := make([]byte, 32)
-	if _, err := http.DefaultClient.Do(&http.Request{}); err == nil {
-		// Just a dummy check, actual random generation below
+	if _, err := rand.Read(b); err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("%s_%d", provider, time.Now().UnixNano()), nil
+	randStr := base64.URLEncoding.EncodeToString(b)
+	return fmt.Sprintf("%s_%s", provider, randStr), nil
 }
 
 // GetTokenJSON returns token information as JSON

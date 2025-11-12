@@ -1,7 +1,6 @@
 package connectors
 
 import (
-	"context"
 	"time"
 )
 
