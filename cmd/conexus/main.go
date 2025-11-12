@@ -34,6 +34,21 @@ import (
 
 const Version = "0.1.3-alpha"
 
+// parseDuration parses a duration string, returning a default if parsing fails
+func parseDuration(s string, logger *observability.Logger) time.Duration {
+	if s == "" {
+		return time.Minute // default to 1 minute
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		if logger != nil {
+			logger.Warn("Invalid duration string, using default", "duration", s, "error", err)
+		}
+		return time.Minute
+	}
+	return d
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -1061,21 +1076,6 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
-}
-
-// parseDuration parses a duration string, returning a default of 1 minute on error
-func parseDuration(s string, logger *observability.Logger) time.Duration {
-	if s == "" {
-		return time.Minute // default to 1 minute
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		if logger != nil {
-			logger.Warn("Invalid duration string, using default", "duration", s, "error", err)
-		}
-		return time.Minute
-	}
-	return d
 }
 
 func (h *mcpHTTPHandler) handleIndexControl(ctx context.Context, args json.RawMessage) (interface{}, error) {
