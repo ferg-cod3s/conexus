@@ -199,6 +199,14 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (i
 		return s.handleGitHubSyncStatus(ctx, req.Arguments)
 	case ToolGitHubSyncTrigger:
 		return s.handleGitHubSyncTrigger(ctx, req.Arguments)
+	case ToolGitHubSearchIssues:
+		return s.handleGitHubSearchIssues(ctx, req.Arguments)
+	case ToolGitHubGetIssue:
+		return s.handleGitHubGetIssue(ctx, req.Arguments)
+	case ToolGitHubGetPR:
+		return s.handleGitHubGetPR(ctx, req.Arguments)
+	case ToolGitHubListRepos:
+		return s.handleGitHubListRepos(ctx, req.Arguments)
 	case ToolSlackSearch:
 		return s.handleSlackSearch(ctx, req.Arguments)
 	case ToolSlackListChannels:

@@ -2533,3 +2533,327 @@ func getStringFromMetadata(metadata map[string]interface{}, key string) string {
 	}
 	return ""
 }
+
+// handleGitHubSearchIssues implements the github.search_issues tool
+func (s *Server) handleGitHubSearchIssues(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req GitHubSearchIssuesRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.Query == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "query is required",
+		}
+	}
+
+	// Check if connector exists and is GitHub type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "github" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a GitHub connector", req.ConnectorID),
+		}
+	}
+
+	// Search issues
+	issues, err := s.connectorManager.SearchGitHubIssues(ctx, req.ConnectorID, req.Query, req.State)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to search GitHub issues: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpIssues := make([]GitHubIssue, 0, len(issues))
+	for _, issue := range issues {
+		mcpIssues = append(mcpIssues, GitHubIssue{
+			ID:          issue.ID,
+			Number:      issue.Number,
+			Title:       issue.Title,
+			Description: issue.Description,
+			State:       issue.State,
+			Labels:      issue.Labels,
+			Assignee:    issue.Assignee,
+			CreatedAt:   issue.CreatedAt,
+			UpdatedAt:   issue.UpdatedAt,
+		})
+	}
+
+	return GitHubSearchIssuesResponse{
+		Status:  "ok",
+		Message: fmt.Sprintf("Found %d issues", len(mcpIssues)),
+		Issues:  mcpIssues,
+	}, nil
+}
+
+// handleGitHubGetIssue implements the github.get_issue tool
+func (s *Server) handleGitHubGetIssue(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req GitHubGetIssueRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.IssueNumber <= 0 {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "issue_number is required and must be positive",
+		}
+	}
+
+	// Check if connector exists and is GitHub type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "github" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a GitHub connector", req.ConnectorID),
+		}
+	}
+
+	// Get issue
+	issue, err := s.connectorManager.GetGitHubIssue(ctx, req.ConnectorID, req.IssueNumber)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get GitHub issue: %v", err),
+		}
+	}
+
+	// Get comments
+	comments, err := s.connectorManager.GetGitHubIssueComments(ctx, req.ConnectorID, req.IssueNumber)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get GitHub issue comments: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpIssue := &GitHubIssue{
+		ID:          issue.ID,
+		Number:      issue.Number,
+		Title:       issue.Title,
+		Description: issue.Description,
+		State:       issue.State,
+		Labels:      issue.Labels,
+		Assignee:    issue.Assignee,
+		CreatedAt:   issue.CreatedAt,
+		UpdatedAt:   issue.UpdatedAt,
+	}
+
+	mcpComments := make([]GitHubComment, 0, len(comments))
+	for _, comment := range comments {
+		mcpComments = append(mcpComments, GitHubComment{
+			ID:        comment.ID,
+			Author:    comment.Author,
+			Body:      comment.Body,
+			CreatedAt: comment.CreatedAt,
+			UpdatedAt: comment.UpdatedAt,
+		})
+	}
+
+	return GitHubGetIssueResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Retrieved issue #%d with %d comments", req.IssueNumber, len(mcpComments)),
+		Issue:    mcpIssue,
+		Comments: mcpComments,
+	}, nil
+}
+
+// handleGitHubGetPR implements the github.get_pr tool
+func (s *Server) handleGitHubGetPR(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req GitHubGetPRRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.PRNumber <= 0 {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "pr_number is required and must be positive",
+		}
+	}
+
+	// Check if connector exists and is GitHub type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "github" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a GitHub connector", req.ConnectorID),
+		}
+	}
+
+	// Get pull request
+	pr, err := s.connectorManager.GetGitHubPullRequest(ctx, req.ConnectorID, req.PRNumber)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get GitHub pull request: %v", err),
+		}
+	}
+
+	// Get comments
+	comments, err := s.connectorManager.GetGitHubPRComments(ctx, req.ConnectorID, req.PRNumber)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get GitHub PR comments: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpPR := &GitHubPullRequest{
+		ID:           pr.ID,
+		Number:       pr.Number,
+		Title:        pr.Title,
+		Description:  pr.Description,
+		State:        pr.State,
+		Labels:       pr.Labels,
+		Assignee:     pr.Assignee,
+		HeadBranch:   pr.HeadBranch,
+		BaseBranch:   pr.BaseBranch,
+		Merged:       pr.Merged,
+		LinkedIssues: pr.LinkedIssues,
+		CreatedAt:    pr.CreatedAt,
+		UpdatedAt:    pr.UpdatedAt,
+	}
+
+	mcpComments := make([]GitHubComment, 0, len(comments))
+	for _, comment := range comments {
+		mcpComments = append(mcpComments, GitHubComment{
+			ID:        comment.ID,
+			Author:    comment.Author,
+			Body:      comment.Body,
+			CreatedAt: comment.CreatedAt,
+			UpdatedAt: comment.UpdatedAt,
+		})
+	}
+
+	return GitHubGetPRResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Retrieved PR #%d with %d comments", req.PRNumber, len(mcpComments)),
+		PR:       mcpPR,
+		Comments: mcpComments,
+	}, nil
+}
+
+// handleGitHubListRepos implements the github.list_repos tool
+func (s *Server) handleGitHubListRepos(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req GitHubListReposRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+
+	// Check if connector exists and is GitHub type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "github" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a GitHub connector", req.ConnectorID),
+		}
+	}
+
+	// List repositories
+	repos, err := s.connectorManager.ListGitHubRepositories(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to list GitHub repositories: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpRepos := make([]GitHubRepository, 0, len(repos))
+	for _, repo := range repos {
+		mcpRepos = append(mcpRepos, GitHubRepository{
+			ID:          repo.ID,
+			Name:        repo.Name,
+			FullName:    repo.FullName,
+			Description: repo.Description,
+			URL:         repo.URL,
+			Private:     repo.Private,
+			Language:    repo.Language,
+			Stars:       repo.Stars,
+			Forks:       repo.Forks,
+			CreatedAt:   repo.CreatedAt,
+			UpdatedAt:   repo.UpdatedAt,
+		})
+	}
+
+	return GitHubListReposResponse{
+		Status:       "ok",
+		Message:      fmt.Sprintf("Found %d repositories", len(mcpRepos)),
+		Repositories: mcpRepos,
+	}, nil
+}

@@ -184,6 +184,96 @@ func (cm *ConnectorManager) SyncGitHubPullRequests(ctx context.Context, connecto
 	return githubConn.SyncPullRequests(ctx)
 }
 
+// SearchGitHubIssues searches for issues in a GitHub connector
+func (cm *ConnectorManager) SearchGitHubIssues(ctx context.Context, connectorID, query, state string) ([]github.Issue, error) {
+	conn, err := cm.GetConnector(ctx, connectorID)
+	if err != nil {
+		return nil, err
+	}
+
+	githubConn, ok := conn.(*github.Connector)
+	if !ok {
+		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
+	}
+
+	return githubConn.SearchIssues(ctx, query, state)
+}
+
+// GetGitHubIssue retrieves a specific issue from a GitHub connector
+func (cm *ConnectorManager) GetGitHubIssue(ctx context.Context, connectorID string, issueNumber int) (*github.Issue, error) {
+	conn, err := cm.GetConnector(ctx, connectorID)
+	if err != nil {
+		return nil, err
+	}
+
+	githubConn, ok := conn.(*github.Connector)
+	if !ok {
+		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
+	}
+
+	return githubConn.GetIssue(ctx, issueNumber)
+}
+
+// GetGitHubIssueComments retrieves comments for a GitHub issue
+func (cm *ConnectorManager) GetGitHubIssueComments(ctx context.Context, connectorID string, issueNumber int) ([]github.Comment, error) {
+	conn, err := cm.GetConnector(ctx, connectorID)
+	if err != nil {
+		return nil, err
+	}
+
+	githubConn, ok := conn.(*github.Connector)
+	if !ok {
+		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
+	}
+
+	return githubConn.GetIssueComments(ctx, issueNumber)
+}
+
+// GetGitHubPullRequest retrieves a specific pull request from a GitHub connector
+func (cm *ConnectorManager) GetGitHubPullRequest(ctx context.Context, connectorID string, prNumber int) (*github.PullRequest, error) {
+	conn, err := cm.GetConnector(ctx, connectorID)
+	if err != nil {
+		return nil, err
+	}
+
+	githubConn, ok := conn.(*github.Connector)
+	if !ok {
+		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
+	}
+
+	return githubConn.GetPullRequest(ctx, prNumber)
+}
+
+// GetGitHubPRComments retrieves comments for a GitHub pull request
+func (cm *ConnectorManager) GetGitHubPRComments(ctx context.Context, connectorID string, prNumber int) ([]github.Comment, error) {
+	conn, err := cm.GetConnector(ctx, connectorID)
+	if err != nil {
+		return nil, err
+	}
+
+	githubConn, ok := conn.(*github.Connector)
+	if !ok {
+		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
+	}
+
+	return githubConn.GetPRComments(ctx, prNumber)
+}
+
+// ListGitHubRepositories lists all repositories from a GitHub connector
+func (cm *ConnectorManager) ListGitHubRepositories(ctx context.Context, connectorID string) ([]github.Repository, error) {
+	conn, err := cm.GetConnector(ctx, connectorID)
+	if err != nil {
+		return nil, err
+	}
+
+	githubConn, ok := conn.(*github.Connector)
+	if !ok {
+		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
+	}
+
+	return githubConn.ListRepositories(ctx)
+}
+
 // SyncSlackMessages syncs messages from a Slack connector
 func (cm *ConnectorManager) SyncSlackMessages(ctx context.Context, connectorID string) ([]slack.Message, error) {
 	conn, err := cm.GetConnector(ctx, connectorID)
