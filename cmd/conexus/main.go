@@ -421,8 +421,6 @@ func runHTTPServer(
 	}
 
 	// Initialize security middleware
-	xContentTypeOptions := map[bool]string{true: "nosniff", false: ""}[cfg.Security.ContentType]
-
 	securityMiddleware := middleware.NewSecurityMiddleware(middleware.SecurityConfig{
 		CSP: middleware.CSPConfig{
 			Enabled: cfg.Security.CSP.Enabled,
@@ -443,9 +441,14 @@ func runHTTPServer(
 			IncludeSubdomains: cfg.Security.HSTS.IncludeSubdomains,
 			Preload:           cfg.Security.HSTS.Preload,
 		},
-		XFrameOptions:       cfg.Security.FrameOptions,
-		XContentTypeOptions: xContentTypeOptions,
-		ReferrerPolicy:      cfg.Security.ReferrerPolicy,
+		XFrameOptions: cfg.Security.FrameOptions,
+		XContentTypeOptions: func() string {
+			if cfg.Security.ContentType {
+				return "nosniff"
+			}
+			return ""
+		}(),
+		ReferrerPolicy: cfg.Security.ReferrerPolicy,
 	}, logger)
 
 	// Initialize CORS middleware

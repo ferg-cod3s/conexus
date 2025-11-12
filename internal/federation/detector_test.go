@@ -1,7 +1,7 @@
 package federation
 
 import (
-"fmt"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,9 +146,9 @@ func TestDetectRelationships_ErrorSourceSkipped(t *testing.T) {
 			},
 		},
 		{
-			Source:  "source2",
-			Error:   fmt.Errorf("connection error"),
-			Items:   nil,
+			Source: "source2",
+			Error:  fmt.Errorf("connection error"),
+			Items:  nil,
 		},
 	}
 	relationships := d.DetectRelationships(results, nil)
@@ -576,7 +576,7 @@ func TestDetectorIntegration_LargeScale(t *testing.T) {
 		var items []interface{}
 		for i := 1; i <= 20; i++ {
 			items = append(items, map[string]interface{}{
-				"id": i,
+				"id":     i,
 				"source": src,
 			})
 		}
