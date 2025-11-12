@@ -332,6 +332,11 @@ func (dc *Connector) ListThreads(ctx context.Context, channelID string) ([]Threa
 	return threads, nil
 }
 
+// GetType returns the connector type
+func (dc *Connector) GetType() string {
+	return "discord"
+}
+
 // GetRateLimit returns current rate limit information
 func (dc *Connector) GetRateLimit() *RateLimitInfo {
 	dc.rateLimitMu.RLock()

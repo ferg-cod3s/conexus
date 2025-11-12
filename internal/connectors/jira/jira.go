@@ -366,6 +366,11 @@ func (jc *Connector) convertIssue(jiraIssue *jira.Issue) Issue {
 	}
 }
 
+// GetType returns the connector type
+func (jc *Connector) GetType() string {
+	return "jira"
+}
+
 // GetRateLimit returns current rate limit information
 func (jc *Connector) GetRateLimit() *RateLimitInfo {
 	jc.rateLimitMu.RLock()

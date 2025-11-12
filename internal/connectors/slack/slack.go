@@ -304,6 +304,11 @@ func (sc *Connector) ListChannels(ctx context.Context) ([]Channel, error) {
 	return allChannels, nil
 }
 
+// GetType returns the connector type
+func (sc *Connector) GetType() string {
+	return "slack"
+}
+
 // GetRateLimit returns current rate limit information
 func (sc *Connector) GetRateLimit() *RateLimitInfo {
 	sc.rateLimitMu.RLock()

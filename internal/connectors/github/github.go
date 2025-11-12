@@ -382,6 +382,11 @@ func (gc *Connector) SyncDiscussions(ctx context.Context) ([]Discussion, error) 
 	return allDiscussions, nil
 }
 
+// GetType returns the connector type
+func (gc *Connector) GetType() string {
+	return "github"
+}
+
 // GetRateLimit returns current rate limit information
 func (gc *Connector) GetRateLimit() *RateLimitInfo {
 	gc.rateLimitMu.RLock()
