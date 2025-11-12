@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "modernc.org/sqlite" // Pure Go SQLite driver
+	_ "github.com/ncruces/go-sqlite3/driver" // Pure Go SQLite driver (WASM-based)
 
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
