@@ -56,10 +56,10 @@ func TestNewLogger(t *testing.T) {
 
 func TestLoggerLevels(t *testing.T) {
 	tests := []struct {
-		name     string
-		logFunc  func(*Logger, string)
-		logLevel string
-		message  string
+		name      string
+		logFunc   func(*Logger, string)
+		logLevel  string
+		message   string
 		shouldLog bool
 	}{
 		{
@@ -166,7 +166,6 @@ func TestLoggerWithContext(t *testing.T) {
 	assert.Contains(t, output, "user-789")
 }
 
-
 func TestLogMCPRequest(t *testing.T) {
 	var buf bytes.Buffer
 	logger := NewLogger(LoggerConfig{
@@ -197,7 +196,6 @@ func TestLogMCPResponse(t *testing.T) {
 		Output: &buf,
 	})
 
-
 	ctx := context.Background()
 	logger.LogMCPResponse(ctx, "tools/list", true, 50*time.Millisecond)
 
@@ -219,7 +217,6 @@ func TestLogMCPError(t *testing.T) {
 		Format: "json",
 		Output: &buf,
 	})
-
 
 	ctx := context.Background()
 	testErr := assert.AnError
@@ -244,7 +241,6 @@ func TestLogIndexerOperation(t *testing.T) {
 		Output: &buf,
 	})
 
-
 	ctx := context.Background()
 	logger.LogIndexerOperation(ctx, "index", "/path/to/repo", 5*time.Second)
 
@@ -267,7 +263,6 @@ func TestLogEmbedding(t *testing.T) {
 		Output: &buf,
 	})
 
-
 	ctx := context.Background()
 	logger.LogEmbedding(ctx, "text-embedding-3-small", 512, 30*time.Millisecond)
 
@@ -288,7 +283,6 @@ func TestLogVectorSearch(t *testing.T) {
 		Format: "json",
 		Output: &buf,
 	})
-
 
 	ctx := context.Background()
 	logger.LogVectorSearch(ctx, "semantic", 10, 25*time.Millisecond)
@@ -403,4 +397,3 @@ func TestLoggerWithGroup(t *testing.T) {
 	// In slog, WithGroup creates nested structure
 	assert.NotNil(t, logEntry["request"])
 }
-

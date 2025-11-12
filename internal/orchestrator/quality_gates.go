@@ -8,16 +8,16 @@ import (
 // QualityGateConfig defines quality thresholds for workflow execution
 type QualityGateConfig struct {
 	// Validation thresholds
-	RequireEvidenceBacking    bool    // Block on validation failures
-	MinEvidenceCoverage       float64 // Minimum evidence coverage percentage (0-100)
-	AllowUnbackedClaims       int     // Maximum unbacked claims allowed
-	
+	RequireEvidenceBacking bool    // Block on validation failures
+	MinEvidenceCoverage    float64 // Minimum evidence coverage percentage (0-100)
+	AllowUnbackedClaims    int     // Maximum unbacked claims allowed
+
 	// Performance thresholds
 	MaxExecutionTime          time.Duration // Maximum total workflow time
 	MaxAgentExecutionTime     time.Duration // Maximum single agent execution time
 	MaxMemoryUsage            uint64        // Maximum memory usage in bytes
 	PerformanceOverheadTarget float64       // Maximum profiling overhead percentage
-	
+
 	// Error handling
 	BlockOnValidationFailure  bool // Stop workflow on validation failure
 	BlockOnPerformanceFailure bool // Stop workflow on performance threshold breach
@@ -32,7 +32,7 @@ func DefaultQualityGates() *QualityGateConfig {
 		MaxExecutionTime:          5 * time.Minute,
 		MaxAgentExecutionTime:     1 * time.Minute,
 		MaxMemoryUsage:            500 * 1024 * 1024, // 500MB
-		PerformanceOverheadTarget: 10.0,               // <10% overhead
+		PerformanceOverheadTarget: 10.0,              // <10% overhead
 		BlockOnValidationFailure:  true,
 		BlockOnPerformanceFailure: false,
 	}
@@ -70,10 +70,10 @@ func StrictQualityGates() *QualityGateConfig {
 
 // QualityGateResult contains the results of quality gate checks
 type QualityGateResult struct {
-	Passed           bool
-	ValidationPassed bool
+	Passed            bool
+	ValidationPassed  bool
 	PerformancePassed bool
-	Violations       []Violation
+	Violations        []Violation
 }
 
 // Violation represents a quality gate threshold breach
@@ -119,20 +119,20 @@ func (qg *QualityGateConfig) CheckQualityGates(
 		PerformancePassed: true,
 		Violations:        []Violation{},
 	}
-	
+
 	// Check validation gates
 	if qg.RequireEvidenceBacking && validationResult != nil {
 		result.ValidationPassed = qg.checkValidationGates(validationResult, result)
 	}
-	
+
 	// Check performance gates
 	if profilingResult != nil {
 		result.PerformancePassed = qg.checkPerformanceGates(profilingResult, result)
 	}
-	
+
 	// Overall pass/fail
 	result.Passed = result.ValidationPassed && result.PerformancePassed
-	
+
 	return result
 }
 
@@ -142,46 +142,46 @@ func (qg *QualityGateConfig) checkValidationGates(
 	result *QualityGateResult,
 ) bool {
 	passed := true
-	
+
 	// Check evidence coverage
 	if vr.EvidenceCoverage < qg.MinEvidenceCoverage {
 		passed = false
 		result.Violations = append(result.Violations, Violation{
-			Type:        ViolationEvidenceCoverage,
-			Severity:    SeverityCritical,
-			Description: fmt.Sprintf("Evidence coverage below threshold: %.1f%% < %.1f%%", 
+			Type:     ViolationEvidenceCoverage,
+			Severity: SeverityCritical,
+			Description: fmt.Sprintf("Evidence coverage below threshold: %.1f%% < %.1f%%",
 				vr.EvidenceCoverage, qg.MinEvidenceCoverage),
-			Actual:      vr.EvidenceCoverage,
-			Expected:    qg.MinEvidenceCoverage,
+			Actual:   vr.EvidenceCoverage,
+			Expected: qg.MinEvidenceCoverage,
 		})
 	}
-	
+
 	// Check unbacked claims
 	if vr.UnbackedClaims > qg.AllowUnbackedClaims {
 		passed = false
 		result.Violations = append(result.Violations, Violation{
-			Type:        ViolationUnbackedClaims,
-			Severity:    SeverityHigh,
-			Description: fmt.Sprintf("Too many unbacked claims: %d > %d", 
+			Type:     ViolationUnbackedClaims,
+			Severity: SeverityHigh,
+			Description: fmt.Sprintf("Too many unbacked claims: %d > %d",
 				vr.UnbackedClaims, qg.AllowUnbackedClaims),
-			Actual:      vr.UnbackedClaims,
-			Expected:    qg.AllowUnbackedClaims,
+			Actual:   vr.UnbackedClaims,
+			Expected: qg.AllowUnbackedClaims,
 		})
 	}
-	
+
 	// Check invalid evidence
 	if vr.InvalidEvidence > 0 {
 		passed = false
 		result.Violations = append(result.Violations, Violation{
-			Type:        ViolationInvalidEvidence,
-			Severity:    SeverityHigh,
-			Description: fmt.Sprintf("Invalid evidence references found: %d", 
+			Type:     ViolationInvalidEvidence,
+			Severity: SeverityHigh,
+			Description: fmt.Sprintf("Invalid evidence references found: %d",
 				vr.InvalidEvidence),
-			Actual:      vr.InvalidEvidence,
-			Expected:    0,
+			Actual:   vr.InvalidEvidence,
+			Expected: 0,
 		})
 	}
-	
+
 	return passed
 }
 
@@ -191,60 +191,60 @@ func (qg *QualityGateConfig) checkPerformanceGates(
 	result *QualityGateResult,
 ) bool {
 	passed := true
-	
+
 	// Check total execution time
 	if pr.TotalDuration > qg.MaxExecutionTime {
 		passed = false
 		result.Violations = append(result.Violations, Violation{
-			Type:        ViolationExecutionTime,
-			Severity:    SeverityMedium,
-			Description: fmt.Sprintf("Workflow execution time exceeded: %v > %v", 
+			Type:     ViolationExecutionTime,
+			Severity: SeverityMedium,
+			Description: fmt.Sprintf("Workflow execution time exceeded: %v > %v",
 				pr.TotalDuration, qg.MaxExecutionTime),
-			Actual:      pr.TotalDuration,
-			Expected:    qg.MaxExecutionTime,
+			Actual:   pr.TotalDuration,
+			Expected: qg.MaxExecutionTime,
 		})
 	}
-	
+
 	// Check individual agent execution times
 	for _, exec := range pr.AgentExecutions {
 		if exec.Duration > qg.MaxAgentExecutionTime {
 			passed = false
 			result.Violations = append(result.Violations, Violation{
-				Type:        ViolationAgentTime,
-				Severity:    SeverityLow,
-				Description: fmt.Sprintf("Agent %s execution time exceeded: %v > %v", 
+				Type:     ViolationAgentTime,
+				Severity: SeverityLow,
+				Description: fmt.Sprintf("Agent %s execution time exceeded: %v > %v",
 					exec.Agent, exec.Duration, qg.MaxAgentExecutionTime),
-				Actual:      exec.Duration,
-				Expected:    qg.MaxAgentExecutionTime,
+				Actual:   exec.Duration,
+				Expected: qg.MaxAgentExecutionTime,
 			})
 		}
 	}
-	
+
 	// Check memory usage
 	if pr.PeakMemoryUsage > qg.MaxMemoryUsage {
 		passed = false
 		result.Violations = append(result.Violations, Violation{
-			Type:        ViolationMemoryUsage,
-			Severity:    SeverityHigh,
-			Description: fmt.Sprintf("Peak memory usage exceeded: %d > %d bytes", 
+			Type:     ViolationMemoryUsage,
+			Severity: SeverityHigh,
+			Description: fmt.Sprintf("Peak memory usage exceeded: %d > %d bytes",
 				pr.PeakMemoryUsage, qg.MaxMemoryUsage),
-			Actual:      pr.PeakMemoryUsage,
-			Expected:    qg.MaxMemoryUsage,
+			Actual:   pr.PeakMemoryUsage,
+			Expected: qg.MaxMemoryUsage,
 		})
 	}
-	
+
 	// Check profiling overhead
 	if pr.ProfilingOverhead > qg.PerformanceOverheadTarget {
 		// Don't fail on overhead, just warn
 		result.Violations = append(result.Violations, Violation{
-			Type:        ViolationProfilingOverhead,
-			Severity:    SeverityLow,
-			Description: fmt.Sprintf("Profiling overhead exceeded target: %.2f%% > %.2f%%", 
+			Type:     ViolationProfilingOverhead,
+			Severity: SeverityLow,
+			Description: fmt.Sprintf("Profiling overhead exceeded target: %.2f%% > %.2f%%",
 				pr.ProfilingOverhead, qg.PerformanceOverheadTarget),
-			Actual:      pr.ProfilingOverhead,
-			Expected:    qg.PerformanceOverheadTarget,
+			Actual:   pr.ProfilingOverhead,
+			Expected: qg.PerformanceOverheadTarget,
 		})
 	}
-	
+
 	return passed
 }

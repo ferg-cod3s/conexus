@@ -32,7 +32,7 @@ func TestRealCodebaseAnalysis(t *testing.T) {
 
 	// Get path to actual analyzer.go (absolute)
 	analyzerPath := filepath.Join(projectRoot, "internal", "agent", "analyzer", "analyzer.go")
-	
+
 	// Verify file exists
 	_, err := os.Stat(analyzerPath)
 	require.NoError(t, err, "analyzer.go should exist")
@@ -68,14 +68,14 @@ func TestRealCodebaseAnalysis(t *testing.T) {
 	// Verify output structure (v2: resp.Output is *AgentOutputV1, not []AgentOutputV1)
 	require.NotNil(t, resp.Output, "Should have output")
 	output := resp.Output
-	
+
 	assert.Equal(t, "AGENT_OUTPUT_V1", output.Version)
 	assert.NotEmpty(t, output.ComponentName, "Should identify component")
 	assert.NotEmpty(t, output.RawEvidence, "Should provide evidence")
-	
+
 	// Verify analysis found key structures
 	assert.NotEmpty(t, output.EntryPoints, "Should identify entry points")
-	
+
 	t.Logf("✓ Analyzed real Conexus source file: %s", analyzerPath)
 	t.Logf("✓ Found %d entry points", len(output.EntryPoints))
 	t.Logf("✓ Found %d evidence items", len(output.RawEvidence))
@@ -188,7 +188,7 @@ func TestComplexWorkflowWithRealCode(t *testing.T) {
 	require.NoError(t, err, "Step 1: Locator should complete")
 	require.Equal(t, schema.StatusComplete, locResp.Status)
 	require.NotNil(t, locResp.Output)
-	
+
 	locatedFiles := locResp.Output.RawEvidence
 	require.NotEmpty(t, locatedFiles, "Step 1: Should find files")
 
@@ -200,7 +200,7 @@ func TestComplexWorkflowWithRealCode(t *testing.T) {
 		if analyzedCount >= maxToAnalyze {
 			break
 		}
-		
+
 		if !strings.HasSuffix(ev.File, ".go") {
 			continue
 		}
@@ -220,15 +220,15 @@ func TestComplexWorkflowWithRealCode(t *testing.T) {
 		require.NoError(t, err, "Step 2: Analyzer should complete for %s", ev.File)
 		require.Equal(t, schema.StatusComplete, anaResp.Status)
 		require.NotNil(t, anaResp.Output)
-		
+
 		analyzedCount++
-		t.Logf("  → Analyzed: %s (%d entry points)", 
+		t.Logf("  → Analyzed: %s (%d entry points)",
 			anaResp.Output.ComponentName, len(anaResp.Output.EntryPoints))
 	}
 
 	assert.Equal(t, maxToAnalyze, analyzedCount, "Should analyze expected number of files")
 
-	t.Logf("✓ Complex workflow completed: Located %d files, analyzed %d", 
+	t.Logf("✓ Complex workflow completed: Located %d files, analyzed %d",
 		len(locatedFiles), analyzedCount)
 }
 
@@ -277,7 +277,7 @@ func TestMultiFileAnalysis(t *testing.T) {
 		resp, err := analyzerAgent.Execute(ctx, req)
 		require.NoError(t, err, "Analysis of %s should complete", file)
 		require.Equal(t, schema.StatusComplete, resp.Status)
-		
+
 		if resp.Output != nil {
 			results = append(results, resp.Output)
 		}
@@ -289,7 +289,7 @@ func TestMultiFileAnalysis(t *testing.T) {
 	for i, output := range results {
 		assert.Equal(t, "AGENT_OUTPUT_V1", output.Version)
 		assert.NotEmpty(t, output.RawEvidence, "File %d should have evidence", i)
-		t.Logf("✓ File %d: %s (%d evidence items)", 
+		t.Logf("✓ File %d: %s (%d evidence items)",
 			i+1, output.ComponentName, len(output.RawEvidence))
 	}
 

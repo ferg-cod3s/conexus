@@ -10,11 +10,11 @@ import (
 
 // MetricsCollector collects system-level performance metrics
 type MetricsCollector struct {
-	mu              sync.RWMutex
-	snapshots       []SystemSnapshot
-	interval        time.Duration
-	stopChan        chan struct{}
-	running         bool
+	mu        sync.RWMutex
+	snapshots []SystemSnapshot
+	interval  time.Duration
+	stopChan  chan struct{}
+	running   bool
 }
 
 // NewMetricsCollector creates a new metrics collector
@@ -28,13 +28,13 @@ func NewMetricsCollector(interval time.Duration) *MetricsCollector {
 
 // SystemSnapshot contains system metrics at a point in time
 type SystemSnapshot struct {
-	Timestamp       time.Time
-	MemoryAlloc     uint64
+	Timestamp        time.Time
+	MemoryAlloc      uint64
 	MemoryTotalAlloc uint64
-	MemorySys       uint64
-	NumGC           uint32
-	NumGoroutine    int
-	CPUCores        int
+	MemorySys        uint64
+	NumGC            uint32
+	NumGoroutine     int
+	CPUCores         int
 }
 
 // Start begins collecting metrics at regular intervals
@@ -149,10 +149,10 @@ func (mc *MetricsCollector) GetAverageMetrics() *AverageMetrics {
 	}
 
 	return &AverageMetrics{
-		AvgMemoryAlloc:   totalMemAlloc / count,
-		AvgMemorySys:     totalMemSys / count,
-		AvgGoroutines:    float64(totalGoroutines) / float64(count),
-		SampleCount:      sampleCount,
+		AvgMemoryAlloc: totalMemAlloc / count,
+		AvgMemorySys:   totalMemSys / count,
+		AvgGoroutines:  float64(totalGoroutines) / float64(count),
+		SampleCount:    sampleCount,
 	}
 }
 
@@ -218,11 +218,11 @@ func (mc *MetricsCollector) GetMemoryTrend() MemoryTrend {
 	}
 
 	return MemoryTrend{
-		Direction:    direction,
-		Rate:         rate,
-		StartMemory:  first.MemoryAlloc,
-		EndMemory:    last.MemoryAlloc,
-		Duration:     last.Timestamp.Sub(first.Timestamp),
+		Direction:   direction,
+		Rate:        rate,
+		StartMemory: first.MemoryAlloc,
+		EndMemory:   last.MemoryAlloc,
+		Duration:    last.Timestamp.Sub(first.Timestamp),
 	}
 }
 

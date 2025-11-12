@@ -318,8 +318,8 @@ type RateLimitInfo struct {
 
 // GitHubSearchIssuesRequest represents input for github.search_issues tool
 type GitHubSearchIssuesRequest struct {
-	ConnectorID string `json:"connector_id"` // Required
-	Query       string `json:"query"`        // Search query (supports GitHub search syntax)
+	ConnectorID string `json:"connector_id"`    // Required
+	Query       string `json:"query"`           // Search query (supports GitHub search syntax)
 	State       string `json:"state,omitempty"` // Filter by state: "open", "closed", "all"
 }
 
@@ -349,8 +349,8 @@ type GitHubIssue struct {
 
 // GitHubGetIssueRequest represents input for github.get_issue tool
 type GitHubGetIssueRequest struct {
-	ConnectorID string `json:"connector_id"` // Required
-	IssueNumber int    `json:"issue_number"` // Required
+	ConnectorID string `json:"connector_id"`         // Required
+	IssueNumber int    `json:"issue_number"`         // Required
 	Repository  string `json:"repository,omitempty"` // Optional, uses default repo if not specified
 }
 
@@ -374,8 +374,8 @@ type GitHubComment struct {
 
 // GitHubGetPRRequest represents input for github.get_pr tool
 type GitHubGetPRRequest struct {
-	ConnectorID string `json:"connector_id"` // Required
-	PRNumber    int    `json:"pr_number"`    // Required
+	ConnectorID string `json:"connector_id"`         // Required
+	PRNumber    int    `json:"pr_number"`            // Required
 	Repository  string `json:"repository,omitempty"` // Optional, uses default repo if not specified
 }
 
@@ -496,10 +496,10 @@ type SlackGetThreadRequest struct {
 
 // SlackGetThreadResponse represents output of slack.get_thread tool
 type SlackGetThreadResponse struct {
-	Status   string                 `json:"status"` // "ok", "error"
-	Message  string                 `json:"message"`
-	Thread   *SlackThread           `json:"thread,omitempty"`
-	Details  map[string]interface{} `json:"details,omitempty"`
+	Status  string                 `json:"status"` // "ok", "error"
+	Message string                 `json:"message"`
+	Thread  *SlackThread           `json:"thread,omitempty"`
+	Details map[string]interface{} `json:"details,omitempty"`
 }
 
 // SlackThread represents a Slack thread with messages

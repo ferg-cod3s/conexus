@@ -478,21 +478,21 @@ func TestFileWalker_RealWorldScenario(t *testing.T) {
 
 	// Create a realistic Go project structure
 	structure := map[string]string{
-		"go.mod":                           "module example.com/project",
-		"main.go":                          "package main",
-		"README.md":                        "# Project",
-		"cmd/server/main.go":               "package main",
-		"internal/app/app.go":              "package app",
-		"internal/app/app_test.go":         "package app",
-		"pkg/utils/utils.go":               "package utils",
-		"vendor/github.com/lib/lib.go":     "package lib",
-		".git/HEAD":                        "ref: refs/heads/main",
-		".github/workflows/ci.yml":         "name: CI",
-		"node_modules/package/index.js":    "module.exports = {}",
-		"build/bin/server":                 "binary",
-		"testdata/sample.txt":              "test data",
-		".env":                             "SECRET=value",
-		"coverage.out":                     "coverage data",
+		"go.mod":                        "module example.com/project",
+		"main.go":                       "package main",
+		"README.md":                     "# Project",
+		"cmd/server/main.go":            "package main",
+		"internal/app/app.go":           "package app",
+		"internal/app/app_test.go":      "package app",
+		"pkg/utils/utils.go":            "package utils",
+		"vendor/github.com/lib/lib.go":  "package lib",
+		".git/HEAD":                     "ref: refs/heads/main",
+		".github/workflows/ci.yml":      "name: CI",
+		"node_modules/package/index.js": "module.exports = {}",
+		"build/bin/server":              "binary",
+		"testdata/sample.txt":           "test data",
+		".env":                          "SECRET=value",
+		"coverage.out":                  "coverage data",
 	}
 
 	for path, content := range structure {

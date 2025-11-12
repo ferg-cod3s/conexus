@@ -32,11 +32,11 @@ func NewMerkleTree(walker Walker) MerkleTree {
 
 // treeNode represents a node in the internal Merkle tree structure.
 type treeNode struct {
-	Path     string                `json:"path"`
-	Hash     string                `json:"hash"`
-	IsFile   bool                  `json:"isFile"`
-	Size     int64                 `json:"size"`
-	Children map[string]*treeNode  `json:"children,omitempty"`
+	Path     string               `json:"path"`
+	Hash     string               `json:"hash"`
+	IsFile   bool                 `json:"isFile"`
+	Size     int64                `json:"size"`
+	Children map[string]*treeNode `json:"children,omitempty"`
 }
 
 // treeState represents the serializable state of a Merkle tree.

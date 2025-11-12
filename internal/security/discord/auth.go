@@ -58,13 +58,13 @@ type AuthConfig struct {
 
 // TokenInfo contains information about a Discord token
 type TokenInfo struct {
-	UserID       string    `json:"user_id"`
-	Username     string    `json:"username"`
-	Discriminator string   `json:"discriminator"`
-	Avatar       string    `json:"avatar,omitempty"`
-	Scopes       []string  `json:"scopes"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	TokenType    string    `json:"token_type"` // "Bot" or "Bearer"
+	UserID        string    `json:"user_id"`
+	Username      string    `json:"username"`
+	Discriminator string    `json:"discriminator"`
+	Avatar        string    `json:"avatar,omitempty"`
+	Scopes        []string  `json:"scopes"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	TokenType     string    `json:"token_type"` // "Bot" or "Bearer"
 }
 
 // SecureToken represents a secure Discord token
@@ -166,9 +166,9 @@ func NewAuthManager(config *AuthConfig, tokenStore TokenStore) (*AuthManager, er
 	// Set default scopes if not provided
 	if len(config.Scopes) == 0 {
 		config.Scopes = []string{
-			"identify",              // Get user info
-			"guilds",                // Get user's guilds
-			"guilds.members.read",   // Read guild members
+			"identify",            // Get user info
+			"guilds",              // Get user's guilds
+			"guilds.members.read", // Read guild members
 		}
 	}
 
@@ -421,12 +421,12 @@ func (am *AuthManager) GetTokenInfo(ctx context.Context) (*TokenInfo, error) {
 	}
 
 	tokenInfo := &TokenInfo{
-		UserID:       user.ID,
-		Username:     user.Username,
+		UserID:        user.ID,
+		Username:      user.Username,
 		Discriminator: user.Discriminator,
-		Avatar:       user.Avatar,
-		Scopes:       am.config.Scopes,
-		TokenType:    am.config.AuthType,
+		Avatar:        user.Avatar,
+		Scopes:        am.config.Scopes,
+		TokenType:     am.config.AuthType,
 	}
 
 	return tokenInfo, nil

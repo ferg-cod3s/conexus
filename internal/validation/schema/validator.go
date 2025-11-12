@@ -26,11 +26,11 @@ func NewValidator(allowPartial bool) *Validator {
 
 // ValidationResult contains schema validation results
 type ValidationResult struct {
-	Valid          bool
-	Errors         []ValidationError
-	Warnings       []ValidationWarning
-	MissingFields  []string
-	InvalidFields  []InvalidField
+	Valid         bool
+	Errors        []ValidationError
+	Warnings      []ValidationWarning
+	MissingFields []string
+	InvalidFields []InvalidField
 }
 
 // ValidationError represents a schema validation error

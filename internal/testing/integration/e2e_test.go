@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -245,20 +245,20 @@ func generateMultipleFunctionsOutput(filePath string) *schema.AgentOutputV1 {
 			{Claim: "Printf in Finalize", File: filePath, Lines: "28"},
 			// CallGraph - missing call to Helper
 			{Claim: "Call to Helper from Finalize", File: filePath, Lines: "34"},
-			
+
 			// DataFlow.Inputs - function parameters (file:line format)
 			{Claim: "Input parameter x in Calculate", File: filePath, Lines: "6"},
 			{Claim: "Input parameter n in Process", File: filePath, Lines: "13"},
 			{Claim: "Input parameter val in Transform", File: filePath, Lines: "21"},
 			{Claim: "Input parameter v in Finalize", File: filePath, Lines: "26"},
 			{Claim: "Input parameter msg in Helper", File: filePath, Lines: "33"},
-			
+
 			// DataFlow.Transformations - computation steps
 			{Claim: "Process validation and transformation", File: filePath, Lines: "14-17"},
 			{Claim: "Transform arithmetic operation", File: filePath, Lines: "22"},
 			{Claim: "Finalize arithmetic operation", File: filePath, Lines: "27"},
 			{Claim: "Helper string formatting", File: filePath, Lines: "34"},
-			
+
 			// DataFlow.Outputs - return values (file:line format)
 			{Claim: "Calculate return value", File: filePath, Lines: "9"},
 			{Claim: "Process return value", File: filePath, Lines: "17"},
@@ -367,21 +367,21 @@ func generateStructMethodsOutput(filePath string) *schema.AgentOutputV1 {
 			{Claim: "Division in Average method", File: filePath, Lines: "36"},
 			{Claim: "Printf in Display method", File: filePath, Lines: "47"},
 			{Claim: "Average call from Display", File: filePath, Lines: "48"},
-			
+
 			// DataFlow.Inputs
 			{Claim: "Add value parameter", File: filePath, Lines: "20"},
 			{Claim: "Subtract value parameter", File: filePath, Lines: "26"},
-			
+
 			// DataFlow.Outputs
 			{Claim: "NewCalculator return value", File: filePath, Lines: "13"},
 			{Claim: "Average return value", File: filePath, Lines: "36"},
-			
+
 			// SideEffects
 			{Claim: "Display Printf side effect", File: filePath, Lines: "47"},
-			
+
 			// ErrorHandling
 			{Claim: "Average guard clause", File: filePath, Lines: "33-35"},
-			
+
 			// StateManagement evidence
 			{Claim: "Calculator struct fields", File: filePath, Lines: "7-8"},
 			{Claim: "Total mutation in Add", File: filePath, Lines: "21"},
@@ -389,7 +389,7 @@ func generateStructMethodsOutput(filePath string) *schema.AgentOutputV1 {
 			{Claim: "Total mutation in Subtract", File: filePath, Lines: "27"},
 			{Claim: "Count mutation in Subtract", File: filePath, Lines: "28"},
 			{Claim: "Reset state mutation", File: filePath, Lines: "41-42"},
-			
+
 			// DataFlow.Transformations evidence
 			{Claim: "Add state mutation transformation", File: filePath, Lines: "21-22"},
 			{Claim: "Subtract state mutation transformation", File: filePath, Lines: "27-28"},
@@ -473,7 +473,7 @@ func generateErrorHandlingOutput(filePath string) *schema.AgentOutputV1 {
 			{Name: "Validation Chain", File: filePath, Lines: "58-74", Description: "Multiple validation steps with early returns"},
 		},
 
-		Concurrency:          []schema.ConcurrencyMechanism{},
+		Concurrency: []schema.ConcurrencyMechanism{},
 		ExternalDependencies: []schema.ExternalDependency{
 			{File: filePath, Line: 4, Module: "errors", Purpose: "Standard error creation and handling"},
 			{File: filePath, Line: 5, Module: "fmt", Purpose: "Error formatting and wrapping"},
@@ -624,7 +624,7 @@ func generateSideEffectsOutput(filePath string) *schema.AgentOutputV1 {
 			{Name: "Simulated External Call", File: filePath, Lines: "67-72", Description: "Simulate HTTP notification"},
 		},
 
-		Concurrency:          []schema.ConcurrencyMechanism{},
+		Concurrency: []schema.ConcurrencyMechanism{},
 		ExternalDependencies: []schema.ExternalDependency{
 			{File: filePath, Line: 4, Module: "fmt", Purpose: "Formatted I/O operations"},
 			{File: filePath, Line: 5, Module: "log", Purpose: "Logging operations"},
@@ -633,70 +633,70 @@ func generateSideEffectsOutput(filePath string) *schema.AgentOutputV1 {
 		Limitations:   []string{"No buffered I/O", "Synchronous file operations", "No HTTP retry logic"},
 		OpenQuestions: []string{},
 
-RawEvidence: []schema.Evidence{
-	// General evidence
-	{Claim: "Complete source code of side_effects.go", File: filePath, Lines: "1-73"},
-	
-	// Entry points
-	{Claim: "LogOperation with logging side effects", File: filePath, Lines: "10-15"},
-	{Claim: "WriteToFile with file I/O", File: filePath, Lines: "18-27"},
-	{Claim: "ReadFromFile with file I/O", File: filePath, Lines: "30-39"},
-	{Claim: "ProcessWithSideEffects with multiple effects", File: filePath, Lines: "42-56"},
-	{Claim: "NotifyUser with simulated HTTP", File: filePath, Lines: "67-72"},
-	{Claim: "recordMetric helper", File: filePath, Lines: "58-60"},
-	{Claim: "transform helper", File: filePath, Lines: "62-64"},
-	
-	// Data flow - Inputs (5 items)
-	{Claim: "Input name, value at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:10", File: filePath, Lines: "10"},
-	{Claim: "Input filename, data at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:18", File: filePath, Lines: "18"},
-	{Claim: "Input filename at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:30", File: filePath, Lines: "30"},
-	{Claim: "Input input at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:42", File: filePath, Lines: "42"},
-	{Claim: "Input userID, message at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:67", File: filePath, Lines: "67"},
-	
-	// Data flow - Transformations (4 items)
-	{Claim: "Transformation arithmetic at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:12", File: filePath, Lines: "12"},
-	{Claim: "Transformation file-write at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:20", File: filePath, Lines: "20"},
-	{Claim: "Transformation file-read at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:32", File: filePath, Lines: "32"},
-	{Claim: "Transformation formatting at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:63", File: filePath, Lines: "63"},
-	
-	// Data flow - Outputs (5 items)
-	{Claim: "Output result at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:14", File: filePath, Lines: "14"},
-	{Claim: "Output error at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:20", File: filePath, Lines: "20"},
-	{Claim: "Output data, error at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:32", File: filePath, Lines: "32"},
-	{Claim: "Output result at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:55", File: filePath, Lines: "55"},
-	{Claim: "Output error at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:70", File: filePath, Lines: "70"},
-	
-	// Side effects (16 items - matching lines 11,13,19,20,22,25,31,32,34,37,44,47,53,59,68,70)
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:11", File: filePath, Lines: "11"},
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:13", File: filePath, Lines: "13"},
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:19", File: filePath, Lines: "19"},
-	{Claim: "Side effect file-write at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:20", File: filePath, Lines: "20"},
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:22", File: filePath, Lines: "22"},
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:25", File: filePath, Lines: "25"},
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:31", File: filePath, Lines: "31"},
-	{Claim: "Side effect file-read at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:32", File: filePath, Lines: "32"},
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:34", File: filePath, Lines: "34"},
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:37", File: filePath, Lines: "37"},
-	{Claim: "Side effect console at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:44", File: filePath, Lines: "44"},
-	{Claim: "Side effect metric at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:47", File: filePath, Lines: "47"},
-	{Claim: "Side effect console at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:53", File: filePath, Lines: "53"},
-	{Claim: "Side effect console at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:59", File: filePath, Lines: "59"},
-	{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:68", File: filePath, Lines: "68"},
-	{Claim: "Side effect http at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:70", File: filePath, Lines: "70"},
-	
-	// Error handling (2 items)
-	{Claim: "Error handler catch at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:21-24", File: filePath, Lines: "21-24"},
-	{Claim: "Error handler catch at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:33-36", File: filePath, Lines: "33-36"},
-	
-	// Specific call sites
-	{Claim: "log.Printf at start of LogOperation", File: filePath, Lines: "11"},
-	{Claim: "log.Printf at end of LogOperation", File: filePath, Lines: "13"},
-	{Claim: "os.WriteFile call", File: filePath, Lines: "20"},
-	{Claim: "os.ReadFile call", File: filePath, Lines: "32"},
-	{Claim: "fmt.Println for processing", File: filePath, Lines: "44"},
-	{Claim: "recordMetric call", File: filePath, Lines: "47"},
-	{Claim: "Simulated HTTP POST", File: filePath, Lines: "70"},
-},
+		RawEvidence: []schema.Evidence{
+			// General evidence
+			{Claim: "Complete source code of side_effects.go", File: filePath, Lines: "1-73"},
+
+			// Entry points
+			{Claim: "LogOperation with logging side effects", File: filePath, Lines: "10-15"},
+			{Claim: "WriteToFile with file I/O", File: filePath, Lines: "18-27"},
+			{Claim: "ReadFromFile with file I/O", File: filePath, Lines: "30-39"},
+			{Claim: "ProcessWithSideEffects with multiple effects", File: filePath, Lines: "42-56"},
+			{Claim: "NotifyUser with simulated HTTP", File: filePath, Lines: "67-72"},
+			{Claim: "recordMetric helper", File: filePath, Lines: "58-60"},
+			{Claim: "transform helper", File: filePath, Lines: "62-64"},
+
+			// Data flow - Inputs (5 items)
+			{Claim: "Input name, value at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:10", File: filePath, Lines: "10"},
+			{Claim: "Input filename, data at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:18", File: filePath, Lines: "18"},
+			{Claim: "Input filename at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:30", File: filePath, Lines: "30"},
+			{Claim: "Input input at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:42", File: filePath, Lines: "42"},
+			{Claim: "Input userID, message at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:67", File: filePath, Lines: "67"},
+
+			// Data flow - Transformations (4 items)
+			{Claim: "Transformation arithmetic at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:12", File: filePath, Lines: "12"},
+			{Claim: "Transformation file-write at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:20", File: filePath, Lines: "20"},
+			{Claim: "Transformation file-read at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:32", File: filePath, Lines: "32"},
+			{Claim: "Transformation formatting at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:63", File: filePath, Lines: "63"},
+
+			// Data flow - Outputs (5 items)
+			{Claim: "Output result at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:14", File: filePath, Lines: "14"},
+			{Claim: "Output error at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:20", File: filePath, Lines: "20"},
+			{Claim: "Output data, error at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:32", File: filePath, Lines: "32"},
+			{Claim: "Output result at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:55", File: filePath, Lines: "55"},
+			{Claim: "Output error at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:70", File: filePath, Lines: "70"},
+
+			// Side effects (16 items - matching lines 11,13,19,20,22,25,31,32,34,37,44,47,53,59,68,70)
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:11", File: filePath, Lines: "11"},
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:13", File: filePath, Lines: "13"},
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:19", File: filePath, Lines: "19"},
+			{Claim: "Side effect file-write at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:20", File: filePath, Lines: "20"},
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:22", File: filePath, Lines: "22"},
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:25", File: filePath, Lines: "25"},
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:31", File: filePath, Lines: "31"},
+			{Claim: "Side effect file-read at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:32", File: filePath, Lines: "32"},
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:34", File: filePath, Lines: "34"},
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:37", File: filePath, Lines: "37"},
+			{Claim: "Side effect console at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:44", File: filePath, Lines: "44"},
+			{Claim: "Side effect metric at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:47", File: filePath, Lines: "47"},
+			{Claim: "Side effect console at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:53", File: filePath, Lines: "53"},
+			{Claim: "Side effect console at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:59", File: filePath, Lines: "59"},
+			{Claim: "Side effect log at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:68", File: filePath, Lines: "68"},
+			{Claim: "Side effect http at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:70", File: filePath, Lines: "70"},
+
+			// Error handling (2 items)
+			{Claim: "Error handler catch at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:21-24", File: filePath, Lines: "21-24"},
+			{Claim: "Error handler catch at /home/f3rg/src/github/conexus/tests/fixtures/side_effects.go:33-36", File: filePath, Lines: "33-36"},
+
+			// Specific call sites
+			{Claim: "log.Printf at start of LogOperation", File: filePath, Lines: "11"},
+			{Claim: "log.Printf at end of LogOperation", File: filePath, Lines: "13"},
+			{Claim: "os.WriteFile call", File: filePath, Lines: "20"},
+			{Claim: "os.ReadFile call", File: filePath, Lines: "32"},
+			{Claim: "fmt.Println for processing", File: filePath, Lines: "44"},
+			{Claim: "recordMetric call", File: filePath, Lines: "47"},
+			{Claim: "Simulated HTTP POST", File: filePath, Lines: "70"},
+		},
 	}
 }
 
@@ -804,8 +804,8 @@ func runFixtureTest(t *testing.T, fixtureName, testName string, assertions []int
 	require.NoError(t, err, "Should marshal input")
 
 	// Create workflow
-	wf, err := workflow.NewBuilder("analyze-" + strings.TrimSuffix(fixtureName, ".go")).
-		WithDescription("Analyze " + fixtureName + " fixture").
+	wf, err := workflow.NewBuilder("analyze-"+strings.TrimSuffix(fixtureName, ".go")).
+		WithDescription("Analyze "+fixtureName+" fixture").
 		AddSequentialStep(
 			"analyze",
 			"codebase-analyzer",
@@ -912,6 +912,7 @@ func TestRunWorkflowHelper(t *testing.T) {
 	t.Logf("✓ RunWorkflow helper successfully executed workflow")
 	t.Logf("✓ Simplified API reduced code by ~60%% (8 lines vs 20+ lines)")
 }
+
 // Fix for mock agents - replace lines 868-end
 
 // ============================================================================
@@ -920,15 +921,15 @@ func TestRunWorkflowHelper(t *testing.T) {
 
 // MockParallelAgent simulates an agent that executes quickly for parallel tests
 type MockParallelAgent struct {
-	Name      string
-	Duration  time.Duration
+	Name       string
+	Duration   time.Duration
 	ExecutedAt time.Time
 }
 
 func (m *MockParallelAgent) Execute(ctx context.Context, req schema.AgentRequest) (schema.AgentResponse, error) {
 	m.ExecutedAt = time.Now()
 	time.Sleep(m.Duration)
-	
+
 	return schema.AgentResponse{
 		Status: schema.StatusComplete,
 		Output: &schema.AgentOutputV1{
@@ -998,7 +999,7 @@ type MockRetryAgent struct {
 
 func (m *MockRetryAgent) Execute(ctx context.Context, req schema.AgentRequest) (schema.AgentResponse, error) {
 	m.CurrentAttempt++
-	
+
 	if m.CurrentAttempt <= m.MaxFailures {
 		return schema.AgentResponse{
 			Status: schema.StatusError,
@@ -1009,7 +1010,7 @@ func (m *MockRetryAgent) Execute(ctx context.Context, req schema.AgentRequest) (
 			},
 		}, fmt.Errorf("temporary failure on attempt %d", m.CurrentAttempt)
 	}
-	
+
 	return schema.AgentResponse{
 		Status: schema.StatusComplete,
 		Output: &schema.AgentOutputV1{
@@ -1095,13 +1096,13 @@ func (m *MockStatePassingAgent) Execute(ctx context.Context, req schema.AgentReq
 			},
 		}, err
 	}
-	
+
 	// Get component name from previous step (if exists)
 	previousComponent := "none"
 	if prevComp, ok := input["previous_component"].(string); ok {
 		previousComponent = prevComp
 	}
-	
+
 	return schema.AgentResponse{
 		Status: schema.StatusComplete,
 		Output: &schema.AgentOutputV1{
@@ -1121,17 +1122,17 @@ func (m *MockStatePassingAgent) Execute(ctx context.Context, req schema.AgentReq
 func TestParallelWorkflowExecution(t *testing.T) {
 	// Setup
 	framework := integration.NewTestFramework()
-	
+
 	agent1 := &MockParallelAgent{Name: "agent1", Duration: 100 * time.Millisecond}
 	agent2 := &MockParallelAgent{Name: "agent2", Duration: 100 * time.Millisecond}
 	agent3 := &MockParallelAgent{Name: "agent3", Duration: 100 * time.Millisecond}
-	
+
 	framework.RegisterAgent("agent1", agent1)
 	framework.RegisterAgent("agent2", agent2)
 	framework.RegisterAgent("agent3", agent3)
-	
+
 	ctx := context.Background()
-	
+
 	// Execute
 	start := time.Now()
 	result, err := framework.RunMultiStepWorkflow(ctx, integration.MultiStepWorkflowConfig{
@@ -1145,22 +1146,22 @@ func TestParallelWorkflowExecution(t *testing.T) {
 		Timeout: 5 * time.Second,
 	})
 	duration := time.Since(start)
-	
+
 	// Verify
 	require.NoError(t, err, "Parallel workflow should succeed")
 	require.NotNil(t, result, "Result should not be nil")
 	require.Equal(t, workflow.StatusCompleted, result.WorkflowResult.Status)
 	require.Len(t, result.WorkflowResult.StepResults, 3)
-	
+
 	// Verify all steps completed
 	for i, step := range result.WorkflowResult.StepResults {
 		require.Equal(t, workflow.StepStatusCompleted, step.Status, "Step %d should complete", i)
 		require.NotNil(t, step.Output, "Step %d should have output", i)
 	}
-	
+
 	// Verify parallel execution (should be ~100ms, not ~300ms for sequential)
 	require.Less(t, duration, 250*time.Millisecond, "Parallel execution should be faster than sequential")
-	
+
 	t.Logf("✓ Parallel workflow completed in %v (expected < 250ms)", duration)
 	t.Logf("✓ All 3 agents executed successfully")
 }
@@ -1169,15 +1170,15 @@ func TestParallelWorkflowExecution(t *testing.T) {
 func TestWorkflowEscalationHandling(t *testing.T) {
 	// Setup
 	framework := integration.NewTestFramework()
-	
+
 	escalatingAgent := &MockEscalatingAgent{Name: "junior-agent"}
 	supervisorAgent := &MockSupervisorAgent{}
-	
+
 	framework.RegisterAgent("junior-agent", escalatingAgent)
 	framework.RegisterAgent("supervisor-agent", supervisorAgent)
-	
+
 	ctx := context.Background()
-	
+
 	// Execute
 	result, err := framework.RunMultiStepWorkflow(ctx, integration.MultiStepWorkflowConfig{
 		ID: "escalation-test",
@@ -1187,45 +1188,45 @@ func TestWorkflowEscalationHandling(t *testing.T) {
 		Mode:    workflow.SequentialMode,
 		Timeout: 5 * time.Second,
 	})
-	
+
 	// Verify
 	require.NoError(t, err, "Workflow should complete despite escalation")
 	require.NotNil(t, result, "Result should not be nil")
 
-	
 	// Check that escalation was detected and handled
 	require.Len(t, result.WorkflowResult.StepResults, 2, "Should have 2 steps: original + escalated")
-	
+
 	// First step should be escalated
 	step1 := result.WorkflowResult.StepResults[0]
 	require.Equal(t, workflow.StepStatusEscalated, step1.Status, "First step should be escalated")
 	require.Equal(t, "supervisor-agent", step1.EscalationTarget, "Should escalate to supervisor")
 	require.NotEmpty(t, step1.EscalationReason, "Should have escalation reason")
-	
+
 	// Second step should be the escalated work handled by supervisor
 	step2 := result.WorkflowResult.StepResults[1]
 	require.Equal(t, "supervisor-agent", step2.Agent, "Second step should be handled by supervisor")
 	require.Equal(t, workflow.StepStatusCompleted, step2.Status, "Supervisor step should complete")
-	
+
 	t.Logf("✓ Escalation detected: %s", step1.EscalationReason)
 	t.Logf("✓ Target agent: %s", step1.EscalationTarget)
 	t.Logf("✓ Escalation handled by: %s", step2.Agent)
 }
+
 // TestStatePersistenceAcrossSteps tests data passing between sequential steps
 func TestStatePersistenceAcrossSteps(t *testing.T) {
 	// Setup
 	framework := integration.NewTestFramework()
-	
+
 	agent1 := &MockStatePassingAgent{Name: "agent1"}
 	agent2 := &MockStatePassingAgent{Name: "agent2"}
 	agent3 := &MockStatePassingAgent{Name: "agent3"}
-	
+
 	framework.RegisterAgent("agent1", agent1)
 	framework.RegisterAgent("agent2", agent2)
 	framework.RegisterAgent("agent3", agent3)
-	
+
 	ctx := context.Background()
-	
+
 	// Execute - each step should receive output from previous step
 	result, err := framework.RunMultiStepWorkflow(ctx, integration.MultiStepWorkflowConfig{
 		ID: "state-persistence-test",
@@ -1237,26 +1238,26 @@ func TestStatePersistenceAcrossSteps(t *testing.T) {
 		Mode:    workflow.SequentialMode,
 		Timeout: 5 * time.Second,
 	})
-	
+
 	// Verify
 	require.NoError(t, err, "Sequential workflow should succeed")
 	require.NotNil(t, result, "Result should not be nil")
 	require.Equal(t, workflow.StatusCompleted, result.WorkflowResult.Status)
 	require.Len(t, result.WorkflowResult.StepResults, 3)
-	
+
 	// Verify state was passed through steps (using ComponentName and Overview, not AgentName/Summary)
 	step1 := result.WorkflowResult.StepResults[0]
 	require.Equal(t, "state-component-agent1", step1.Output.ComponentName)
 	require.Contains(t, step1.Output.Overview, "none", "First step should have no previous component")
-	
+
 	step2 := result.WorkflowResult.StepResults[1]
 	require.Equal(t, "state-component-agent2", step2.Output.ComponentName)
 	require.Contains(t, step2.Output.Overview, "state-component-agent1", "Second step should reference first")
-	
+
 	step3 := result.WorkflowResult.StepResults[2]
 	require.Equal(t, "state-component-agent3", step3.Output.ComponentName)
 	require.Contains(t, step3.Output.Overview, "state-component-agent2", "Third step should reference second")
-	
+
 	t.Logf("✓ State passed through 3 sequential steps")
 	t.Logf("✓ Step 1: %s", step1.Output.ComponentName)
 	t.Logf("✓ Step 2: %s (references %s)", step2.Output.ComponentName, "agent1")
@@ -1267,13 +1268,13 @@ func TestStatePersistenceAcrossSteps(t *testing.T) {
 func TestErrorRecoveryWithRetry(t *testing.T) {
 	// Setup
 	framework := integration.NewTestFramework()
-	
+
 	retryAgent := &MockRetryAgent{MaxFailures: 2} // Fail twice, then succeed
-	
+
 	framework.RegisterAgent("retry-agent", retryAgent)
-	
+
 	ctx := context.Background()
-	
+
 	// Execute
 	result, err := framework.RunMultiStepWorkflow(ctx, integration.MultiStepWorkflowConfig{
 		ID: "retry-test",
@@ -1283,19 +1284,19 @@ func TestErrorRecoveryWithRetry(t *testing.T) {
 		Mode:    workflow.SequentialMode,
 		Timeout: 5 * time.Second,
 	})
-	
+
 	// Verify
 	require.NoError(t, err, "Workflow should eventually succeed after retries")
 	require.NotNil(t, result, "Result should not be nil")
 	require.Equal(t, workflow.StatusCompleted, result.WorkflowResult.Status)
 	require.Len(t, result.WorkflowResult.StepResults, 1)
-	
+
 	step := result.WorkflowResult.StepResults[0]
 	require.Equal(t, workflow.StepStatusCompleted, step.Status, "Step should eventually complete")
 	require.NotNil(t, step.Output, "Step should have output")
 	require.Equal(t, "retry-component", step.Output.ComponentName)
 	require.Contains(t, step.Output.Overview, "attempt 3", "Should succeed on third attempt")
-	
+
 	t.Logf("✓ Agent succeeded after 2 failures")
 	t.Logf("✓ Output: %s", step.Output.Overview)
 }
@@ -1304,15 +1305,15 @@ func TestErrorRecoveryWithRetry(t *testing.T) {
 func TestConditionalWorkflowBranching(t *testing.T) {
 	// Setup
 	framework := integration.NewTestFramework()
-	
+
 	agent1 := &MockConditionalAgent{Name: "agent1"}
 	agent3 := &MockConditionalAgent{Name: "agent3"}
-	
+
 	framework.RegisterAgent("agent1", agent1)
 	framework.RegisterAgent("agent3", agent3)
-	
+
 	ctx := context.Background()
-	
+
 	// Execute - step2 should only run if step1 succeeds
 	result, err := framework.RunMultiStepWorkflow(ctx, integration.MultiStepWorkflowConfig{
 		ID: "conditional-test",
@@ -1328,21 +1329,21 @@ func TestConditionalWorkflowBranching(t *testing.T) {
 		Mode:    workflow.ConditionalMode,
 		Timeout: 5 * time.Second,
 	})
-	
+
 	// Verify
 	require.NoError(t, err, "Conditional workflow should succeed")
 	require.NotNil(t, result, "Result should not be nil")
 	require.Equal(t, workflow.StatusCompleted, result.WorkflowResult.Status)
 	require.Len(t, result.WorkflowResult.StepResults, 2, "Both steps should execute (step1 succeeds)")
-	
+
 	step1 := result.WorkflowResult.StepResults[0]
 	require.Equal(t, workflow.StepStatusCompleted, step1.Status)
 	require.Equal(t, "conditional-component-agent1", step1.Output.ComponentName)
-	
+
 	step2 := result.WorkflowResult.StepResults[1]
 	require.Equal(t, workflow.StepStatusCompleted, step2.Status)
 	require.Equal(t, "conditional-component-agent3", step2.Output.ComponentName)
-	
+
 	t.Logf("✓ Conditional branching worked correctly")
 	t.Logf("✓ Step 1 succeeded, Step 2 executed")
 }
@@ -1351,13 +1352,13 @@ func TestConditionalWorkflowBranching(t *testing.T) {
 func TestWorkflowTimeoutHandling(t *testing.T) {
 	// Setup
 	framework := integration.NewTestFramework()
-	
+
 	slowAgent := &MockSlowAgent{SleepDuration: 10 * time.Second}
-	
+
 	framework.RegisterAgent("slow-agent", slowAgent)
-	
+
 	ctx := context.Background()
-	
+
 	// Execute with short timeout
 	start := time.Now()
 	_, err := framework.RunMultiStepWorkflow(ctx, integration.MultiStepWorkflowConfig{
@@ -1369,14 +1370,14 @@ func TestWorkflowTimeoutHandling(t *testing.T) {
 		Timeout: 1 * time.Second, // Should timeout before 10s sleep completes
 	})
 	duration := time.Since(start)
-	
+
 	// Verify timeout occurred
 	require.Error(t, err, "Workflow should timeout")
 	require.True(t, strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline"), "Error should mention timeout or deadline")
 	require.Less(t, duration, 2*time.Second, "Should timeout quickly, not wait for full 10s")
-	
+
 	// When timeout occurs, result may be nil - that's expected behavior
 	// No need to check result.Status since error is returned
-	
+
 	t.Logf("✓ Timeout enforced after %v (expected ~1s)", duration)
 }

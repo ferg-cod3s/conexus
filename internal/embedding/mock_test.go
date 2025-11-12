@@ -49,7 +49,7 @@ func TestMockEmbedder_Embed(t *testing.T) {
 	t.Run("successful embedding", func(t *testing.T) {
 		text := "Hello, world!"
 		emb, err := m.Embed(ctx, text)
-		
+
 		require.NoError(t, err)
 		require.NotNil(t, emb)
 		assert.Equal(t, text, emb.Text)
@@ -59,13 +59,13 @@ func TestMockEmbedder_Embed(t *testing.T) {
 
 	t.Run("deterministic - same input produces same output", func(t *testing.T) {
 		text := "deterministic test"
-		
+
 		emb1, err1 := m.Embed(ctx, text)
 		require.NoError(t, err1)
-		
+
 		emb2, err2 := m.Embed(ctx, text)
 		require.NoError(t, err2)
-		
+
 		// Vectors should be identical
 		require.Len(t, emb1.Vector, len(emb2.Vector))
 		for i := range emb1.Vector {
@@ -76,10 +76,10 @@ func TestMockEmbedder_Embed(t *testing.T) {
 	t.Run("different inputs produce different outputs", func(t *testing.T) {
 		emb1, err1 := m.Embed(ctx, "text one")
 		require.NoError(t, err1)
-		
+
 		emb2, err2 := m.Embed(ctx, "text two")
 		require.NoError(t, err2)
-		
+
 		// Vectors should be different
 		different := false
 		for i := range emb1.Vector {
@@ -95,21 +95,21 @@ func TestMockEmbedder_Embed(t *testing.T) {
 		text := "normalization test"
 		emb, err := m.Embed(ctx, text)
 		require.NoError(t, err)
-		
+
 		// Calculate magnitude
 		var sumSquares float32
 		for _, val := range emb.Vector {
 			sumSquares += val * val
 		}
 		magnitude := math.Sqrt(float64(sumSquares))
-		
+
 		// Should be unit vector (magnitude ≈ 1.0)
 		assert.InDelta(t, 1.0, magnitude, 0.0001, "vector should be normalized to unit length")
 	})
 
 	t.Run("empty text returns error", func(t *testing.T) {
 		emb, err := m.Embed(ctx, "")
-		
+
 		assert.Error(t, err)
 		assert.Nil(t, emb)
 		assert.Contains(t, err.Error(), "empty text")
@@ -118,11 +118,11 @@ func TestMockEmbedder_Embed(t *testing.T) {
 	t.Run("respects context cancellation", func(t *testing.T) {
 		cancelCtx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
-		
+
 		// Current implementation doesn't check context, but test for future
 		// This documents expected behavior
 		_, err := m.Embed(cancelCtx, "test")
-		
+
 		// Current implementation will succeed (no context checks yet)
 		// This test documents that we should add context checks in the future
 		if err != nil {
@@ -137,12 +137,12 @@ func TestMockEmbedder_EmbedBatch(t *testing.T) {
 
 	t.Run("successful batch embedding", func(t *testing.T) {
 		texts := []string{"first", "second", "third"}
-		
+
 		embeddings, err := m.EmbedBatch(ctx, texts)
-		
+
 		require.NoError(t, err)
 		require.Len(t, embeddings, 3)
-		
+
 		for i, emb := range embeddings {
 			assert.Equal(t, texts[i], emb.Text)
 			assert.Equal(t, "mock-384", emb.Model)
@@ -152,18 +152,18 @@ func TestMockEmbedder_EmbedBatch(t *testing.T) {
 
 	t.Run("empty batch returns empty slice", func(t *testing.T) {
 		texts := []string{}
-		
+
 		embeddings, err := m.EmbedBatch(ctx, texts)
-		
+
 		require.NoError(t, err)
 		assert.Empty(t, embeddings)
 	})
 
 	t.Run("batch with empty text fails", func(t *testing.T) {
 		texts := []string{"valid", "", "also valid"}
-		
+
 		embeddings, err := m.EmbedBatch(ctx, texts)
-		
+
 		assert.Error(t, err)
 		assert.Nil(t, embeddings)
 		assert.Contains(t, err.Error(), "index 1")
@@ -171,13 +171,13 @@ func TestMockEmbedder_EmbedBatch(t *testing.T) {
 
 	t.Run("batch is deterministic", func(t *testing.T) {
 		texts := []string{"alpha", "beta", "gamma"}
-		
+
 		emb1, err1 := m.EmbedBatch(ctx, texts)
 		require.NoError(t, err1)
-		
+
 		emb2, err2 := m.EmbedBatch(ctx, texts)
 		require.NoError(t, err2)
-		
+
 		require.Len(t, emb1, len(emb2))
 		for i := range emb1 {
 			assert.Equal(t, emb1[i].Text, emb2[i].Text)
@@ -189,9 +189,9 @@ func TestMockEmbedder_EmbedBatch(t *testing.T) {
 
 	t.Run("nil slice returns empty slice", func(t *testing.T) {
 		var texts []string
-		
+
 		embeddings, err := m.EmbedBatch(ctx, texts)
-		
+
 		require.NoError(t, err)
 		assert.Empty(t, embeddings)
 	})
@@ -210,10 +210,10 @@ func TestMockEmbedder_Dimensions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewMock(tt.dimensions)
-			
+
 			// Dimensions method returns correct value
 			assert.Equal(t, tt.dimensions, m.Dimensions())
-			
+
 			// Generated vectors have correct length
 			emb, err := m.Embed(context.Background(), "test")
 			require.NoError(t, err)
@@ -236,7 +236,7 @@ func TestMockEmbedder_Model(t *testing.T) {
 		t.Run(tt.wantModel, func(t *testing.T) {
 			m := NewMock(tt.dimensions)
 			assert.Equal(t, tt.wantModel, m.Model())
-			
+
 			emb, err := m.Embed(context.Background(), "test")
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantModel, emb.Model)
@@ -248,10 +248,10 @@ func TestNormalize(t *testing.T) {
 	t.Run("normalizes non-unit vector", func(t *testing.T) {
 		v := Vector{3.0, 4.0} // Magnitude = 5
 		normalized := normalize(v)
-		
-		assert.InDelta(t, 0.6, normalized[0], 0.0001)  // 3/5
-		assert.InDelta(t, 0.8, normalized[1], 0.0001)  // 4/5
-		
+
+		assert.InDelta(t, 0.6, normalized[0], 0.0001) // 3/5
+		assert.InDelta(t, 0.8, normalized[1], 0.0001) // 4/5
+
 		// Check unit length
 		var sumSquares float32
 		for _, val := range normalized {
@@ -264,7 +264,7 @@ func TestNormalize(t *testing.T) {
 	t.Run("handles zero vector", func(t *testing.T) {
 		v := Vector{0.0, 0.0, 0.0}
 		normalized := normalize(v)
-		
+
 		// Zero vector stays zero
 		assert.Equal(t, v, normalized)
 	})
@@ -272,7 +272,7 @@ func TestNormalize(t *testing.T) {
 	t.Run("already normalized vector unchanged", func(t *testing.T) {
 		v := Vector{1.0, 0.0, 0.0} // Already unit length
 		normalized := normalize(v)
-		
+
 		assert.InDelta(t, 1.0, normalized[0], 0.0001)
 		assert.InDelta(t, 0.0, normalized[1], 0.0001)
 		assert.InDelta(t, 0.0, normalized[2], 0.0001)
@@ -289,9 +289,9 @@ func TestMockProvider_Create(t *testing.T) {
 
 	t.Run("creates with default dimensions", func(t *testing.T) {
 		config := map[string]interface{}{}
-		
+
 		embedder, err := p.Create(config)
-		
+
 		require.NoError(t, err)
 		require.NotNil(t, embedder)
 		assert.Equal(t, 384, embedder.Dimensions())
@@ -302,9 +302,9 @@ func TestMockProvider_Create(t *testing.T) {
 		config := map[string]interface{}{
 			"dimensions": 512,
 		}
-		
+
 		embedder, err := p.Create(config)
-		
+
 		require.NoError(t, err)
 		require.NotNil(t, embedder)
 		assert.Equal(t, 512, embedder.Dimensions())
@@ -315,9 +315,9 @@ func TestMockProvider_Create(t *testing.T) {
 		config := map[string]interface{}{
 			"dimensions": float64(256),
 		}
-		
+
 		embedder, err := p.Create(config)
-		
+
 		require.NoError(t, err)
 		require.NotNil(t, embedder)
 		assert.Equal(t, 256, embedder.Dimensions())
@@ -327,9 +327,9 @@ func TestMockProvider_Create(t *testing.T) {
 		config := map[string]interface{}{
 			"dimensions": 0,
 		}
-		
+
 		embedder, err := p.Create(config)
-		
+
 		assert.Error(t, err)
 		assert.Nil(t, embedder)
 		assert.Contains(t, err.Error(), "must be positive")
@@ -339,9 +339,9 @@ func TestMockProvider_Create(t *testing.T) {
 		config := map[string]interface{}{
 			"dimensions": -100,
 		}
-		
+
 		embedder, err := p.Create(config)
-		
+
 		assert.Error(t, err)
 		assert.Nil(t, embedder)
 		assert.Contains(t, err.Error(), "must be positive")
@@ -351,9 +351,9 @@ func TestMockProvider_Create(t *testing.T) {
 		config := map[string]interface{}{
 			"dimensions": "not a number",
 		}
-		
+
 		embedder, err := p.Create(config)
-		
+
 		// Should fall back to default
 		require.NoError(t, err)
 		assert.Equal(t, 384, embedder.Dimensions())

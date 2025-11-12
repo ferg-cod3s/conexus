@@ -118,7 +118,7 @@ func (h *History) GetEscalationsForAgent(agent string) []HistoryEntry {
 
 	for _, entry := range h.entries {
 		if entry.Request.SourceAgent == agent ||
-		   (entry.Response.Approved && entry.Response.TargetAgent == agent) {
+			(entry.Response.Approved && entry.Response.TargetAgent == agent) {
 			results = append(results, entry)
 		}
 	}

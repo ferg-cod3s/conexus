@@ -10,8 +10,8 @@ import (
 
 // mockAgent implements the Agent interface for testing
 type mockAgent struct {
-	name          string
-	shouldFail    bool
+	name           string
+	shouldFail     bool
 	shouldEscalate bool
 }
 

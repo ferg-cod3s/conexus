@@ -9,10 +9,10 @@ import (
 
 // WorkflowProfiler wraps profiling functionality for orchestrator
 type WorkflowProfiler struct {
-	profiler       *profiling.Profiler
-	workflowID     string
-	startTime      time.Time
-	execContexts   map[string]*profiling.ExecutionContext
+	profiler     *profiling.Profiler
+	workflowID   string
+	startTime    time.Time
+	execContexts map[string]*profiling.ExecutionContext
 }
 
 // NewWorkflowProfiler creates a new workflow profiler
@@ -39,7 +39,7 @@ func (wp *WorkflowProfiler) StartAgentExecution(
 // GenerateReport creates a profiling report for the workflow
 func (wp *WorkflowProfiler) GenerateReport() *ProfilingReport {
 	totalDuration := time.Since(wp.startTime)
-	
+
 	report := &ProfilingReport{
 		WorkflowID:      wp.workflowID,
 		Timestamp:       time.Now(),
@@ -49,7 +49,7 @@ func (wp *WorkflowProfiler) GenerateReport() *ProfilingReport {
 
 	// Get all aggregate metrics from profiler
 	aggregates := wp.profiler.GetAllMetrics()
-	
+
 	var totalMemory uint64
 	var peakMemory uint64
 	var profiledDuration time.Duration
@@ -75,7 +75,7 @@ func (wp *WorkflowProfiler) GenerateReport() *ProfilingReport {
 		if agg.AvgMemory > peakMemory {
 			peakMemory = agg.AvgMemory
 		}
-		
+
 		// Sum total profiled duration
 		profiledDuration += agg.TotalDuration
 	}

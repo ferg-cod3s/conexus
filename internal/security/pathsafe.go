@@ -83,7 +83,7 @@ func SafeJoin(basePath string, elements ...string) (string, error) {
 
 	// Join all elements
 	joined := filepath.Join(append([]string{basePath}, elements...)...)
-	
+
 	// Validate the result
 	return ValidatePath(joined, basePath)
 }

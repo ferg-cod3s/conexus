@@ -1,8 +1,8 @@
 package vectorstore
 
 import (
-	"fmt"
 	"context"
+	"fmt"
 	"testing"
 	"time"
 

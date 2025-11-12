@@ -210,7 +210,7 @@ func extractPattern(request string) string {
 			}
 		}
 	}
-	
+
 	// Fall back to plain text pattern extraction
 	// Simple pattern extraction from request
 	// Example: "find all .go files" -> "*.go"

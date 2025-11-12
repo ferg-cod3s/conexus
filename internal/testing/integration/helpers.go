@@ -26,13 +26,13 @@ type ValidationReport struct {
 
 // PerformanceMetrics contains performance measurements
 type PerformanceMetrics struct {
-	Duration       time.Duration
-	StartTime      time.Time
-	EndTime        time.Time
-	MemoryUsedMB   float64
-	AgentCount     int
-	StepCount      int
-	OutputSizeKB   float64
+	Duration     time.Duration
+	StartTime    time.Time
+	EndTime      time.Time
+	MemoryUsedMB float64
+	AgentCount   int
+	StepCount    int
+	OutputSizeKB float64
 }
 
 // TestCodebase represents a test fixture codebase
@@ -82,11 +82,11 @@ func VerifyEvidence(output *schema.AgentOutputV1, strictMode bool) (*ValidationR
 
 	// Collect evidence errors
 	for _, claim := range evidenceResult.UnbackedClaims {
-		report.Errors = append(report.Errors, 
+		report.Errors = append(report.Errors,
 			fmt.Sprintf("Unbacked Claim [%s]: %s", claim.Section, claim.Description))
 	}
 	for _, inv := range evidenceResult.InvalidEvidence {
-		report.Errors = append(report.Errors, 
+		report.Errors = append(report.Errors,
 			fmt.Sprintf("Invalid Evidence [%s:%s]: %s", inv.File, inv.Lines, inv.Reason))
 	}
 
@@ -131,7 +131,7 @@ func MeasurePerformance(fn func()) *PerformanceMetrics {
 func LoadTestFixture(name string) (*TestCodebase, error) {
 	// Find the tests/fixtures directory
 	fixturesDir := filepath.Join("tests", "fixtures")
-	
+
 	// Check if fixtures directory exists
 	if _, err := os.Stat(fixturesDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("fixtures directory not found: %s", fixturesDir)
@@ -193,7 +193,7 @@ func CreateTempCodebase(files map[string]string) (string, error) {
 
 	for filename, content := range files {
 		fullPath := filepath.Join(tmpDir, filename)
-		
+
 		// Create parent directories if needed
 		if err := os.MkdirAll(filepath.Dir(fullPath), 0700); err != nil {
 			// #nosec G104 - Best-effort cleanup in error path, primary error already captured

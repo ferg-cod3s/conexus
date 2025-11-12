@@ -16,15 +16,15 @@ import (
 // BenchmarkFileWalking benchmarks the file system traversal performance.
 func BenchmarkFileWalking(b *testing.B) {
 	testCases := []struct {
-		name      string
-		numFiles  int
-		fileSize  int // bytes per file
-		numDirs   int
+		name     string
+		numFiles int
+		fileSize int // bytes per file
+		numDirs  int
 	}{
-		{"1K_Files_Small", 1000, 1024, 10},        // 1KB files
-		{"1K_Files_Medium", 1000, 10240, 10},      // 10KB files
-		{"10K_Files_Small", 10000, 1024, 100},     // 1KB files
-		{"10K_Files_Medium", 10000, 10240, 100},   // 10KB files
+		{"1K_Files_Small", 1000, 1024, 10},      // 1KB files
+		{"1K_Files_Medium", 1000, 10240, 10},    // 10KB files
+		{"10K_Files_Small", 10000, 1024, 100},   // 1KB files
+		{"10K_Files_Medium", 10000, 10240, 100}, // 10KB files
 	}
 
 	for _, tc := range testCases {
@@ -46,11 +46,11 @@ func BenchmarkFileWalking(b *testing.B) {
 					fileCount++
 					return nil
 				})
-				
+
 				if err != nil {
 					b.Fatalf("Walk failed: %v", err)
 				}
-				
+
 				if fileCount != tc.numFiles {
 					b.Fatalf("Expected %d files, got %d", tc.numFiles, fileCount)
 				}
@@ -66,9 +66,9 @@ func BenchmarkFileWalking(b *testing.B) {
 // BenchmarkChunking benchmarks the text chunking performance.
 func BenchmarkChunking(b *testing.B) {
 	testCases := []struct {
-		name      string
-		numFiles  int
-		fileSize  int
+		name     string
+		numFiles int
+		fileSize int
 	}{
 		{"100_Files_1KB", 100, 1024},
 		{"100_Files_10KB", 100, 10240},
@@ -102,7 +102,7 @@ func BenchmarkChunking(b *testing.B) {
 					if err != nil {
 						b.Fatalf("Failed to read file: %v", err)
 					}
-					
+
 					// Simulate chunking (split by 1024 bytes)
 					chunkSize := 1024
 					for offset := 0; offset < len(content); offset += chunkSize {
@@ -114,7 +114,7 @@ func BenchmarkChunking(b *testing.B) {
 						totalChunks++
 					}
 				}
-				
+
 				if totalChunks == 0 {
 					b.Fatal("No chunks created")
 				}
@@ -169,9 +169,9 @@ func BenchmarkMerkleTreeHashing(b *testing.B) {
 // BenchmarkMerkleTreeDiff benchmarks the change detection performance.
 func BenchmarkMerkleTreeDiff(b *testing.B) {
 	testCases := []struct {
-		name        string
-		numFiles    int
-		changeRate  float64 // percentage of files changed
+		name       string
+		numFiles   int
+		changeRate float64 // percentage of files changed
 	}{
 		{"1K_Files_1pct", 1000, 0.01},
 		{"1K_Files_5pct", 1000, 0.05},
@@ -188,7 +188,7 @@ func BenchmarkMerkleTreeDiff(b *testing.B) {
 			ctx := context.Background()
 			walker := NewFileWalker(0)
 			merkle := NewMerkleTree(walker)
-			
+
 			oldState, err := merkle.Hash(ctx, tmpDir, DefaultIgnorePatterns())
 			if err != nil {
 				b.Fatalf("Hash failed: %v", err)
@@ -212,7 +212,7 @@ func BenchmarkMerkleTreeDiff(b *testing.B) {
 				if err != nil {
 					b.Fatalf("Diff failed: %v", err)
 				}
-				
+
 				if len(changed) == 0 {
 					b.Fatal("No changes detected")
 				}
@@ -244,7 +244,7 @@ func BenchmarkIncrementalIndexing(b *testing.B) {
 
 			stateDir := filepath.Join(tmpDir, ".conexus-state")
 			indexer := NewIndexer(stateDir)
-			
+
 			ctx := context.Background()
 			opts := IndexOptions{
 				RootPath:       tmpDir,
@@ -271,7 +271,7 @@ func BenchmarkIncrementalIndexing(b *testing.B) {
 				if err != nil {
 					b.Fatalf("Incremental index failed: %v", err)
 				}
-				
+
 				// Should only process changed files
 				if len(chunks) == 0 {
 					b.Fatal("No chunks returned from incremental index")
@@ -331,7 +331,7 @@ func BenchmarkFullIndexWithEmbeddings(b *testing.B) {
 				if err != nil {
 					b.Fatalf("Index failed: %v", err)
 				}
-				
+
 				if len(chunks) == 0 {
 					b.Fatal("No chunks created")
 				}
@@ -379,7 +379,7 @@ func BenchmarkConcurrentIndexing(b *testing.B) {
 				if err != nil {
 					b.Fatalf("Index failed: %v", err)
 				}
-				
+
 				if len(chunks) == 0 {
 					b.Fatal("No chunks created")
 				}
@@ -449,7 +449,7 @@ func setupTestFiles(tb testing.TB, rootDir string, numFiles, fileSize, numDirs i
 		for file := 0; file < filesPerDir; file++ {
 			filePath := filepath.Join(dirPath, fmt.Sprintf("file%d.go", file))
 			content := generateTestContent(fileSize, dir*filesPerDir+file)
-			
+
 			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 				tb.Fatalf("Failed to write file: %v", err)
 			}
@@ -483,12 +483,12 @@ func Helper%d(data []byte) string {
 }
 `
 	content := fmt.Sprintf(template, seed, seed, seed, seed, seed, seed)
-	
+
 	// Pad to desired size
 	for len(content) < size {
 		content += fmt.Sprintf("\n// Padding line to reach size: %d\n", len(content))
 	}
-	
+
 	return content[:size]
 }
 
@@ -518,7 +518,7 @@ func modifyFiles(tb testing.TB, rootDir string, numFiles int) {
 
 		// Append a comment to modify the file
 		modified := string(content) + fmt.Sprintf("\n// Modified at: %v\n", time.Now())
-		
+
 		if err := os.WriteFile(files[i], []byte(modified), 0644); err != nil {
 			tb.Fatalf("Failed to write file: %v", err)
 		}
@@ -534,11 +534,11 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) (*embedding.Embed
 	// Generate deterministic embedding from text hash
 	hash := sha256.Sum256([]byte(text))
 	vector := make(embedding.Vector, m.dimension)
-	
+
 	for i := 0; i < m.dimension; i++ {
 		vector[i] = float32(hash[i%32]) / 255.0
 	}
-	
+
 	return &embedding.Embedding{
 		Text:   text,
 		Vector: vector,

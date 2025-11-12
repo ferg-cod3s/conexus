@@ -131,8 +131,8 @@ func TestValidateEntryPoints(t *testing.T) {
 	}
 
 	entryPoints := []schema.EntryPoint{
-		{File: "/test/file.go", Lines: "10", Symbol: "main"},      // Backed
-		{File: "/test/file.go", Lines: "40", Symbol: "unbacked"},  // Not backed
+		{File: "/test/file.go", Lines: "10", Symbol: "main"},     // Backed
+		{File: "/test/file.go", Lines: "40", Symbol: "unbacked"}, // Not backed
 	}
 
 	result := &ValidationResult{
@@ -232,10 +232,10 @@ func TestValidateEvidenceFiles_StrictMode(t *testing.T) {
 	v := NewValidator(true) // Strict mode
 
 	evidence := []schema.Evidence{
-		{File: tmpFile, Lines: "1"},                           // Valid
-		{File: "/nonexistent/file.go", Lines: "1"},            // File doesn't exist
-		{File: tmpFile, Lines: "invalid"},                     // Invalid line format
-		{File: tmpFile, Lines: "10-5"},                        // Invalid range
+		{File: tmpFile, Lines: "1"},                // Valid
+		{File: "/nonexistent/file.go", Lines: "1"}, // File doesn't exist
+		{File: tmpFile, Lines: "invalid"},          // Invalid line format
+		{File: tmpFile, Lines: "10-5"},             // Invalid range
 	}
 
 	result := &ValidationResult{

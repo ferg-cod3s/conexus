@@ -11,10 +11,10 @@ import (
 
 // MockSlackClient implements SlackClientInterface for testing
 type MockSlackClient struct {
-	GetConversationHistoryFunc   func(params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error)
-	SearchMessagesFunc           func(query string, params slack.SearchParameters) (*slack.SearchMessages, error)
-	GetConversationRepliesFunc   func(params *slack.GetConversationRepliesParameters) (msgs []slack.Message, hasMore bool, nextCursor string, err error)
-	GetConversationsFunc         func(params *slack.GetConversationsParameters) (channels []slack.Channel, nextCursor string, err error)
+	GetConversationHistoryFunc func(params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error)
+	SearchMessagesFunc         func(query string, params slack.SearchParameters) (*slack.SearchMessages, error)
+	GetConversationRepliesFunc func(params *slack.GetConversationRepliesParameters) (msgs []slack.Message, hasMore bool, nextCursor string, err error)
+	GetConversationsFunc       func(params *slack.GetConversationsParameters) (channels []slack.Channel, nextCursor string, err error)
 }
 
 func (m *MockSlackClient) GetConversationHistory(params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error) {

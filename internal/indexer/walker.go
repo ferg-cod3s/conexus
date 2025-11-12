@@ -98,11 +98,11 @@ type patternMatcher struct {
 }
 
 type pattern struct {
-	raw       string
-	negate    bool   // Pattern starts with !
-	dirOnly   bool   // Pattern ends with /
-	anchored  bool   // Pattern starts with /
-	glob      string // Pattern for matching
+	raw      string
+	negate   bool   // Pattern starts with !
+	dirOnly  bool   // Pattern ends with /
+	anchored bool   // Pattern starts with /
+	glob     string // Pattern for matching
 }
 
 // newPatternMatcher creates a matcher from ignore patterns.

@@ -28,15 +28,15 @@ type Config struct {
 }
 
 type Message struct {
-	ID        string    `json:"id"`
-	ChannelID string    `json:"channel_id"`
-	GuildID   string    `json:"guild_id"`
-	Author    string    `json:"author"`
-	Content   string    `json:"content"`
-	Timestamp time.Time `json:"timestamp"`
+	ID        string     `json:"id"`
+	ChannelID string     `json:"channel_id"`
+	GuildID   string     `json:"guild_id"`
+	Author    string     `json:"author"`
+	Content   string     `json:"content"`
+	Timestamp time.Time  `json:"timestamp"`
 	EditedAt  *time.Time `json:"edited_at,omitempty"`
-	Embeds    int       `json:"embeds"`
-	Mentions  []string  `json:"mentions"`
+	Embeds    int        `json:"embeds"`
+	Mentions  []string   `json:"mentions"`
 }
 
 type Channel struct {

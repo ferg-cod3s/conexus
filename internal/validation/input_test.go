@@ -74,15 +74,15 @@ func TestNewPathValidator(t *testing.T) {
 func TestPathValidator_ValidatePath(t *testing.T) {
 	// Setup test directory structure
 	rootDir := t.TempDir()
-	
+
 	// Create subdirectories
 	subDir := filepath.Join(rootDir, "subdir")
 	require.NoError(t, os.Mkdir(subDir, 0750))
-	
+
 	// Create a file
 	testFile := filepath.Join(subDir, "test.txt")
 	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0600))
-	
+
 	// Create symlink within root
 	symlinkInRoot := filepath.Join(rootDir, "link_to_subdir")
 	require.NoError(t, os.Symlink(subDir, symlinkInRoot))
@@ -149,7 +149,7 @@ func TestPathValidator_ValidatePath(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.NotEmpty(t, result)
-			
+
 			// Validated path should not contain ..
 			assert.NotContains(t, result, "..")
 		})
@@ -158,11 +158,11 @@ func TestPathValidator_ValidatePath(t *testing.T) {
 
 func TestSanitizePath(t *testing.T) {
 	tests := []struct {
-		name     string
-		path     string
-		want     string
-		wantErr  bool
-		errType  error
+		name    string
+		path    string
+		want    string
+		wantErr bool
+		errType error
 	}{
 		{
 			name:    "empty path",
@@ -356,7 +356,7 @@ func TestPathValidator_MustValidatePath(t *testing.T) {
 		validDir := filepath.Join(rootDir, "valid")
 		err := os.Mkdir(validDir, 0755)
 		require.NoError(t, err)
-		
+
 		assert.NotPanics(t, func() {
 			result := validator.MustValidatePath("valid/path")
 			assert.NotEmpty(t, result)

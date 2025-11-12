@@ -56,12 +56,12 @@ type AgentExecutionMetrics struct {
 
 // WorkflowReport combines validation and profiling reports
 type WorkflowReport struct {
-	WorkflowID      string
-	Timestamp       time.Time
-	Validation      *ValidationReport
-	Profiling       *ProfilingReport
-	QualityGates    *QualityGateResult
-	OverallStatus   string
+	WorkflowID    string
+	Timestamp     time.Time
+	Validation    *ValidationReport
+	Profiling     *ProfilingReport
+	QualityGates  *QualityGateResult
+	OverallStatus string
 }
 
 // ReportFormat specifies the output format for reports
@@ -143,8 +143,8 @@ func (r *WorkflowReport) exportText() (string, error) {
 	if r.Profiling != nil {
 		sb.WriteString("=== PERFORMANCE ===\n")
 		sb.WriteString(fmt.Sprintf("Total Duration: %v\n", r.Profiling.TotalDuration))
-		sb.WriteString(fmt.Sprintf("Peak Memory: %d bytes (%.2f MB)\n", 
-			r.Profiling.PeakMemoryUsage, 
+		sb.WriteString(fmt.Sprintf("Peak Memory: %d bytes (%.2f MB)\n",
+			r.Profiling.PeakMemoryUsage,
 			float64(r.Profiling.PeakMemoryUsage)/(1024*1024)))
 		sb.WriteString(fmt.Sprintf("Profiling Overhead: %.2f%%\n", r.Profiling.ProfilingOverhead))
 		sb.WriteString(fmt.Sprintf("Agent Executions: %d\n", len(r.Profiling.AgentExecutions)))
@@ -157,11 +157,11 @@ func (r *WorkflowReport) exportText() (string, error) {
 		sb.WriteString(fmt.Sprintf("Passed: %v\n", r.QualityGates.Passed))
 		sb.WriteString(fmt.Sprintf("Validation: %v\n", r.QualityGates.ValidationPassed))
 		sb.WriteString(fmt.Sprintf("Performance: %v\n", r.QualityGates.PerformancePassed))
-		
+
 		if len(r.QualityGates.Violations) > 0 {
 			sb.WriteString(fmt.Sprintf("Violations: %d\n", len(r.QualityGates.Violations)))
 			for _, v := range r.QualityGates.Violations {
-				sb.WriteString(fmt.Sprintf("  [%s] %s: %s\n", 
+				sb.WriteString(fmt.Sprintf("  [%s] %s: %s\n",
 					v.Severity, v.Type, v.Description))
 			}
 		}
@@ -198,7 +198,7 @@ func (r *WorkflowReport) exportMarkdown() (string, error) {
 		sb.WriteString("| Metric | Value |\n")
 		sb.WriteString("|--------|-------|\n")
 		sb.WriteString(fmt.Sprintf("| Total Duration | %v |\n", r.Profiling.TotalDuration))
-		sb.WriteString(fmt.Sprintf("| Peak Memory | %.2f MB |\n", 
+		sb.WriteString(fmt.Sprintf("| Peak Memory | %.2f MB |\n",
 			float64(r.Profiling.PeakMemoryUsage)/(1024*1024)))
 		sb.WriteString(fmt.Sprintf("| Profiling Overhead | %.2f%% |\n", r.Profiling.ProfilingOverhead))
 		sb.WriteString(fmt.Sprintf("| Agent Executions | %d |\n\n", len(r.Profiling.AgentExecutions)))
@@ -207,26 +207,26 @@ func (r *WorkflowReport) exportMarkdown() (string, error) {
 	// Quality gates section
 	if r.QualityGates != nil {
 		sb.WriteString("## Quality Gates\n\n")
-		
+
 		passIcon := "✅"
 		if !r.QualityGates.Passed {
 			passIcon = "❌"
 		}
-		
+
 		sb.WriteString(fmt.Sprintf("%s **Overall:** %v  \n", passIcon, r.QualityGates.Passed))
-		
+
 		valIcon := "✅"
 		if !r.QualityGates.ValidationPassed {
 			valIcon = "❌"
 		}
 		sb.WriteString(fmt.Sprintf("%s **Validation:** %v  \n", valIcon, r.QualityGates.ValidationPassed))
-		
+
 		perfIcon := "✅"
 		if !r.QualityGates.PerformancePassed {
 			perfIcon = "❌"
 		}
 		sb.WriteString(fmt.Sprintf("%s **Performance:** %v  \n\n", perfIcon, r.QualityGates.PerformancePassed))
-		
+
 		if len(r.QualityGates.Violations) > 0 {
 			sb.WriteString("### Violations\n\n")
 			for _, v := range r.QualityGates.Violations {
@@ -236,7 +236,7 @@ func (r *WorkflowReport) exportMarkdown() (string, error) {
 				} else if v.Severity == SeverityHigh {
 					icon = "⛔"
 				}
-				sb.WriteString(fmt.Sprintf("%s **[%s] %s:** %s\n", 
+				sb.WriteString(fmt.Sprintf("%s **[%s] %s:** %s\n",
 					icon, v.Severity, v.Type, v.Description))
 			}
 			sb.WriteString("\n")
@@ -295,13 +295,14 @@ func CreateValidationReport(
 
 	report.ValidResponses = validCount
 	report.InvalidResponses = report.TotalResponses - validCount
-	
+
 	if report.TotalResponses > 0 {
 		report.EvidenceCoverage = totalCoverage / float64(report.TotalResponses)
 	}
 
 	return report, nil
 }
+
 // CreateValidationReportFromResults creates a validation report from pre-validated results
 func CreateValidationReportFromResults(
 	workflowID string,
@@ -328,7 +329,7 @@ func CreateValidationReportFromResults(
 
 	report.ValidResponses = validCount
 	report.InvalidResponses = report.TotalResponses - validCount
-	
+
 	if report.TotalResponses > 0 {
 		report.EvidenceCoverage = totalCoverage / float64(report.TotalResponses)
 	}

@@ -95,7 +95,7 @@ func createInvalidOutput() *schema.AgentOutputV1 {
 func TestWorkflowIntegration_BasicExecution(t *testing.T) {
 	ctx := context.Background()
 	orch := setupTestOrchestrator(t, OrchestratorConfig{})
-	
+
 	// Register test agent
 	agentID := "test-agent"
 	orch.RegisterAgent(agentID, func(exec *tool.Executor) Agent {
@@ -113,7 +113,7 @@ func TestWorkflowIntegration_BasicExecution(t *testing.T) {
 			},
 		}
 	})
-	
+
 	// Create workflow
 	workflow := &Workflow{
 		Steps: []WorkflowStep{
@@ -123,18 +123,18 @@ func TestWorkflowIntegration_BasicExecution(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Execute workflow
 	result, err := orch.ExecuteWorkflow(ctx, workflow, schema.Permissions{
 		ReadOnly:    true,
 		MaxFileSize: 1024 * 1024,
 	})
-	
+
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.Len(t, result.Responses, 1)
 	assert.Equal(t, schema.StatusComplete, result.Responses[0].Status)
-	
+
 	// Verify profiling report was generated
 	assert.NotNil(t, result.ProfilingReport, "Profiling report should be generated")
 	if result.ProfilingReport != nil {
@@ -147,7 +147,7 @@ func TestWorkflowIntegration_BasicExecution(t *testing.T) {
 func TestWorkflowIntegration_ValidationSuccess(t *testing.T) {
 	ctx := context.Background()
 	orch := setupTestOrchestrator(t, OrchestratorConfig{})
-	
+
 	agentID := "valid-agent"
 	orch.RegisterAgent(agentID, func(exec *tool.Executor) Agent {
 		return &mockAgent{
@@ -163,7 +163,7 @@ func TestWorkflowIntegration_ValidationSuccess(t *testing.T) {
 			},
 		}
 	})
-	
+
 	workflow := &Workflow{
 		Steps: []WorkflowStep{
 			{
@@ -172,20 +172,20 @@ func TestWorkflowIntegration_ValidationSuccess(t *testing.T) {
 			},
 		},
 	}
-	
+
 	result, err := orch.ExecuteWorkflow(ctx, workflow, schema.Permissions{
 		ReadOnly:    true,
 		MaxFileSize: 1024 * 1024,
 	})
-	
+
 	require.NoError(t, err)
 	assert.True(t, result.Success)
-	
+
 	// Verify validation report
 	assert.NotNil(t, result.ValidationReport)
 	assert.Equal(t, 1, result.ValidationReport.ValidResponses)
 	assert.Equal(t, 0, result.ValidationReport.UnbackedClaims)
-	
+
 	// Verify quality gate passed
 	assert.NotNil(t, result.QualityGateResult)
 	assert.True(t, result.QualityGateResult.Passed)
@@ -196,7 +196,7 @@ func TestWorkflowIntegration_ValidationSuccess(t *testing.T) {
 func TestWorkflowIntegration_ValidationFailure(t *testing.T) {
 	ctx := context.Background()
 	orch := setupTestOrchestrator(t, OrchestratorConfig{})
-	
+
 	agentID := "invalid-agent"
 	orch.RegisterAgent(agentID, func(exec *tool.Executor) Agent {
 		return &mockAgent{
@@ -212,7 +212,7 @@ func TestWorkflowIntegration_ValidationFailure(t *testing.T) {
 			},
 		}
 	})
-	
+
 	workflow := &Workflow{
 		Steps: []WorkflowStep{
 			{
@@ -221,15 +221,15 @@ func TestWorkflowIntegration_ValidationFailure(t *testing.T) {
 			},
 		},
 	}
-	
+
 	result, err := orch.ExecuteWorkflow(ctx, workflow, schema.Permissions{
 		ReadOnly:    true,
 		MaxFileSize: 1024 * 1024,
 	})
-	
+
 	require.NoError(t, err)
 	assert.True(t, result.Success) // Still succeeds with relaxed gates
-	
+
 	// Verify validation report shows invalid response
 	assert.NotNil(t, result.ValidationReport)
 	assert.Equal(t, 0, result.ValidationReport.ValidResponses)
@@ -240,13 +240,13 @@ func TestWorkflowIntegration_ValidationFailure(t *testing.T) {
 // TestWorkflowIntegration_QualityGatesBlocking tests strict quality gates
 func TestWorkflowIntegration_QualityGatesBlocking(t *testing.T) {
 	ctx := context.Background()
-	
+
 	config := OrchestratorConfig{
-		EnableProfiling:     true,
-		QualityGates:        StrictQualityGates(),
+		EnableProfiling: true,
+		QualityGates:    StrictQualityGates(),
 	}
 	orch := setupTestOrchestrator(t, config)
-	
+
 	agentID := "invalid-agent"
 	orch.RegisterAgent(agentID, func(exec *tool.Executor) Agent {
 		return &mockAgent{
@@ -262,7 +262,7 @@ func TestWorkflowIntegration_QualityGatesBlocking(t *testing.T) {
 			},
 		}
 	})
-	
+
 	workflow := &Workflow{
 		Steps: []WorkflowStep{
 			{
@@ -271,12 +271,12 @@ func TestWorkflowIntegration_QualityGatesBlocking(t *testing.T) {
 			},
 		},
 	}
-	
+
 	result, err := orch.ExecuteWorkflow(ctx, workflow, schema.Permissions{
 		ReadOnly:    true,
 		MaxFileSize: 1024 * 1024,
 	})
-	
+
 	// Under strict gates with invalid output, validation failure blocks and returns error
 	require.Error(t, err)
 	assert.False(t, result.Success, "Should fail with strict quality gates")
@@ -289,7 +289,7 @@ func TestWorkflowIntegration_QualityGatesBlocking(t *testing.T) {
 func TestWorkflowIntegration_ReportGeneration(t *testing.T) {
 	ctx := context.Background()
 	orch := setupTestOrchestrator(t, OrchestratorConfig{})
-	
+
 	agentID := "test-agent"
 	orch.RegisterAgent(agentID, func(exec *tool.Executor) Agent {
 		return &mockAgent{
@@ -305,7 +305,7 @@ func TestWorkflowIntegration_ReportGeneration(t *testing.T) {
 			},
 		}
 	})
-	
+
 	workflow := &Workflow{
 		Steps: []WorkflowStep{
 			{
@@ -314,27 +314,27 @@ func TestWorkflowIntegration_ReportGeneration(t *testing.T) {
 			},
 		},
 	}
-	
+
 	result, err := orch.ExecuteWorkflow(ctx, workflow, schema.Permissions{
 		ReadOnly:    true,
 		MaxFileSize: 1024 * 1024,
 	})
-	
+
 	require.NoError(t, err)
 	assert.NotNil(t, result.WorkflowReport)
-	
+
 	// Test JSON export
 	jsonReport, err := result.WorkflowReport.Export(FormatJSON)
 	require.NoError(t, err)
 	assert.Contains(t, jsonReport, "WorkflowID")
 	assert.Contains(t, jsonReport, "OverallStatus")
-	
+
 	// Test text export
 	textReport, err := result.WorkflowReport.Export(FormatText)
 	require.NoError(t, err)
 	assert.Contains(t, textReport, "WORKFLOW REPORT")
 	assert.Contains(t, textReport, "=== VALIDATION ===")
-	
+
 	// Test markdown export
 	mdReport, err := result.WorkflowReport.Export(FormatMarkdown)
 	require.NoError(t, err)
@@ -346,7 +346,7 @@ func TestWorkflowIntegration_ReportGeneration(t *testing.T) {
 func TestWorkflowIntegration_MultiStepWorkflow(t *testing.T) {
 	ctx := context.Background()
 	orch := setupTestOrchestrator(t, OrchestratorConfig{})
-	
+
 	// Register multiple agents
 	for i := 1; i <= 3; i++ {
 		agentID := "agent-" + string(rune('0'+i))
@@ -366,7 +366,7 @@ func TestWorkflowIntegration_MultiStepWorkflow(t *testing.T) {
 			}
 		})
 	}
-	
+
 	workflow := &Workflow{
 		Steps: []WorkflowStep{
 			{AgentID: "agent-1", Request: "step 1"},
@@ -374,20 +374,20 @@ func TestWorkflowIntegration_MultiStepWorkflow(t *testing.T) {
 			{AgentID: "agent-3", Request: "step 3"},
 		},
 	}
-	
+
 	result, err := orch.ExecuteWorkflow(ctx, workflow, schema.Permissions{
 		ReadOnly:    true,
 		MaxFileSize: 1024 * 1024,
 	})
-	
+
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.Len(t, result.Responses, 3)
-	
+
 	// Verify profiling tracked all executions
 	assert.NotNil(t, result.ProfilingReport)
 	assert.Len(t, result.ProfilingReport.AgentExecutions, 3)
-	
+
 	// Verify validation checked all responses
 	assert.NotNil(t, result.ValidationReport)
 	assert.Equal(t, 3, result.ValidationReport.TotalResponses)
@@ -398,7 +398,7 @@ func TestWorkflowIntegration_MultiStepWorkflow(t *testing.T) {
 func TestWorkflowIntegration_ErrorHandling(t *testing.T) {
 	ctx := context.Background()
 	orch := setupTestOrchestrator(t, OrchestratorConfig{})
-	
+
 	agentID := "error-agent"
 	orch.RegisterAgent(agentID, func(exec *tool.Executor) Agent {
 		return &mockAgent{
@@ -417,7 +417,7 @@ func TestWorkflowIntegration_ErrorHandling(t *testing.T) {
 			},
 		}
 	})
-	
+
 	workflow := &Workflow{
 		Steps: []WorkflowStep{
 			{
@@ -426,13 +426,13 @@ func TestWorkflowIntegration_ErrorHandling(t *testing.T) {
 			},
 		},
 	}
-	
+
 	result, err := orch.ExecuteWorkflow(ctx, workflow, schema.Permissions{
 		ReadOnly:    true,
 		MaxFileSize: 1024 * 1024,
 	})
-	
-	require.NoError(t, err) // No execution error
+
+	require.NoError(t, err)         // No execution error
 	assert.False(t, result.Success) // But workflow failed
 	assert.Len(t, result.Responses, 1)
 	assert.Equal(t, schema.StatusError, result.Responses[0].Status)
@@ -445,45 +445,45 @@ func TestWorkflowIntegration_ErrorHandling(t *testing.T) {
 // TestWorkflowIntegration_QualityGateEvaluation tests different quality gate configurations
 func TestWorkflowIntegration_QualityGateEvaluation(t *testing.T) {
 	tests := []struct {
-		name         string
-		config       *QualityGateConfig
-		output       *schema.AgentOutputV1
-		expectPass   bool
+		name             string
+		config           *QualityGateConfig
+		output           *schema.AgentOutputV1
+		expectPass       bool
 		expectViolations bool
 	}{
 		{
-			name:         "Valid with default gates",
-			config:       DefaultQualityGates(),
-			output:       createValidOutput(),
-			expectPass:   true,
+			name:             "Valid with default gates",
+			config:           DefaultQualityGates(),
+			output:           createValidOutput(),
+			expectPass:       true,
 			expectViolations: false,
 		},
 		{
-			name:         "Invalid with relaxed gates",
-			config:       RelaxedQualityGates(),
-			output:       createInvalidOutput(),
-			expectPass:   true, // Relaxed gates allow some violations
+			name:             "Invalid with relaxed gates",
+			config:           RelaxedQualityGates(),
+			output:           createInvalidOutput(),
+			expectPass:       true, // Relaxed gates allow some violations
 			expectViolations: true,
 		},
 		{
-			name:         "Invalid with strict gates",
-			config:       StrictQualityGates(),
-			output:       createInvalidOutput(),
-			expectPass:   false,
+			name:             "Invalid with strict gates",
+			config:           StrictQualityGates(),
+			output:           createInvalidOutput(),
+			expectPass:       false,
 			expectViolations: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			
+
 			config := OrchestratorConfig{
-				EnableProfiling:     true,
-				QualityGates:        tt.config,
+				EnableProfiling: true,
+				QualityGates:    tt.config,
 			}
 			orch := setupTestOrchestrator(t, config)
-			
+
 			agentID := "test-agent"
 			output := tt.output
 			orch.RegisterAgent(agentID, func(exec *tool.Executor) Agent {
@@ -500,7 +500,7 @@ func TestWorkflowIntegration_QualityGateEvaluation(t *testing.T) {
 					},
 				}
 			})
-			
+
 			workflow := &Workflow{
 				Steps: []WorkflowStep{
 					{
@@ -509,12 +509,12 @@ func TestWorkflowIntegration_QualityGateEvaluation(t *testing.T) {
 					},
 				},
 			}
-			
+
 			result, err := orch.ExecuteWorkflow(ctx, workflow, schema.Permissions{
 				ReadOnly:    true,
 				MaxFileSize: 1024 * 1024,
 			})
-			
+
 			// If gates are strict and output is invalid, the orchestrator may return early
 			// with an error on validation failure before computing QualityGateResult.
 			if !tt.expectPass && tt.config.BlockOnValidationFailure {
@@ -527,9 +527,9 @@ func TestWorkflowIntegration_QualityGateEvaluation(t *testing.T) {
 			// Otherwise, expect normal completion with a populated QualityGateResult
 			require.NoError(t, err)
 			assert.NotNil(t, result.QualityGateResult)
-			assert.Equal(t, tt.expectPass, result.QualityGateResult.Passed, 
+			assert.Equal(t, tt.expectPass, result.QualityGateResult.Passed,
 				"Quality gate pass status mismatch")
-			
+
 			if tt.expectViolations {
 				assert.NotEmpty(t, result.QualityGateResult.Violations,
 					"Expected violations but found none")

@@ -9,46 +9,46 @@ func TestParser_Parse(t *testing.T) {
 	parser := NewParser()
 
 	tests := []struct {
-		name            string
-		request         string
-		expectedAgent   string
+		name               string
+		request            string
+		expectedAgent      string
 		expectedConfidence float64
-		shouldError     bool
+		shouldError        bool
 	}{
 		{
-			name:            "find files request",
-			request:         "find all Go files in the internal directory",
-			expectedAgent:   "codebase-locator",
+			name:               "find files request",
+			request:            "find all Go files in the internal directory",
+			expectedAgent:      "codebase-locator",
 			expectedConfidence: 0.3,
-			shouldError:     false,
+			shouldError:        false,
 		},
 		{
-			name:            "analyze code request",
-			request:         "analyze how the parser works",
-			expectedAgent:   "codebase-analyzer",
+			name:               "analyze code request",
+			request:            "analyze how the parser works",
+			expectedAgent:      "codebase-analyzer",
 			expectedConfidence: 0.5,
-			shouldError:     false,
+			shouldError:        false,
 		},
 		{
-			name:            "find patterns request",
-			request:         "pattern similar examples like this",
-			expectedAgent:   "codebase-pattern-finder",
+			name:               "find patterns request",
+			request:            "pattern similar examples like this",
+			expectedAgent:      "codebase-pattern-finder",
 			expectedConfidence: 0.3,
-			shouldError:     false,
+			shouldError:        false,
 		},
 		{
-			name:            "empty request",
-			request:         "",
-			expectedAgent:   "",
+			name:               "empty request",
+			request:            "",
+			expectedAgent:      "",
 			expectedConfidence: 0.0,
-			shouldError:     true,
+			shouldError:        true,
 		},
 		{
-			name:            "no matching pattern",
-			request:         "xyz123 random words",
-			expectedAgent:   "",
+			name:               "no matching pattern",
+			request:            "xyz123 random words",
+			expectedAgent:      "",
 			expectedConfidence: 0.0,
-			shouldError:     true,
+			shouldError:        true,
 		},
 	}
 

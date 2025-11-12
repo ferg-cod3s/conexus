@@ -239,7 +239,7 @@ func BenchmarkWorkflowExecution_20Steps(b *testing.B) {
 
 func BenchmarkQualityGates_Default(b *testing.B) {
 	gates := DefaultQualityGates()
-	
+
 	// Create mock validation and profiling reports
 	validationReport := &ValidationReport{
 		WorkflowID:       "test-workflow",
@@ -262,7 +262,7 @@ func BenchmarkQualityGates_Default(b *testing.B) {
 
 func BenchmarkQualityGates_Strict(b *testing.B) {
 	gates := StrictQualityGates()
-	
+
 	validationReport := &ValidationReport{
 		WorkflowID:       "test-workflow",
 		Timestamp:        time.Now(),
@@ -284,7 +284,7 @@ func BenchmarkQualityGates_Strict(b *testing.B) {
 
 func BenchmarkQualityGates_Relaxed(b *testing.B) {
 	gates := RelaxedQualityGates()
-	
+
 	validationReport := &ValidationReport{
 		WorkflowID:       "test-workflow",
 		Timestamp:        time.Now(),
@@ -355,7 +355,7 @@ func benchmarkConcurrentRequests(b *testing.B, concurrency int) {
 func BenchmarkProfilingOverhead_WithProfiling(b *testing.B) {
 	pm := process.NewManager()
 	te := tool.NewExecutor()
-	
+
 	// Create orchestrator with profiling enabled
 	config := OrchestratorConfig{
 		ProcessManager:  pm,
@@ -378,7 +378,7 @@ func BenchmarkProfilingOverhead_WithProfiling(b *testing.B) {
 func BenchmarkProfilingOverhead_WithoutProfiling(b *testing.B) {
 	pm := process.NewManager()
 	te := tool.NewExecutor()
-	
+
 	// Create orchestrator with profiling disabled
 	config := OrchestratorConfig{
 		ProcessManager:  pm,

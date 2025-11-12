@@ -68,12 +68,12 @@ type TokenInfo struct {
 
 // SecureToken represents a secure Jira token
 type SecureToken struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	TokenType    string    `json:"token_type"`
-	Scope        string    `json:"scope"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	CloudID      string    `json:"cloud_id"`
+	AccessToken  string     `json:"access_token"`
+	RefreshToken string     `json:"refresh_token"`
+	TokenType    string     `json:"token_type"`
+	Scope        string     `json:"scope"`
+	ExpiresAt    time.Time  `json:"expires_at"`
+	CloudID      string     `json:"cloud_id"`
 	Resources    []Resource `json:"resources,omitempty"`
 }
 
@@ -178,9 +178,9 @@ func NewAuthManager(config *AuthConfig, tokenStore TokenStore) (*AuthManager, er
 	// Set default scopes if not provided
 	if len(config.Scopes) == 0 {
 		config.Scopes = []string{
-			"read:jira-work",    // Read Jira issues, projects, etc.
-			"read:jira-user",    // Read user information
-			"offline_access",    // Get refresh token
+			"read:jira-work", // Read Jira issues, projects, etc.
+			"read:jira-user", // Read user information
+			"offline_access", // Get refresh token
 		}
 	}
 

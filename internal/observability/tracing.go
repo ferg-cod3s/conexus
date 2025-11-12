@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -35,12 +35,12 @@ type TracerConfig struct {
 // DefaultTracerConfig returns a default tracer configuration.
 func DefaultTracerConfig() TracerConfig {
 	return TracerConfig{
-		ServiceName:  "conexus",
+		ServiceName:    "conexus",
 		ServiceVersion: "0.1.0",
-		Environment:  "development",
-		OTLPEndpoint: "localhost:4317",
-		SamplingRate: 1.0,
-		Enabled:      false, // Disabled by default
+		Environment:    "development",
+		OTLPEndpoint:   "localhost:4317",
+		SamplingRate:   1.0,
+		Enabled:        false, // Disabled by default
 	}
 }
 
@@ -138,7 +138,7 @@ func SetSpanError(ctx context.Context, err error) {
 	if err == nil {
 		return
 	}
-	
+
 	span := trace.SpanFromContext(ctx)
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())

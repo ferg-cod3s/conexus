@@ -27,12 +27,12 @@ func NewValidator(strictMode bool) *Validator {
 
 // ValidationResult contains the results of evidence validation
 type ValidationResult struct {
-	Valid               bool
-	TotalClaims         int
-	BackedClaims        int
-	UnbackedClaims      []UnbackedClaim
-	InvalidEvidence     []InvalidEvidence
-	CoveragePercentage  float64
+	Valid              bool
+	TotalClaims        int
+	BackedClaims       int
+	UnbackedClaims     []UnbackedClaim
+	InvalidEvidence    []InvalidEvidence
+	CoveragePercentage float64
 }
 
 // UnbackedClaim represents a claim without evidence

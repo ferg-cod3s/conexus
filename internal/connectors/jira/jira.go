@@ -20,31 +20,31 @@ type Connector struct {
 }
 
 type Config struct {
-	BaseURL      string        `json:"base_url"`       // Jira instance URL
-	Username     string        `json:"username"`       // Email for Jira Cloud, username for Jira Server
-	APIToken     string        `json:"api_token"`      // API token or password
-	Projects     []string      `json:"projects"`       // Project keys to index
-	SyncInterval time.Duration `json:"sync_interval"`  // How often to sync
-	MaxIssues    int           `json:"max_issues"`     // Max issues per project
+	BaseURL      string        `json:"base_url"`      // Jira instance URL
+	Username     string        `json:"username"`      // Email for Jira Cloud, username for Jira Server
+	APIToken     string        `json:"api_token"`     // API token or password
+	Projects     []string      `json:"projects"`      // Project keys to index
+	SyncInterval time.Duration `json:"sync_interval"` // How often to sync
+	MaxIssues    int           `json:"max_issues"`    // Max issues per project
 }
 
 type Issue struct {
-	ID          string    `json:"id"`
-	Key         string    `json:"key"`
-	Summary     string    `json:"summary"`
-	Description string    `json:"description"`
-	Status      string    `json:"status"`
-	Priority    string    `json:"priority"`
-	IssueType   string    `json:"issue_type"`
-	Assignee    string    `json:"assignee"`
-	Reporter    string    `json:"reporter"`
-	Labels      []string  `json:"labels"`
-	Components  []string  `json:"components"`
-	FixVersions []string  `json:"fix_versions"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string     `json:"id"`
+	Key         string     `json:"key"`
+	Summary     string     `json:"summary"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	Priority    string     `json:"priority"`
+	IssueType   string     `json:"issue_type"`
+	Assignee    string     `json:"assignee"`
+	Reporter    string     `json:"reporter"`
+	Labels      []string   `json:"labels"`
+	Components  []string   `json:"components"`
+	FixVersions []string   `json:"fix_versions"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 	ResolvedAt  *time.Time `json:"resolved_at,omitempty"`
-	Project     string    `json:"project"`
+	Project     string     `json:"project"`
 }
 
 type Comment struct {

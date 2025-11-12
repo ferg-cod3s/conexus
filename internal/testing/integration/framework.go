@@ -53,13 +53,13 @@ type Assertion interface {
 
 // TestResult contains the results of a test case execution
 type TestResult struct {
-	TestName      string
-	Passed        bool
-	Duration      time.Duration
+	TestName       string
+	Passed         bool
+	Duration       time.Duration
 	WorkflowResult *workflow.ExecutionResult
-	Errors        []error
-	Warnings      []string
-	Assertions    []AssertionResult
+	Errors         []error
+	Warnings       []string
+	Assertions     []AssertionResult
 }
 
 // AssertionResult contains the result of a single assertion
@@ -73,7 +73,7 @@ type AssertionResult struct {
 // Returns an error if duration exceeds the threshold
 func (r *TestResult) AssertMaxDuration(max time.Duration) error {
 	if r.Duration > max {
-		return fmt.Errorf("test duration %v exceeded maximum allowed %v (by %v)", 
+		return fmt.Errorf("test duration %v exceeded maximum allowed %v (by %v)",
 			r.Duration, max, r.Duration-max)
 	}
 	return nil
@@ -142,10 +142,10 @@ func (f *TestFramework) Run(ctx context.Context, testCase *TestCase) *TestResult
 // RunSuite executes multiple test cases
 func (f *TestFramework) RunSuite(ctx context.Context, testCases []*TestCase) *SuiteResult {
 	suiteResult := &SuiteResult{
-		TotalTests:   len(testCases),
-		PassedTests:  0,
-		FailedTests:  0,
-		TestResults:  make([]*TestResult, 0, len(testCases)),
+		TotalTests:    len(testCases),
+		PassedTests:   0,
+		FailedTests:   0,
+		TestResults:   make([]*TestResult, 0, len(testCases)),
 		TotalDuration: 0,
 	}
 
@@ -329,6 +329,7 @@ func (a *EscalationOccurredAssertion) Description() string {
 	}
 	return "Escalation occurred"
 }
+
 // EvidenceValidAssertion checks that all claims have evidence backing
 // EvidenceValidAssertion checks that all claims have evidence backing
 type EvidenceValidAssertion struct {
@@ -352,7 +353,7 @@ func (a *EvidenceValidAssertion) Assert(result *workflow.ExecutionResult) error 
 				// Build detailed error message with unbacked claims
 				errMsg := fmt.Sprintf("step %d (%s): evidence validation failed: %d unbacked claims, %d invalid evidence",
 					i, step.StepID, len(report.EvidenceResult.UnbackedClaims), len(report.EvidenceResult.InvalidEvidence))
-				
+
 				// Add details about unbacked claims for debugging
 				if len(report.EvidenceResult.UnbackedClaims) > 0 {
 					errMsg += "\n  Unbacked claims:"
@@ -361,7 +362,7 @@ func (a *EvidenceValidAssertion) Assert(result *workflow.ExecutionResult) error 
 							claim.Section, claim.Index, claim.Description)
 					}
 				}
-				
+
 				return fmt.Errorf("%s", errMsg)
 			}
 			return fmt.Errorf("step %d (%s): evidence validation failed", i, step.StepID)
@@ -494,7 +495,7 @@ func (a *OutputFieldNotEmptyAssertion) Assert(result *workflow.ExecutionResult) 
 		default:
 			return fmt.Errorf("unknown field name: %s (valid: component_name, scope_description, overview, entry_points, call_graph, data_flow, raw_evidence, state_management, side_effects, error_handling, patterns, external_dependencies, configuration, concurrency, limitations)", a.FieldName)
 
-				}
+		}
 	}
 	return nil
 }
@@ -555,6 +556,7 @@ func (f *TestFramework) RunWorkflow(ctx context.Context, config WorkflowConfig) 
 
 	return result, nil
 }
+
 // WorkflowStep simplifies step creation for multi-step workflow testing
 type WorkflowStep struct {
 	ID          string
@@ -687,11 +689,11 @@ func (f *TestFramework) RunMultiStepWorkflow(ctx context.Context, config MultiSt
 	for i, stepResult := range workflowResult.StepResults {
 		if stepResult.Status == workflow.StepStatusFailed {
 			allStepsSucceeded = false
-			result.Warnings = append(result.Warnings, 
+			result.Warnings = append(result.Warnings,
 				fmt.Sprintf("step %d (%s) failed: %s", i, stepResult.StepID, stepResult.Error))
 		} else if stepResult.Status == workflow.StepStatusEscalated {
 			result.Warnings = append(result.Warnings,
-				fmt.Sprintf("step %d (%s) escalated to %s: %s", 
+				fmt.Sprintf("step %d (%s) escalated to %s: %s",
 					i, stepResult.StepID, stepResult.EscalationTarget, stepResult.EscalationReason))
 		}
 	}

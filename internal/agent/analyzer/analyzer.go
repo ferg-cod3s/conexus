@@ -379,11 +379,11 @@ func findSideEffects(filepath string, lines []string) []schema.SideEffect {
 	var sideEffects []schema.SideEffect
 
 	patterns := map[string]string{
-		`fmt\.Print`:     "log",
-		`log\.Print`:     "log",
-		`os\.WriteFile`:  "fs",
-		`os\.ReadFile`:   "fs",
-		`http\.`:         "http",
+		`fmt\.Print`:    "log",
+		`log\.Print`:    "log",
+		`os\.WriteFile`: "fs",
+		`os\.ReadFile`:  "fs",
+		`http\.`:        "http",
 	}
 
 	for i, line := range lines {
@@ -469,11 +469,11 @@ func findConcurrency(filepath string, lines []string) []schema.ConcurrencyMechan
 	var mechanisms []schema.ConcurrencyMechanism
 
 	patterns := map[string]string{
-		`go\s+\w+\(`:        "goroutine",
-		`make\(chan\s`:      "channel",
-		`sync\.Mutex`:       "mutex",
-		`sync\.RWMutex`:     "mutex",
-		`sync\.WaitGroup`:   "waitgroup",
+		`go\s+\w+\(`:      "goroutine",
+		`make\(chan\s`:    "channel",
+		`sync\.Mutex`:     "mutex",
+		`sync\.RWMutex`:   "mutex",
+		`sync\.WaitGroup`: "waitgroup",
 	}
 
 	for i, line := range lines {

@@ -11,10 +11,10 @@ import (
 var (
 	// ErrInvalidPath indicates an invalid or unsafe path.
 	ErrInvalidPath = fmt.Errorf("invalid or unsafe path")
-	
+
 	// ErrPathTraversal indicates a path traversal attempt.
 	ErrPathTraversal = fmt.Errorf("path traversal attempt detected")
-	
+
 	// ErrAbsolutePathRequired indicates an absolute path was required but not provided.
 	ErrAbsolutePathRequired = fmt.Errorf("absolute path required")
 )
@@ -28,18 +28,19 @@ var (
 //   - Thread-safe for concurrent use
 //
 // Usage:
-//   validator, err := NewPathValidator("/safe/root")
-//   if err != nil {
-//       return err
-//   }
-//   defer validator.Close()
 //
-//   safePath, err := validator.ValidatePath(userInput)
-//   if err != nil {
-//       return fmt.Errorf("invalid path: %w", err)
-//   }
+//	validator, err := NewPathValidator("/safe/root")
+//	if err != nil {
+//	    return err
+//	}
+//	defer validator.Close()
+//
+//	safePath, err := validator.ValidatePath(userInput)
+//	if err != nil {
+//	    return fmt.Errorf("invalid path: %w", err)
+//	}
 type PathValidator struct {
-	root *os.Root
+	root     *os.Root
 	rootPath string
 }
 
@@ -49,7 +50,7 @@ func NewPathValidator(rootPath string) (*PathValidator, error) {
 	if !filepath.IsAbs(rootPath) {
 		return nil, fmt.Errorf("%w: root must be absolute path", ErrInvalidPath)
 	}
-	
+
 	info, err := os.Stat(rootPath)
 	if err != nil {
 		return nil, fmt.Errorf("root path does not exist: %w", err)
@@ -57,12 +58,12 @@ func NewPathValidator(rootPath string) (*PathValidator, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("root path is not a directory")
 	}
-	
+
 	root, err := os.OpenRoot(rootPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open root directory: %w", err)
 	}
-	
+
 	return &PathValidator{root: root, rootPath: rootPath}, nil
 }
 
@@ -74,15 +75,15 @@ func (v *PathValidator) ValidatePath(path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("%w: empty path", ErrInvalidPath)
 	}
-	
+
 	// Check for dangerous patterns BEFORE cleaning
 	if strings.Contains(path, "..") {
 		return "", fmt.Errorf("%w: contains parent directory reference", ErrPathTraversal)
 	}
-	
+
 	// Clean the path
 	cleaned := filepath.Clean(path)
-	
+
 	// Use os.Root to verify path is within bounds
 	// This automatically handles symlinks and prevents escapes
 	_, err := v.root.Stat(cleaned)
@@ -106,7 +107,7 @@ func (v *PathValidator) ValidatePath(path string) (string, error) {
 		}
 		// Parent exists or path is single-component, so this is valid for creation
 	}
-	
+
 	// os.Root.Stat succeeding means the path is safe and within root
 	return cleaned, nil
 }
@@ -117,20 +118,20 @@ func SanitizePath(path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("%w: empty path", ErrInvalidPath)
 	}
-	
+
 	// Check for dangerous patterns BEFORE cleaning
 	if strings.Contains(path, "..") {
 		return "", fmt.Errorf("%w: contains parent directory reference", ErrPathTraversal)
 	}
-	
+
 	// Clean the path
 	cleaned := filepath.Clean(path)
-	
+
 	// Double-check after cleaning (belt and suspenders)
 	if strings.Contains(cleaned, "..") {
 		return "", fmt.Errorf("%w: cleaned path still contains ..", ErrPathTraversal)
 	}
-	
+
 	return cleaned, nil
 }
 
@@ -140,23 +141,23 @@ func IsPathSafe(path string) error {
 	if path == "" {
 		return fmt.Errorf("%w: empty path", ErrInvalidPath)
 	}
-	
+
 	// Check for null bytes
 	if strings.ContainsRune(path, '\x00') {
 		return fmt.Errorf("%w: contains null byte", ErrInvalidPath)
 	}
-	
+
 	// Check for parent directory traversal
 	if strings.Contains(path, "..") {
 		return fmt.Errorf("%w: contains parent directory reference", ErrPathTraversal)
 	}
-	
+
 	// Check cleaned path
 	cleaned := filepath.Clean(path)
 	if strings.Contains(cleaned, "..") {
 		return fmt.Errorf("%w: cleaned path contains ..", ErrPathTraversal)
 	}
-	
+
 	return nil
 }
 
@@ -166,17 +167,17 @@ func ValidateConfigPath(path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("%w: empty config path", ErrInvalidPath)
 	}
-	
+
 	// Config paths must be absolute
 	if !filepath.IsAbs(path) {
 		return "", fmt.Errorf("%w: config path must be absolute", ErrAbsolutePathRequired)
 	}
-	
+
 	// Basic safety checks
 	if err := IsPathSafe(path); err != nil {
 		return "", err
 	}
-	
+
 	cleaned := filepath.Clean(path)
 	return cleaned, nil
 }
@@ -199,6 +200,7 @@ func (v *PathValidator) Close() error {
 	}
 	return nil
 }
+
 // ValidateAgentID validates that an agent identifier contains only safe characters.
 // Agent IDs should only contain alphanumeric characters, hyphens, and underscores.
 // This prevents command injection when constructing agent binary paths.
@@ -206,27 +208,27 @@ func ValidateAgentID(agentID string) error {
 	if agentID == "" {
 		return fmt.Errorf("agent ID cannot be empty")
 	}
-	
+
 	// Check length (reasonable limit)
 	if len(agentID) > 128 {
 		return fmt.Errorf("agent ID too long (max 128 characters)")
 	}
-	
+
 	// Check for only allowed characters: alphanumeric, hyphen, underscore
 	for _, r := range agentID {
-		if !((r >= 'a' && r <= 'z') || 
-		     (r >= 'A' && r <= 'Z') || 
-		     (r >= '0' && r <= '9') || 
-		     r == '-' || 
-		     r == '_') {
+		if !((r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') ||
+			r == '-' ||
+			r == '_') {
 			return fmt.Errorf("agent ID contains invalid character: %q", r)
 		}
 	}
-	
+
 	// Prevent starting with hyphen (could be interpreted as flag)
 	if agentID[0] == '-' {
 		return fmt.Errorf("agent ID cannot start with hyphen")
 	}
-	
+
 	return nil
 }

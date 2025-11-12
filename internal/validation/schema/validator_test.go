@@ -202,10 +202,10 @@ func TestValidateEntryPoints(t *testing.T) {
 
 	entryPoints := []schema.EntryPoint{
 		{File: "/home/user/file.go", Lines: "10", Symbol: "main"},
-		{File: "", Lines: "20", Symbol: "helper"},                // Missing file
-		{File: "/home/user/file.go", Lines: "", Symbol: "util"},  // Missing lines
-		{File: "/home/user/file.go", Lines: "30", Symbol: ""},    // Missing symbol
-		{File: "relative.go", Lines: "40", Symbol: "func"},       // Relative path
+		{File: "", Lines: "20", Symbol: "helper"},               // Missing file
+		{File: "/home/user/file.go", Lines: "", Symbol: "util"}, // Missing lines
+		{File: "/home/user/file.go", Lines: "30", Symbol: ""},   // Missing symbol
+		{File: "relative.go", Lines: "40", Symbol: "func"},      // Relative path
 	}
 
 	result := &ValidationResult{
@@ -228,10 +228,10 @@ func TestValidateCallGraph(t *testing.T) {
 
 	callGraph := []schema.CallGraphEdge{
 		{From: "main", To: "helper", ViaLine: 10},
-		{From: "", To: "helper", ViaLine: 20},     // Missing from
-		{From: "main", To: "", ViaLine: 30},       // Missing to
-		{From: "main", To: "util", ViaLine: 0},    // Invalid line
-		{From: "main", To: "func", ViaLine: -5},   // Negative line
+		{From: "", To: "helper", ViaLine: 20},   // Missing from
+		{From: "main", To: "", ViaLine: 30},     // Missing to
+		{From: "main", To: "util", ViaLine: 0},  // Invalid line
+		{From: "main", To: "func", ViaLine: -5}, // Negative line
 	}
 
 	result := &ValidationResult{
@@ -255,12 +255,12 @@ func TestValidateDataFlow(t *testing.T) {
 	dataFlow := schema.DataFlow{
 		Inputs: []schema.DataPoint{
 			{Source: "/home/user/file.go:10", Name: "input1"},
-			{Source: "", Name: "input2"},           // Missing source
+			{Source: "", Name: "input2"},                // Missing source
 			{Source: "/home/user/file.go:20", Name: ""}, // Missing name
 		},
 		Transformations: []schema.Transformation{
 			{File: "/home/user/file.go", Lines: "30-40", Operation: "transform"},
-			{File: "", Lines: "50", Operation: "op"},                // Missing file
+			{File: "", Lines: "50", Operation: "op"},                 // Missing file
 			{File: "/home/user/file.go", Lines: "", Operation: "op"}, // Missing lines
 		},
 		Outputs: []schema.DataPoint{
@@ -285,9 +285,9 @@ func TestValidateSideEffects(t *testing.T) {
 
 	sideEffects := []schema.SideEffect{
 		{File: "/home/user/file.go", Line: 10, Type: "io"},
-		{File: "", Line: 20, Type: "io"},              // Missing file
-		{File: "/home/user/file.go", Line: 0, Type: "io"},  // Invalid line
-		{File: "relative.go", Line: 30, Type: "io"},   // Relative path
+		{File: "", Line: 20, Type: "io"},                  // Missing file
+		{File: "/home/user/file.go", Line: 0, Type: "io"}, // Invalid line
+		{File: "relative.go", Line: 30, Type: "io"},       // Relative path
 	}
 
 	result := &ValidationResult{

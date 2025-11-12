@@ -61,14 +61,14 @@ func (r *RealGitHubClient) ListRepositories(ctx context.Context, user string, op
 
 // MockGitHubClient implements GitHubClientInterface for testing
 type MockGitHubClient struct {
-	ListIssuesByRepoFunc func(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error)
-	ListPullRequestsFunc func(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error)
-	GetRateLimitsFunc    func(ctx context.Context) (*github.RateLimits, *github.Response, error)
-	SearchIssuesFunc     func(ctx context.Context, query string, opts *github.SearchOptions) (*github.IssuesSearchResult, *github.Response, error)
-	GetIssueFunc         func(ctx context.Context, owner string, repo string, number int) (*github.Issue, *github.Response, error)
-	GetPullRequestFunc   func(ctx context.Context, owner string, repo string, number int) (*github.PullRequest, *github.Response, error)
+	ListIssuesByRepoFunc  func(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error)
+	ListPullRequestsFunc  func(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error)
+	GetRateLimitsFunc     func(ctx context.Context) (*github.RateLimits, *github.Response, error)
+	SearchIssuesFunc      func(ctx context.Context, query string, opts *github.SearchOptions) (*github.IssuesSearchResult, *github.Response, error)
+	GetIssueFunc          func(ctx context.Context, owner string, repo string, number int) (*github.Issue, *github.Response, error)
+	GetPullRequestFunc    func(ctx context.Context, owner string, repo string, number int) (*github.PullRequest, *github.Response, error)
 	ListIssueCommentsFunc func(ctx context.Context, owner string, repo string, number int, opts *github.IssueListCommentsOptions) ([]*github.IssueComment, *github.Response, error)
-	ListRepositoriesFunc func(ctx context.Context, user string, opts *github.RepositoryListOptions) ([]*github.Repository, *github.Response, error)
+	ListRepositoriesFunc  func(ctx context.Context, user string, opts *github.RepositoryListOptions) ([]*github.Repository, *github.Response, error)
 }
 
 func (m *MockGitHubClient) ListIssuesByRepo(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error) {

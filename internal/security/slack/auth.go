@@ -19,17 +19,17 @@ import (
 // Slack OAuth 2.0 endpoints
 // Reference: https://api.slack.com/authentication/oauth-v2
 const (
-	slackAuthURL  = "https://slack.com/oauth/v2/authorize"
-	slackTokenURL = "https://slack.com/api/oauth.v2.access"
+	slackAuthURL   = "https://slack.com/oauth/v2/authorize"
+	slackTokenURL  = "https://slack.com/api/oauth.v2.access"
 	slackRevokeURL = "https://slack.com/api/auth.revoke"
 )
 
 // AuthManager manages Slack OAuth authentication
 type AuthManager struct {
-	config      *AuthConfig
+	config       *AuthConfig
 	oauth2Config *oauth2.Config
-	tokenStore  TokenStore
-	mu          sync.RWMutex
+	tokenStore   TokenStore
+	mu           sync.RWMutex
 }
 
 // AuthConfig contains Slack OAuth configuration
@@ -57,13 +57,13 @@ type AuthConfig struct {
 
 // TokenInfo contains information about a Slack token
 type TokenInfo struct {
-	TeamID      string    `json:"team_id"`
-	TeamName    string    `json:"team_name"`
-	UserID      string    `json:"user_id"`
-	Scopes      []string  `json:"scopes"`
-	BotID       string    `json:"bot_id,omitempty"`
-	ExpiresAt   time.Time `json:"expires_at,omitempty"`
-	TokenType   string    `json:"token_type"` // "bot" or "user"
+	TeamID    string    `json:"team_id"`
+	TeamName  string    `json:"team_name"`
+	UserID    string    `json:"user_id"`
+	Scopes    []string  `json:"scopes"`
+	BotID     string    `json:"bot_id,omitempty"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	TokenType string    `json:"token_type"` // "bot" or "user"
 }
 
 // SecureToken represents a secure Slack token

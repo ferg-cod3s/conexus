@@ -69,18 +69,18 @@ func (e *AgentExecutor) ExecuteStep(ctx context.Context, step *Step, currentResu
 
 	for attempt := 1; attempt <= e.maxRetries; attempt++ {
 		resp, err = agent.Execute(ctx, req)
-		
+
 		// Success - no error
 		if err == nil {
 			break
 		}
-		
+
 		// Check if error is recoverable
 		recoverable := false
 		if resp.Error != nil && resp.Error.Recoverable {
 			recoverable = true
 		}
-		
+
 		// If not recoverable or max attempts reached, fail
 		if !recoverable || attempt >= e.maxRetries {
 			return &StepResult{
@@ -90,10 +90,10 @@ func (e *AgentExecutor) ExecuteStep(ctx context.Context, step *Step, currentResu
 				Error:  err.Error(),
 			}, err
 		}
-		
+
 		// Exponential backoff before retry
 		backoff := time.Duration(10*attempt*attempt) * time.Millisecond
-		
+
 		select {
 		case <-ctx.Done():
 			return &StepResult{
@@ -106,7 +106,7 @@ func (e *AgentExecutor) ExecuteStep(ctx context.Context, step *Step, currentResu
 			// Continue to next retry attempt
 		}
 	}
-	
+
 	// Check for final error after all retries
 	if err != nil {
 		return &StepResult{

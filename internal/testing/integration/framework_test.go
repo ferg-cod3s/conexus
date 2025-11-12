@@ -78,11 +78,11 @@ func TestTestResult_AssertMaxDuration(t *testing.T) {
 				require.Error(t, err, "expected error but got none")
 				assert.Contains(t, err.Error(), tt.errorContains,
 					"error message should contain expected text")
-				
+
 				// Verify error message contains actual duration
 				assert.Contains(t, err.Error(), tt.duration.String(),
 					"error message should contain actual duration")
-				
+
 				// Verify error message contains max duration
 				assert.Contains(t, err.Error(), tt.maxDuration.String(),
 					"error message should contain max duration")
@@ -106,16 +106,16 @@ func TestTestResult_AssertMaxDuration_ErrorMessage(t *testing.T) {
 
 	// Assert
 	require.Error(t, err)
-	
+
 	// Verify error message format
 	expectedSubstrings := []string{
-		"5s",           // actual duration
-		"2s",           // max allowed
-		"3s",           // exceeded by
-		"exceeded",     // action word
-		"maximum",      // threshold descriptor
+		"5s",       // actual duration
+		"2s",       // max allowed
+		"3s",       // exceeded by
+		"exceeded", // action word
+		"maximum",  // threshold descriptor
 	}
-	
+
 	for _, substring := range expectedSubstrings {
 		assert.Contains(t, err.Error(), substring,
 			"error message should contain '%s'", substring)
@@ -211,14 +211,13 @@ func (m *mockMultiStepAgent) Execute(ctx context.Context, req schema.AgentReques
 func TestRunMultiStepWorkflow_Success(t *testing.T) {
 	// Arrange
 	ctx := context.Background()
-	
+
 	// Register test agents
 	framework := NewTestFramework()
 
 	framework.RegisterAgent("locator", &mockMultiStepAgent{name: "locator"})
 	framework.RegisterAgent("analyzer", &mockMultiStepAgent{name: "analyzer"})
 	framework.RegisterAgent("implementer", &mockMultiStepAgent{name: "implementer"})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-success",
@@ -256,10 +255,10 @@ func TestRunMultiStepWorkflow_Success(t *testing.T) {
 	assert.Len(t, result.Warnings, 0, "should have no warnings")
 	assert.NotNil(t, result.WorkflowResult)
 	assert.Len(t, result.WorkflowResult.StepResults, 3, "should have 3 step results")
-	
+
 	// Verify all steps completed
 	for i, stepResult := range result.WorkflowResult.StepResults {
-		assert.Equal(t, workflow.StepStatusCompleted, stepResult.Status, 
+		assert.Equal(t, workflow.StepStatusCompleted, stepResult.Status,
 			"step %d should be completed", i)
 		assert.NotNil(t, stepResult.Output, "step %d should have output", i)
 	}
@@ -268,7 +267,7 @@ func TestRunMultiStepWorkflow_Success(t *testing.T) {
 func TestRunMultiStepWorkflow_Timeout(t *testing.T) {
 	// Arrange
 	ctx := context.Background()
-	
+
 	// Register slow agent
 	framework := NewTestFramework()
 
@@ -276,7 +275,6 @@ func TestRunMultiStepWorkflow_Timeout(t *testing.T) {
 		name:  "slow-agent",
 		delay: 3 * time.Second,
 	})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-timeout",
@@ -305,7 +303,7 @@ func TestRunMultiStepWorkflow_Timeout(t *testing.T) {
 func TestRunMultiStepWorkflow_ContextCancellation(t *testing.T) {
 	// Arrange
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Register agent that checks cancellation
 	framework := NewTestFramework()
 
@@ -313,7 +311,6 @@ func TestRunMultiStepWorkflow_ContextCancellation(t *testing.T) {
 		name:  "cancellable",
 		delay: 2 * time.Second,
 	})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-cancel",
@@ -348,7 +345,7 @@ func TestRunMultiStepWorkflow_ContextCancellation(t *testing.T) {
 func TestRunMultiStepWorkflow_StepFailure(t *testing.T) {
 	// Arrange
 	ctx := context.Background()
-	
+
 	framework := NewTestFramework()
 
 	framework.RegisterAgent("succeeds", &mockMultiStepAgent{name: "succeeds"})
@@ -357,7 +354,6 @@ func TestRunMultiStepWorkflow_StepFailure(t *testing.T) {
 		shouldFail: true,
 	})
 	framework.RegisterAgent("never-runs", &mockMultiStepAgent{name: "never-runs"})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-failure",
@@ -394,7 +390,7 @@ func TestRunMultiStepWorkflow_StepFailure(t *testing.T) {
 func TestRunMultiStepWorkflow_Escalation(t *testing.T) {
 	// Arrange
 	ctx := context.Background()
-	
+
 	framework := NewTestFramework()
 
 	framework.RegisterAgent("basic-agent", &mockMultiStepAgent{
@@ -403,7 +399,6 @@ func TestRunMultiStepWorkflow_Escalation(t *testing.T) {
 		escalateTo:     "expert-agent",
 	})
 	framework.RegisterAgent("expert-agent", &mockMultiStepAgent{name: "expert-agent"})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-escalation",
@@ -427,7 +422,7 @@ func TestRunMultiStepWorkflow_Escalation(t *testing.T) {
 	assert.Greater(t, len(result.Warnings), 0, "should have escalation warnings")
 	assert.Contains(t, result.Warnings[0], "escalated")
 	assert.Contains(t, result.Warnings[0], "expert-agent")
-	
+
 	// Verify escalation happened
 	assert.Greater(t, len(result.WorkflowResult.StepResults), 1,
 		"should have original step + escalated step")
@@ -461,7 +456,6 @@ func TestRunMultiStepWorkflow_InputMarshalError(t *testing.T) {
 	framework := NewTestFramework()
 
 	framework.RegisterAgent("test-agent", &mockMultiStepAgent{name: "test-agent"})
-	
 
 	// Create input that cannot be marshaled
 	invalidInput := map[string]interface{}{
@@ -495,7 +489,7 @@ func TestRunMultiStepWorkflow_InputMarshalError(t *testing.T) {
 func TestRunMultiStepWorkflow_ParallelMode(t *testing.T) {
 	// Arrange
 	ctx := context.Background()
-	
+
 	// Register multiple agents
 	framework := NewTestFramework()
 
@@ -511,7 +505,6 @@ func TestRunMultiStepWorkflow_ParallelMode(t *testing.T) {
 		name:  "agent3",
 		delay: 100 * time.Millisecond,
 	})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-parallel",
@@ -534,24 +527,23 @@ func TestRunMultiStepWorkflow_ParallelMode(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.True(t, result.Passed)
-	
+
 	// Parallel execution should be faster than sequential
 	// (3 * 100ms sequentially = 300ms, parallel should be ~100-150ms)
 	assert.Less(t, duration, 250*time.Millisecond,
 		"parallel execution should be faster than sequential")
-	
+
 	assert.Len(t, result.WorkflowResult.StepResults, 3)
 }
 
 func TestRunMultiStepWorkflow_ConditionalMode(t *testing.T) {
 	// Arrange
 	ctx := context.Background()
-	
+
 	framework := NewTestFramework()
 
 	framework.RegisterAgent("first-agent", &mockMultiStepAgent{name: "first-agent"})
 	framework.RegisterAgent("conditional-agent", &mockMultiStepAgent{name: "conditional-agent"})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-conditional",
@@ -591,7 +583,6 @@ func TestRunMultiStepWorkflow_DefaultTimeout(t *testing.T) {
 	framework := NewTestFramework()
 
 	framework.RegisterAgent("test-agent", &mockMultiStepAgent{name: "test-agent"})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-default-timeout",
@@ -622,7 +613,6 @@ func TestRunMultiStepWorkflow_AutoGeneratedStepIDs(t *testing.T) {
 
 	framework.RegisterAgent("agent1", &mockMultiStepAgent{name: "agent1"})
 	framework.RegisterAgent("agent2", &mockMultiStepAgent{name: "agent2"})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-auto-ids",
@@ -651,7 +641,7 @@ func TestRunMultiStepWorkflow_AutoGeneratedStepIDs(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.True(t, result.Passed)
 	assert.Len(t, result.WorkflowResult.StepResults, 2)
-	
+
 	// Verify step IDs were auto-generated
 	assert.NotEmpty(t, result.WorkflowResult.StepResults[0].StepID)
 	assert.NotEmpty(t, result.WorkflowResult.StepResults[1].StepID)
@@ -663,7 +653,6 @@ func TestRunMultiStepWorkflow_ResultStoredInFramework(t *testing.T) {
 	framework := NewTestFramework()
 
 	framework.RegisterAgent("test-agent", &mockMultiStepAgent{name: "test-agent"})
-	
 
 	config := MultiStepWorkflowConfig{
 		ID:          "test-result-storage",

@@ -25,9 +25,9 @@ func TestMerkleTree_Hash(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name      string
-		files     map[string]string
-		wantErr   bool
+		name    string
+		files   map[string]string
+		wantErr bool
 	}{
 		{
 			name: "single file",
@@ -170,9 +170,9 @@ func TestMerkleTree_Hash_WithIgnorePatterns(t *testing.T) {
 	ctx := context.Background()
 
 	tmpDir := createTestFiles(t, map[string]string{
-		"include.txt":           "included",
-		"node_modules/pkg.js":   "excluded",
-		".git/config":           "excluded",
+		"include.txt":         "included",
+		"node_modules/pkg.js": "excluded",
+		".git/config":         "excluded",
 	})
 
 	walker := NewFileWalker(0)
@@ -307,7 +307,7 @@ func TestMerkleTree_Diff(t *testing.T) {
 		})
 		tmpDir2 := createTestFiles(t, map[string]string{
 			"file2.txt": "new content", // Modified
-			"file3.txt": "content3",     // Added
+			"file3.txt": "content3",    // Added
 			// file1.txt deleted
 		})
 
@@ -407,7 +407,7 @@ func TestComputeFileHash(t *testing.T) {
 		assert.Equal(t, expectedHash, hash)
 	})
 
-		t.Run("same content produces same hash", func(t *testing.T) {
+	t.Run("same content produces same hash", func(t *testing.T) {
 		content := "test content"
 
 		tmpDir1 := t.TempDir()

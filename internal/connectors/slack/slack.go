@@ -28,21 +28,21 @@ type Config struct {
 }
 
 type Message struct {
-	ID        string    `json:"id"`
-	Channel   string    `json:"channel"`
-	User      string    `json:"user"`
-	Text      string    `json:"text"`
-	Timestamp string    `json:"timestamp"`
-	ThreadTS  string    `json:"thread_ts,omitempty"`
-	ReplyCount int      `json:"reply_count"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string    `json:"id"`
+	Channel    string    `json:"channel"`
+	User       string    `json:"user"`
+	Text       string    `json:"text"`
+	Timestamp  string    `json:"timestamp"`
+	ThreadTS   string    `json:"thread_ts,omitempty"`
+	ReplyCount int       `json:"reply_count"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type Channel struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	IsPrivate bool `json:"is_private"`
-	Members int    `json:"members"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	IsPrivate bool   `json:"is_private"`
+	Members   int    `json:"members"`
 }
 
 type Thread struct {
@@ -56,12 +56,12 @@ type RateLimitInfo struct {
 }
 
 type SyncStatus struct {
-	LastSync        time.Time      `json:"last_sync"`
-	TotalMessages   int            `json:"total_messages"`
-	TotalChannels   int            `json:"total_channels"`
-	SyncInProgress  bool           `json:"sync_in_progress"`
-	Error           string         `json:"error,omitempty"`
-	RateLimit       *RateLimitInfo `json:"rate_limit,omitempty"`
+	LastSync       time.Time      `json:"last_sync"`
+	TotalMessages  int            `json:"total_messages"`
+	TotalChannels  int            `json:"total_channels"`
+	SyncInProgress bool           `json:"sync_in_progress"`
+	Error          string         `json:"error,omitempty"`
+	RateLimit      *RateLimitInfo `json:"rate_limit,omitempty"`
 }
 
 func NewConnector(config *Config) (*Connector, error) {

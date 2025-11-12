@@ -83,7 +83,7 @@ func TestOrchestrator_HandleRequest_Routing(t *testing.T) {
 	orch.RegisterAgent("codebase-analyzer", mockAnalyzer)
 
 	tests := []struct {
-		request      string
+		request       string
 		expectedAgent string
 	}{
 		{"find all .go files", "codebase-locator"},

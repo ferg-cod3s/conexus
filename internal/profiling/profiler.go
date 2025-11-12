@@ -54,9 +54,9 @@ type ExecutionProfile struct {
 
 // PhaseProfile tracks metrics for a specific execution phase
 type PhaseProfile struct {
-	Name      string
-	StartTime time.Time
-	Duration  time.Duration
+	Name        string
+	StartTime   time.Time
+	Duration    time.Duration
 	MemoryDelta int64
 }
 
@@ -108,22 +108,22 @@ func (p *Profiler) StartExecution(ctx context.Context, agent string, request str
 	p.mu.Unlock()
 
 	return &ExecutionContext{
-		profiler:      p,
-		executionID:   id,
-		enabled:       true,
-		startMemory:   m.Alloc,
-		currentPhase:  nil,
+		profiler:     p,
+		executionID:  id,
+		enabled:      true,
+		startMemory:  m.Alloc,
+		currentPhase: nil,
 	}
 }
 
 // ExecutionContext tracks the current execution being profiled
 type ExecutionContext struct {
-	profiler      *Profiler
-	executionID   string
-	enabled       bool
-	startMemory   uint64
-	currentPhase  *PhaseProfile
-	mu            sync.Mutex
+	profiler     *Profiler
+	executionID  string
+	enabled      bool
+	startMemory  uint64
+	currentPhase *PhaseProfile
+	mu           sync.Mutex
 }
 
 // StartPhase begins profiling a specific execution phase
@@ -417,13 +417,13 @@ func (p *Profiler) GetReport() *PerformanceReport {
 // PerformanceReport contains comprehensive performance data
 // PerformanceReport contains comprehensive performance data
 type PerformanceReport struct {
-	GeneratedAt          time.Time                    `json:"generated_at"`
-	TotalExecutions      int                          `json:"total_executions"`
-	OverallAvgDuration   time.Duration                `json:"overall_avg_duration"`
-	OverallAvgMemory     uint64                       `json:"overall_avg_memory"`
-	OverallSuccessRate   float64                      `json:"overall_success_rate"`
-	AgentMetrics         map[string]*AggregateMetrics `json:"agent_metrics"`
-	Bottlenecks          []Bottleneck                 `json:"bottlenecks"`
+	GeneratedAt        time.Time                    `json:"generated_at"`
+	TotalExecutions    int                          `json:"total_executions"`
+	OverallAvgDuration time.Duration                `json:"overall_avg_duration"`
+	OverallAvgMemory   uint64                       `json:"overall_avg_memory"`
+	OverallSuccessRate float64                      `json:"overall_success_rate"`
+	AgentMetrics       map[string]*AggregateMetrics `json:"agent_metrics"`
+	Bottlenecks        []Bottleneck                 `json:"bottlenecks"`
 }
 
 // Clear clears all profiling data

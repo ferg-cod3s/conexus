@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/process"
+	"github.com/ferg-cod3s/conexus/internal/profiling"
 	"github.com/ferg-cod3s/conexus/internal/tool"
 	"github.com/ferg-cod3s/conexus/internal/validation/evidence"
-	"github.com/ferg-cod3s/conexus/internal/profiling"
 	"github.com/ferg-cod3s/conexus/pkg/schema"
 )
 
@@ -134,7 +134,7 @@ func (o *Orchestrator) ExecuteWorkflow(ctx context.Context, workflow *Workflow, 
 
 		// Execute the agent
 		agentResponse, err := o.invokeAgent(ctx, step, permissions, accumulatedContext, previousAgents)
-		
+
 		// Finalize profiling (always) so aggregates are updated
 		if execCtx != nil {
 			execCtx.End(agentResponse.Output, err)
@@ -161,7 +161,7 @@ func (o *Orchestrator) ExecuteWorkflow(ctx context.Context, workflow *Workflow, 
 					agentResponse.AgentID,
 					len(validationResult.UnbackedClaims),
 					len(validationResult.InvalidEvidence))
-				
+
 				// Generate reports before returning
 				o.generateReports(result, workflowID, startTime, validationResults, profiler)
 				return result, fmt.Errorf("%s", result.Error)
@@ -420,14 +420,14 @@ type WorkflowStep struct {
 
 // Result contains the outcome of orchestration
 type Result struct {
-	Success            bool
-	Responses          []schema.AgentResponse
-	Error              string
-	Duration           time.Duration
-	ValidationReport   *ValidationReport
-	ProfilingReport    *ProfilingReport
-	QualityGateResult  *QualityGateResult
-	WorkflowReport     *WorkflowReport
+	Success           bool
+	Responses         []schema.AgentResponse
+	Error             string
+	Duration          time.Duration
+	ValidationReport  *ValidationReport
+	ProfilingReport   *ProfilingReport
+	QualityGateResult *QualityGateResult
+	WorkflowReport    *WorkflowReport
 }
 
 // Helper functions

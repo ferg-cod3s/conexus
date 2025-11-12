@@ -92,21 +92,21 @@ func TestAssertMaxDuration_PerformanceRegression(t *testing.T) {
 func TestAssertMaxDuration_UsagePattern(t *testing.T) {
 	// This demonstrates how developers would typically use AssertMaxDuration
 	// after running a test workflow
-	
+
 	// Step 1: Run a test (simulated here)
 	result := &TestResult{
 		TestName: "API Response Time Test",
 		Duration: 85 * time.Millisecond,
 		Passed:   true,
 	}
-	
+
 	// Step 2: Verify functional correctness
 	require.True(t, result.Passed, "test must pass functionally")
-	
+
 	// Step 3: Verify performance requirement (SLA: 100ms)
 	err := result.AssertMaxDuration(100 * time.Millisecond)
 	assert.NoError(t, err, "API response should meet 100ms SLA")
-	
+
 	// If the test passed both functional and performance checks,
 	// we have high confidence in the implementation
 	t.Logf("✓ Test passed in %v (under 100ms budget)", result.Duration)
