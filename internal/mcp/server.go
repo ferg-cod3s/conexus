@@ -211,6 +211,12 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (i
 		return s.handleJiraGetIssue(ctx, req.Arguments)
 	case ToolJiraListProjects:
 		return s.handleJiraListProjects(ctx, req.Arguments)
+	case ToolDiscordSearch:
+		return s.handleDiscordSearch(ctx, req.Arguments)
+	case ToolDiscordListChannels:
+		return s.handleDiscordListChannels(ctx, req.Arguments)
+	case ToolDiscordGetThread:
+		return s.handleDiscordGetThread(ctx, req.Arguments)
 	default:
 		errorCtx := observability.ExtractErrorContext(ctx, "tools/call")
 		errorCtx.ErrorType = "tool_not_found"

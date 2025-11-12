@@ -466,6 +466,68 @@ type JiraProject struct {
 	Type        string `json:"type"`
 }
 
+// DiscordSearchRequest represents input for discord.search tool
+type DiscordSearchRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	ChannelID   string `json:"channel_id"`   // Required - channel to search in
+	Query       string `json:"query"`        // Search query
+}
+
+// DiscordSearchResponse represents output of discord.search tool
+type DiscordSearchResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Messages []DiscordMessage       `json:"messages,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// DiscordMessage represents a Discord message
+type DiscordMessage struct {
+	ID        string    `json:"id"`
+	ChannelID string    `json:"channel_id"`
+	GuildID   string    `json:"guild_id"`
+	Author    string    `json:"author"`
+	Content   string    `json:"content"`
+	Timestamp time.Time `json:"timestamp"`
+	IsBot     bool      `json:"is_bot"`
+}
+
+// DiscordListChannelsRequest represents input for discord.list_channels tool
+type DiscordListChannelsRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+}
+
+// DiscordListChannelsResponse represents output of discord.list_channels tool
+type DiscordListChannelsResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Channels []DiscordChannel       `json:"channels,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// DiscordChannel represents a Discord channel
+type DiscordChannel struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Topic    string `json:"topic,omitempty"`
+	Position int    `json:"position"`
+}
+
+// DiscordGetThreadRequest represents input for discord.get_thread tool
+type DiscordGetThreadRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	ThreadID    string `json:"thread_id"`    // Required - thread ID
+}
+
+// DiscordGetThreadResponse represents output of discord.get_thread tool
+type DiscordGetThreadResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Messages []DiscordMessage       `json:"messages,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
 // ToolDefinition represents an MCP tool definition
 type ToolDefinition struct {
 	Name        string          `json:"name"`
@@ -785,6 +847,60 @@ func GetToolDefinitions() []ToolDefinition {
 					}
 				},
 				"required": ["connector_id"]
+			}`),
+		},
+		{
+			Name:        ToolDiscordSearch,
+			Description: "Search for messages in a Discord channel",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Discord connector ID"
+					},
+					"channel_id": {
+						"type": "string",
+						"description": "Discord channel ID to search in"
+					},
+					"query": {
+						"type": "string",
+						"description": "Search query to find messages"
+					}
+				},
+				"required": ["connector_id", "channel_id", "query"]
+			}`),
+		},
+		{
+			Name:        ToolDiscordListChannels,
+			Description: "List all accessible Discord channels in the guild/server",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Discord connector ID"
+					}
+				},
+				"required": ["connector_id"]
+			}`),
+		},
+		{
+			Name:        ToolDiscordGetThread,
+			Description: "Retrieve all messages from a specific Discord thread",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Discord connector ID"
+					},
+					"thread_id": {
+						"type": "string",
+						"description": "Discord thread ID"
+					}
+				},
+				"required": ["connector_id", "thread_id"]
 			}`),
 		},
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
+	_ "github.com/ferg-cod3s/conexus/internal/connectors/discord" // Imported for types used by connectorManager
 	"github.com/ferg-cod3s/conexus/internal/connectors/github"
 	_ "github.com/ferg-cod3s/conexus/internal/connectors/jira" // Imported for types used by connectorManager
 	"github.com/ferg-cod3s/conexus/internal/connectors/slack"
@@ -2314,6 +2315,214 @@ func (s *Server) handleJiraListProjects(ctx context.Context, args json.RawMessag
 		Status:   "ok",
 		Message:  fmt.Sprintf("Found %d projects", len(mcpProjects)),
 		Projects: mcpProjects,
+	}, nil
+}
+
+// handleDiscordSearch implements the discord.search tool
+func (s *Server) handleDiscordSearch(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req DiscordSearchRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.ChannelID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "channel_id is required",
+		}
+	}
+	if req.Query == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "query is required",
+		}
+	}
+
+	// Check if connector exists and is Discord type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "discord" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Discord connector", req.ConnectorID),
+		}
+	}
+
+	// Search messages
+	messages, err := s.connectorManager.SearchDiscordMessages(ctx, req.ConnectorID, req.ChannelID, req.Query)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to search Discord messages: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpMessages := make([]DiscordMessage, 0, len(messages))
+	for _, msg := range messages {
+		mcpMessages = append(mcpMessages, DiscordMessage{
+			ID:        msg.ID,
+			ChannelID: msg.ChannelID,
+			GuildID:   msg.GuildID,
+			Author:    msg.Author,
+			Content:   msg.Content,
+			Timestamp: msg.Timestamp,
+			IsBot:     false, // discord.Message doesn't have IsBot field
+		})
+	}
+
+	return DiscordSearchResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Found %d messages", len(mcpMessages)),
+		Messages: mcpMessages,
+	}, nil
+}
+
+// handleDiscordListChannels implements the discord.list_channels tool
+func (s *Server) handleDiscordListChannels(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req DiscordListChannelsRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+
+	// Check if connector exists and is Discord type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "discord" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Discord connector", req.ConnectorID),
+		}
+	}
+
+	// List channels
+	channels, err := s.connectorManager.ListDiscordChannels(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to list Discord channels: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpChannels := make([]DiscordChannel, 0, len(channels))
+	for _, ch := range channels {
+		mcpChannels = append(mcpChannels, DiscordChannel{
+			ID:       ch.ID,
+			Name:     ch.Name,
+			Type:     ch.Type,
+			Topic:    ch.Topic,
+			Position: ch.Position,
+		})
+	}
+
+	return DiscordListChannelsResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Found %d channels", len(mcpChannels)),
+		Channels: mcpChannels,
+	}, nil
+}
+
+// handleDiscordGetThread implements the discord.get_thread tool
+func (s *Server) handleDiscordGetThread(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req DiscordGetThreadRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.ThreadID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "thread_id is required",
+		}
+	}
+
+	// Check if connector exists and is Discord type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "discord" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Discord connector", req.ConnectorID),
+		}
+	}
+
+	// Get thread messages
+	messages, err := s.connectorManager.GetDiscordThread(ctx, req.ConnectorID, req.ThreadID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get Discord thread: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpMessages := make([]DiscordMessage, 0, len(messages))
+	for _, msg := range messages {
+		mcpMessages = append(mcpMessages, DiscordMessage{
+			ID:        msg.ID,
+			ChannelID: msg.ChannelID,
+			GuildID:   msg.GuildID,
+			Author:    msg.Author,
+			Content:   msg.Content,
+			Timestamp: msg.Timestamp,
+			IsBot:     false, // discord.Message doesn't have IsBot field
+		})
+	}
+
+	return DiscordGetThreadResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Found thread with %d messages", len(mcpMessages)),
+		Messages: mcpMessages,
 	}, nil
 }
 
