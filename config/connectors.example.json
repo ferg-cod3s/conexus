@@ -1,0 +1,113 @@
+{
+  "connectors": [
+    {
+      "id": "github-main",
+      "name": "Main GitHub Repository",
+      "type": "github",
+      "config": {
+        "token": "${GITHUB_TOKEN}",
+        "repository": "owner/repo",
+        "webhook_secret": "${GITHUB_WEBHOOK_SECRET}",
+        "sync_interval": "5m"
+      },
+      "enabled": true
+    },
+    {
+      "id": "slack-engineering",
+      "name": "Engineering Slack Workspace",
+      "type": "slack",
+      "config": {
+        "token": "${SLACK_TOKEN}",
+        "channels": [
+          "C01234567",
+          "C98765432"
+        ],
+        "sync_interval": "2m",
+        "max_messages": 1000
+      },
+      "enabled": true
+    },
+    {
+      "id": "jira-main",
+      "name": "Main Jira Instance",
+      "type": "jira",
+      "config": {
+        "base_url": "https://your-domain.atlassian.net",
+        "email": "${JIRA_EMAIL}",
+        "api_token": "${JIRA_TOKEN}",
+        "projects": [
+          "PROJ",
+          "TEST"
+        ],
+        "sync_interval": "10m"
+      },
+      "enabled": false
+    },
+    {
+      "id": "discord-community",
+      "name": "Community Discord Server",
+      "type": "discord",
+      "config": {
+        "token": "${DISCORD_TOKEN}",
+        "guild_id": "123456789012345678",
+        "channels": [
+          "999999999999999999",
+          "888888888888888888"
+        ],
+        "sync_interval": "2m"
+      },
+      "enabled": false
+    }
+  ],
+  "_comments": {
+    "enabled": "Set to true to activate a connector, false to disable without removing config",
+    "connector_id": "Unique identifier used in tool calls (e.g., github.search_issues with connector_id='github-main')",
+    "environment_variables": "Use ${VAR_NAME} to reference environment variables for sensitive data",
+    "sync_interval": "How often to sync data (e.g., '5m', '1h', '30s')",
+    "multiple_instances": "You can have multiple connectors of the same type with different IDs"
+  },
+  "_examples": {
+    "minimal_setup": "Enable only the connectors you need - unused connectors won't register their tools",
+    "oauth_github": {
+      "type": "github",
+      "config": {
+        "auth_type": "oauth",
+        "client_id": "YOUR_GITHUB_OAUTH_CLIENT_ID",
+        "client_secret": "${GITHUB_OAUTH_SECRET}",
+        "redirect_uri": "http://localhost:8080/oauth/github/callback",
+        "repository": "owner/repo"
+      }
+    },
+    "oauth_slack": {
+      "type": "slack",
+      "config": {
+        "auth_type": "oauth",
+        "client_id": "YOUR_SLACK_CLIENT_ID",
+        "client_secret": "${SLACK_CLIENT_SECRET}",
+        "redirect_uri": "http://localhost:8080/oauth/slack/callback",
+        "team_id": "T01234567"
+      }
+    },
+    "oauth_jira": {
+      "type": "jira",
+      "config": {
+        "auth_type": "oauth",
+        "client_id": "YOUR_JIRA_CLIENT_ID",
+        "client_secret": "${JIRA_CLIENT_SECRET}",
+        "redirect_uri": "http://localhost:8080/oauth/jira/callback",
+        "base_url": "https://your-domain.atlassian.net",
+        "cloud_id": "xxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      }
+    },
+    "oauth_discord": {
+      "type": "discord",
+      "config": {
+        "auth_type": "oauth",
+        "client_id": "YOUR_DISCORD_CLIENT_ID",
+        "client_secret": "${DISCORD_CLIENT_SECRET}",
+        "redirect_uri": "http://localhost:8080/oauth/discord/callback",
+        "guild_id": "123456789012345678"
+      }
+    }
+  }
+}

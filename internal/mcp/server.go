@@ -30,6 +30,7 @@ type Server struct {
 	errorHandler     *observability.ErrorHandler
 	jsonrpcSrv       *protocol.Server
 	indexer          indexer.IndexController
+	toolRegistry     *ToolRegistry
 }
 
 // NewServer creates a new MCP server
@@ -47,6 +48,7 @@ func NewServer(
 	searchCache := search.NewSearchCache(100, 5*time.Minute)
 
 	connectorManager := connectors.NewConnectorManager(connectorStore)
+	toolRegistry := NewToolRegistry(connectorStore)
 
 	s := &Server{
 		vectorStore:      vectorStore,
@@ -57,6 +59,7 @@ func NewServer(
 		metrics:          metrics,
 		errorHandler:     errorHandler,
 		indexer:          indexer,
+		toolRegistry:     toolRegistry,
 	}
 
 	// Create JSON-RPC server with this server as handler
@@ -147,10 +150,19 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 	}, nil
 }
 
-// handleToolsList returns the list of available tools
+// handleToolsList returns the list of available tools based on configured connectors
 func (s *Server) handleToolsList(ctx context.Context) (interface{}, error) {
+	// Get available tools based on configured connectors
+	tools, err := s.toolRegistry.GetAvailableTools(ctx)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get available tools: %v", err),
+		}
+	}
+
 	return map[string]interface{}{
-		"tools": GetToolDefinitions(),
+		"tools": tools,
 	}, nil
 }
 
