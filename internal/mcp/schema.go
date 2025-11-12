@@ -16,6 +16,18 @@ const (
 	ToolContextGrep                = "context.grep"
 	ToolGitHubSyncStatus           = "github.sync_status"
 	ToolGitHubSyncTrigger          = "github.sync_trigger"
+	// Slack connector tools
+	ToolSlackSearch       = "slack.search"
+	ToolSlackListChannels = "slack.list_channels"
+	ToolSlackGetThread    = "slack.get_thread"
+	// Jira connector tools
+	ToolJiraSearch       = "jira.search"
+	ToolJiraGetIssue     = "jira.get_issue"
+	ToolJiraListProjects = "jira.list_projects"
+	// Discord connector tools
+	ToolDiscordSearch       = "discord.search"
+	ToolDiscordListChannels = "discord.list_channels"
+	ToolDiscordGetThread    = "discord.get_thread"
 )
 
 // Resource URI scheme
@@ -300,6 +312,78 @@ type RateLimitInfo struct {
 	Reset     time.Time `json:"reset"`
 }
 
+// SlackSearchRequest represents input for slack.search tool
+type SlackSearchRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	Query       string `json:"query"`        // Search query
+}
+
+// SlackSearchResponse represents output of slack.search tool
+type SlackSearchResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Messages []SlackMessage         `json:"messages,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// SlackMessage represents a Slack message
+type SlackMessage struct {
+	ID        string    `json:"id"`
+	ChannelID string    `json:"channel_id"`
+	UserID    string    `json:"user_id"`
+	Author    string    `json:"author"`
+	Content   string    `json:"content"`
+	Timestamp time.Time `json:"timestamp"`
+	ThreadTS  string    `json:"thread_ts,omitempty"`
+	IsBot     bool      `json:"is_bot"`
+}
+
+// SlackListChannelsRequest represents input for slack.list_channels tool
+type SlackListChannelsRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+}
+
+// SlackListChannelsResponse represents output of slack.list_channels tool
+type SlackListChannelsResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Channels []SlackChannel         `json:"channels,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// SlackChannel represents a Slack channel
+type SlackChannel struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	IsPrivate   bool   `json:"is_private"`
+	MemberCount int    `json:"member_count"`
+	Topic       string `json:"topic,omitempty"`
+	Purpose     string `json:"purpose,omitempty"`
+}
+
+// SlackGetThreadRequest represents input for slack.get_thread tool
+type SlackGetThreadRequest struct {
+	ConnectorID string `json:"connector_id"` // Required
+	ChannelID   string `json:"channel_id"`   // Required
+	ThreadTS    string `json:"thread_ts"`    // Required - thread timestamp
+}
+
+// SlackGetThreadResponse represents output of slack.get_thread tool
+type SlackGetThreadResponse struct {
+	Status   string                 `json:"status"` // "ok", "error"
+	Message  string                 `json:"message"`
+	Thread   *SlackThread           `json:"thread,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
+// SlackThread represents a Slack thread with messages
+type SlackThread struct {
+	ChannelID    string         `json:"channel_id"`
+	ThreadTS     string         `json:"thread_ts"`
+	MessageCount int            `json:"message_count"`
+	Messages     []SlackMessage `json:"messages"`
+}
+
 // ToolDefinition represents an MCP tool definition
 type ToolDefinition struct {
 	Name        string          `json:"name"`
@@ -515,6 +599,60 @@ func GetToolDefinitions() []ToolDefinition {
 					}
 				},
 				"required": ["connector_id"]
+			}`),
+		},
+		{
+			Name:        ToolSlackSearch,
+			Description: "Search for messages across Slack channels using a query string",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Slack connector ID to search in"
+					},
+					"query": {
+						"type": "string",
+						"description": "Search query to find messages"
+					}
+				},
+				"required": ["connector_id", "query"]
+			}`),
+		},
+		{
+			Name:        ToolSlackListChannels,
+			Description: "List all accessible Slack channels in the workspace",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Slack connector ID"
+					}
+				},
+				"required": ["connector_id"]
+			}`),
+		},
+		{
+			Name:        ToolSlackGetThread,
+			Description: "Retrieve all messages from a specific Slack thread",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"connector_id": {
+						"type": "string",
+						"description": "Slack connector ID"
+					},
+					"channel_id": {
+						"type": "string",
+						"description": "Slack channel ID containing the thread"
+					},
+					"thread_ts": {
+						"type": "string",
+						"description": "Thread timestamp identifier"
+					}
+				},
+				"required": ["connector_id", "channel_id", "thread_ts"]
 			}`),
 		},
 	}

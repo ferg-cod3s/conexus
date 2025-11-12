@@ -199,6 +199,12 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (i
 		return s.handleGitHubSyncStatus(ctx, req.Arguments)
 	case ToolGitHubSyncTrigger:
 		return s.handleGitHubSyncTrigger(ctx, req.Arguments)
+	case ToolSlackSearch:
+		return s.handleSlackSearch(ctx, req.Arguments)
+	case ToolSlackListChannels:
+		return s.handleSlackListChannels(ctx, req.Arguments)
+	case ToolSlackGetThread:
+		return s.handleSlackGetThread(ctx, req.Arguments)
 	default:
 		errorCtx := observability.ExtractErrorContext(ctx, "tools/call")
 		errorCtx.ErrorType = "tool_not_found"

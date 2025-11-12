@@ -14,6 +14,7 @@ import (
 
 	"github.com/ferg-cod3s/conexus/internal/connectors"
 	"github.com/ferg-cod3s/conexus/internal/connectors/github"
+	"github.com/ferg-cod3s/conexus/internal/connectors/slack"
 	"github.com/ferg-cod3s/conexus/internal/embedding"
 	"github.com/ferg-cod3s/conexus/internal/indexer"
 	"github.com/ferg-cod3s/conexus/internal/observability"
@@ -1842,6 +1843,231 @@ func (s *Server) handleGitHubSyncTrigger(ctx context.Context, args json.RawMessa
 		Details: map[string]interface{}{
 			"force": req.Force,
 		},
+	}, nil
+}
+
+// handleSlackSearch implements the slack.search tool
+func (s *Server) handleSlackSearch(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req SlackSearchRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.Query == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "query is required",
+		}
+	}
+
+	// Check if connector exists and is Slack type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "slack" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Slack connector", req.ConnectorID),
+		}
+	}
+
+	// Search messages
+	messages, err := s.connectorManager.SearchSlackMessages(ctx, req.ConnectorID, req.Query)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to search Slack messages: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpMessages := make([]SlackMessage, 0, len(messages))
+	for _, msg := range messages {
+		// Parse timestamp to time.Time
+		timestamp := msg.CreatedAt
+
+		mcpMessages = append(mcpMessages, SlackMessage{
+			ID:        msg.ID,
+			ChannelID: msg.Channel,
+			UserID:    msg.User,
+			Author:    msg.User, // Use User as Author
+			Content:   msg.Text,
+			Timestamp: timestamp,
+			ThreadTS:  msg.ThreadTS,
+			IsBot:     false, // slack.Message doesn't track this in our struct
+		})
+	}
+
+	return SlackSearchResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Found %d messages", len(mcpMessages)),
+		Messages: mcpMessages,
+	}, nil
+}
+
+// handleSlackListChannels implements the slack.list_channels tool
+func (s *Server) handleSlackListChannels(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req SlackListChannelsRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+
+	// Check if connector exists and is Slack type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "slack" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Slack connector", req.ConnectorID),
+		}
+	}
+
+	// List channels
+	channels, err := s.connectorManager.ListSlackChannels(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to list Slack channels: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	mcpChannels := make([]SlackChannel, 0, len(channels))
+	for _, ch := range channels {
+		mcpChannels = append(mcpChannels, SlackChannel{
+			ID:          ch.ID,
+			Name:        ch.Name,
+			IsPrivate:   ch.IsPrivate,
+			MemberCount: ch.Members,
+			Topic:       "", // Not available in slack.Channel
+			Purpose:     "", // Not available in slack.Channel
+		})
+	}
+
+	return SlackListChannelsResponse{
+		Status:   "ok",
+		Message:  fmt.Sprintf("Found %d channels", len(mcpChannels)),
+		Channels: mcpChannels,
+	}, nil
+}
+
+// handleSlackGetThread implements the slack.get_thread tool
+func (s *Server) handleSlackGetThread(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req SlackGetThreadRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Validate required fields
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+	if req.ChannelID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "channel_id is required",
+		}
+	}
+	if req.ThreadTS == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "thread_ts is required",
+		}
+	}
+
+	// Check if connector exists and is Slack type
+	connector, err := s.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "slack" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("connector %s is not a Slack connector", req.ConnectorID),
+		}
+	}
+
+	// Get thread
+	thread, err := s.connectorManager.GetSlackThread(ctx, req.ConnectorID, req.ChannelID, req.ThreadTS)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get Slack thread: %v", err),
+		}
+	}
+
+	// Convert to MCP response format
+	// Thread has ParentMessage and Replies, we need to combine them
+	allMessages := []slack.Message{thread.ParentMessage}
+	allMessages = append(allMessages, thread.Replies...)
+
+	mcpMessages := make([]SlackMessage, 0, len(allMessages))
+	for _, msg := range allMessages {
+		mcpMessages = append(mcpMessages, SlackMessage{
+			ID:        msg.ID,
+			ChannelID: msg.Channel,
+			UserID:    msg.User,
+			Author:    msg.User,
+			Content:   msg.Text,
+			Timestamp: msg.CreatedAt,
+			ThreadTS:  msg.ThreadTS,
+			IsBot:     false,
+		})
+	}
+
+	mcpThread := &SlackThread{
+		ChannelID:    req.ChannelID,
+		ThreadTS:     req.ThreadTS,
+		MessageCount: len(mcpMessages),
+		Messages:     mcpMessages,
+	}
+
+	return SlackGetThreadResponse{
+		Status:  "ok",
+		Message: fmt.Sprintf("Found thread with %d messages", len(mcpMessages)),
+		Thread:  mcpThread,
 	}, nil
 }
 
