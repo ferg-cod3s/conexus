@@ -218,8 +218,9 @@ func TestServer_Handle_ToolsList(t *testing.T) {
 	err = json.Unmarshal(resultJSON, &tools)
 	require.NoError(t, err)
 
-	// Verify we have 8 tools
-	assert.Len(t, tools, 8)
+	// Verify we have 6 base tools (no connectors configured)
+	// Note: github.sync_status and github.sync_trigger are only included when GitHub connectors are configured
+	assert.Len(t, tools, 6)
 
 	// Verify tool names
 	toolNames := make(map[string]bool)
@@ -232,8 +233,6 @@ func TestServer_Handle_ToolsList(t *testing.T) {
 	assert.True(t, toolNames[ToolContextConnectorManagement])
 	assert.True(t, toolNames[ToolContextExplain])
 	assert.True(t, toolNames[ToolContextGrep])
-	assert.True(t, toolNames[ToolGitHubSyncStatus])
-	assert.True(t, toolNames[ToolGitHubSyncTrigger])
 }
 
 func TestServer_Handle_ContextSearch(t *testing.T) {

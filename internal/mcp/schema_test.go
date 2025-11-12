@@ -11,14 +11,21 @@ import (
 func TestGetToolDefinitions(t *testing.T) {
 	tools := GetToolDefinitions()
 
-	// Verify we have all expected tools
-	assert.Len(t, tools, 8, "should have 8 tool definitions")
+	// Verify we have all expected tools (8 base + 13 connector tools = 21)
+	// Base: context.search, context.get_related_info, context.index_control, context.connector_management,
+	//       context.explain, context.grep, github.sync_status, github.sync_trigger
+	// GitHub: github.search_issues, github.get_issue, github.get_pr, github.list_repos
+	// Slack: slack.search, slack.get_thread, slack.list_channels
+	// Jira: jira.search_issues, jira.get_issue, jira.list_projects
+	// Discord: discord.search, discord.get_thread, discord.list_channels
+	assert.Len(t, tools, 21, "should have 21 tool definitions")
 
 	toolNames := make(map[string]bool)
 	for _, tool := range tools {
 		toolNames[tool.Name] = true
 	}
 
+	// Verify base tools exist
 	assert.True(t, toolNames[ToolContextSearch], "should have context.search tool")
 	assert.True(t, toolNames[ToolContextGetRelatedInfo], "should have context.get_related_info tool")
 	assert.True(t, toolNames[ToolContextIndexControl], "should have context.index_control tool")
@@ -27,6 +34,13 @@ func TestGetToolDefinitions(t *testing.T) {
 	assert.True(t, toolNames[ToolContextGrep], "should have context.grep tool")
 	assert.True(t, toolNames[ToolGitHubSyncStatus], "should have github.sync_status tool")
 	assert.True(t, toolNames[ToolGitHubSyncTrigger], "should have github.sync_trigger tool")
+
+	// Verify connector tools exist
+	assert.True(t, toolNames[ToolGitHubSearchIssues], "should have github.search_issues tool")
+	assert.True(t, toolNames[ToolGitHubGetIssue], "should have github.get_issue tool")
+	assert.True(t, toolNames[ToolSlackSearch], "should have slack.search tool")
+	assert.True(t, toolNames[ToolJiraSearch], "should have jira.search tool")
+	assert.True(t, toolNames[ToolDiscordSearch], "should have discord.search tool")
 }
 
 func TestToolDefinition_ContextSearch(t *testing.T) {
