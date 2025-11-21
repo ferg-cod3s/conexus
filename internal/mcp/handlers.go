@@ -1506,18 +1506,35 @@ func (s *Server) getFilesToSearch(basePath, filePattern string) ([]string, error
 		return files, nil
 	}
 
-	// Use glob for specific patterns
-	pattern := filepath.Join(basePath, "**", filePattern)
-	matches, err := filepath.Glob(pattern)
+	// For specific patterns, walk the directory tree and match against the pattern
+	err := filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // Skip errors
+		}
+		if d.IsDir() {
+			return nil // Continue walking
+		}
+
+		// Get relative path from basePath
+		relPath, err := filepath.Rel(basePath, path)
+		if err != nil {
+			return nil
+		}
+
+		// Check if the relative path matches the pattern
+		matched, err := filepath.Match(filePattern, filepath.Base(relPath))
+		if err != nil {
+			return nil // Skip on pattern error
+		}
+		if matched {
+			files = append(files, path)
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		return nil, err
-	}
-
-	// Filter out directories and validate paths
-	for _, match := range matches {
-		if info, err := os.Stat(match); err == nil && !info.IsDir() {
-			files = append(files, match)
-		}
 	}
 
 	return files, nil
@@ -1703,13 +1720,16 @@ func (s *Server) handleGitHubSyncStatus(ctx context.Context, args json.RawMessag
 
 // handleGitHubSyncTrigger implements the github.sync_trigger tool
 func (s *Server) handleGitHubSyncTrigger(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	os.Stderr.WriteString("DEBUG: handleGitHubSyncTrigger called\n")
 	var req GitHubSyncTriggerRequest
 	if err := json.Unmarshal(args, &req); err != nil {
+		os.Stderr.WriteString(fmt.Sprintf("DEBUG: Failed to unmarshal request: %v\n", err))
 		return nil, &protocol.Error{
 			Code:    protocol.InvalidParams,
 			Message: fmt.Sprintf("invalid request: %v", err),
 		}
 	}
+	os.Stderr.WriteString(fmt.Sprintf("DEBUG: Request unmarshaled, connector_id: %s\n", req.ConnectorID))
 
 	// Validate required fields
 	if req.ConnectorID == "" {
@@ -1738,24 +1758,32 @@ func (s *Server) handleGitHubSyncTrigger(ctx context.Context, args json.RawMessa
 	// Generate job ID for tracking
 	jobID := fmt.Sprintf("github-sync-%s-%d", req.ConnectorID, time.Now().Unix())
 
-	// Start sync in background
-	go func() {
+	// Start sync synchronously for debugging
+	func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 
 		// Sync issues
 		issues, err := s.connectorManager.SyncGitHubIssues(ctx, req.ConnectorID)
 		if err != nil {
+			fmt.Printf("DEBUG: Failed to sync issues: %v\n", err)
 			s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_sync_issues"))
 			return
 		}
 
+		// Debug logging
+		os.Stderr.WriteString(fmt.Sprintf("DEBUG: Synced %d issues from GitHub\n", len(issues)))
+
 		// Sync pull requests
 		prs, err := s.connectorManager.SyncGitHubPullRequests(ctx, req.ConnectorID)
 		if err != nil {
+			fmt.Printf("DEBUG: Failed to sync PRs: %v\n", err)
 			s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_sync_prs"))
 			return
 		}
+
+		// Debug logging
+		os.Stderr.WriteString(fmt.Sprintf("DEBUG: Synced %d PRs from GitHub\n", len(prs)))
 
 		// Store issues in vector store
 		for _, issue := range issues {
@@ -1785,12 +1813,16 @@ func (s *Server) handleGitHubSyncTrigger(ctx context.Context, args json.RawMessa
 			// Generate embedding
 			embedding, err := s.embedder.Embed(ctx, doc.Content)
 			if err != nil {
+				os.Stderr.WriteString(fmt.Sprintf("DEBUG: Failed to embed issue %s: %v\n", doc.ID, err))
 				continue // Skip if embedding fails
 			}
 			doc.Vector = embedding.Vector
 
 			if err := s.vectorStore.Upsert(ctx, doc); err != nil {
+				fmt.Printf("DEBUG: Failed to store issue %s: %v\n", doc.ID, err)
 				s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_store_issue"))
+			} else {
+				os.Stderr.WriteString(fmt.Sprintf("DEBUG: Successfully stored issue %s\n", doc.ID))
 			}
 		}
 
@@ -1827,12 +1859,16 @@ func (s *Server) handleGitHubSyncTrigger(ctx context.Context, args json.RawMessa
 			// Generate embedding
 			embedding, err := s.embedder.Embed(ctx, doc.Content)
 			if err != nil {
+				os.Stderr.WriteString(fmt.Sprintf("DEBUG: Failed to embed PR %s: %v\n", doc.ID, err))
 				continue // Skip if embedding fails
 			}
 			doc.Vector = embedding.Vector
 
 			if err := s.vectorStore.Upsert(ctx, doc); err != nil {
+				fmt.Printf("DEBUG: Failed to store PR %s: %v\n", doc.ID, err)
 				s.errorHandler.HandleError(ctx, err, observability.ExtractErrorContext(ctx, "github_store_pr"))
+			} else {
+				os.Stderr.WriteString(fmt.Sprintf("DEBUG: Successfully stored PR %s\n", doc.ID))
 			}
 		}
 	}()

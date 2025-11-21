@@ -1,0 +1,17 @@
+{
+  "connectors": [
+    {
+      "id": "github-test",
+      "name": "Test GitHub Repository",
+      "type": "github",
+      "config": {
+        "token": "test-token-placeholder",
+        "repository": "ferg-cod3s/conexus",
+        "webhook_secret": "test-webhook-secret",
+        "sync_interval": "5m"
+      },
+      "enabled": true
+    }
+  ]
+}</content>
+<parameter name="filePath">config/connectors.json

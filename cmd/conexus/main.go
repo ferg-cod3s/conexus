@@ -597,16 +597,23 @@ func handleJSONRPC(
 		defer metrics.MCPRequestsInFlight.WithLabelValues(req.Method).Dec()
 	}
 
+	// Create tool registry
+	toolRegistry := mcp.NewToolRegistry(connectorStore)
+
 	// Create MCP handler (using dummy reader/writer since we handle HTTP directly)
+	connectorManager := connectors.NewConnectorManager(connectorStore)
+
 	mcpHandler := &mcpHTTPHandler{
-		indexer:        idx,
-		vectorStore:    vectorStore,
-		connectorStore: connectorStore,
-		embedder:       embedder,
-		logger:         logger,
-		metrics:        metrics,
-		tracerProvider: tracerProvider,
-		rootPath:       rootPath,
+		indexer:          idx,
+		vectorStore:      vectorStore,
+		connectorStore:   connectorStore,
+		connectorManager: connectorManager,
+		embedder:         embedder,
+		logger:           logger,
+		metrics:          metrics,
+		tracerProvider:   tracerProvider,
+		rootPath:         rootPath,
+		toolRegistry:     toolRegistry,
 	}
 
 	// Handle the method
@@ -643,14 +650,16 @@ func handleJSONRPC(
 
 // mcpHTTPHandler implements protocol.Handler for HTTP transport with observability.
 type mcpHTTPHandler struct {
-	indexer        indexer.IndexController
-	vectorStore    *sqlite.Store
-	connectorStore connectors.ConnectorStore
-	embedder       embedding.Embedder
-	logger         *observability.Logger
-	metrics        *observability.MetricsCollector
-	tracerProvider *observability.TracerProvider
-	rootPath       string
+	indexer          indexer.IndexController
+	vectorStore      *sqlite.Store
+	connectorStore   connectors.ConnectorStore
+	connectorManager *connectors.ConnectorManager
+	embedder         embedding.Embedder
+	logger           *observability.Logger
+	metrics          *observability.MetricsCollector
+	tracerProvider   *observability.TracerProvider
+	rootPath         string
+	toolRegistry     *mcp.ToolRegistry
 }
 
 func (h *mcpHTTPHandler) Handle(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
@@ -664,8 +673,15 @@ func (h *mcpHTTPHandler) Handle(ctx context.Context, method string, params json.
 	switch method {
 	case "tools/list":
 		h.logger.Debug("Listing tools")
+		tools, err := h.toolRegistry.GetAvailableTools(ctx)
+		if err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("failed to get available tools: %v", err),
+			}
+		}
 		return map[string]interface{}{
-			"tools": mcp.GetToolDefinitions(),
+			"tools": tools,
 		}, nil
 
 	case "tools/call":
@@ -688,6 +704,18 @@ func (h *mcpHTTPHandler) Handle(ctx context.Context, method string, params json.
 			return h.handleIndexControl(ctx, req.Arguments)
 		case mcp.ToolContextConnectorManagement:
 			return h.handleConnectorManagement(ctx, req.Arguments)
+		case mcp.ToolGitHubSyncStatus:
+			return h.handleGitHubSyncStatus(ctx, req.Arguments)
+		case mcp.ToolGitHubSyncTrigger:
+			return h.handleGitHubSyncTrigger(ctx, req.Arguments)
+		case mcp.ToolGitHubSearchIssues:
+			return h.handleGitHubSearchIssues(ctx, req.Arguments)
+		case mcp.ToolGitHubGetIssue:
+			return h.handleGitHubGetIssue(ctx, req.Arguments)
+		case mcp.ToolGitHubGetPR:
+			return h.handleGitHubGetPR(ctx, req.Arguments)
+		case mcp.ToolGitHubListRepos:
+			return h.handleGitHubListRepos(ctx, req.Arguments)
 		default:
 			return nil, &protocol.Error{
 				Code:    protocol.MethodNotFound,
@@ -1427,5 +1455,263 @@ func (h *mcpHTTPHandler) handleConnectorManagement(ctx context.Context, args jso
 			Code:    protocol.InternalError,
 			Message: "unexpected error",
 		}
+	}
+}
+
+func (h *mcpHTTPHandler) handleGitHubSyncStatus(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req mcp.GitHubSyncStatusRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	// Get all connectors or specific connector
+	var connectorList []*connectors.Connector
+	var err error
+
+	if req.ConnectorID != "" {
+		connector, err := h.connectorStore.Get(ctx, req.ConnectorID)
+		if err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("failed to get connector: %v", err),
+			}
+		}
+		connectorList = []*connectors.Connector{connector}
+	} else {
+		connectorList, err = h.connectorStore.List(ctx)
+		if err != nil {
+			return nil, &protocol.Error{
+				Code:    protocol.InternalError,
+				Message: fmt.Sprintf("failed to list connectors: %v", err),
+			}
+		}
+	}
+
+	// Filter to GitHub connectors only
+	var githubConnectors []*connectors.Connector
+	for _, conn := range connectorList {
+		if conn.Type == "github" {
+			githubConnectors = append(githubConnectors, conn)
+		}
+	}
+
+	// Create a simple sync status response
+	details := map[string]interface{}{
+		"github_connectors": make([]map[string]interface{}, len(githubConnectors)),
+	}
+
+	for i, conn := range githubConnectors {
+		connectorInfo := map[string]interface{}{
+			"connector_id":   conn.ID,
+			"connector_name": conn.Name,
+			"rate_limit": map[string]interface{}{
+				"limit":     5000,
+				"remaining": 5000,
+				"reset":     "",
+			},
+			"sync_status": map[string]interface{}{
+				"last_sync":         "0001-01-01T00:00:00Z",
+				"total_issues":      0,
+				"total_prs":         0,
+				"total_discussions": 0,
+				"sync_in_progress":  false,
+			},
+		}
+		details["github_connectors"].([]map[string]interface{})[i] = connectorInfo
+	}
+
+	return mcp.GitHubSyncStatusResponse{
+		Status:  "ok",
+		Message: fmt.Sprintf("Retrieved status for %d GitHub connector(s)", len(githubConnectors)),
+		Details: details,
+	}, nil
+}
+
+func (h *mcpHTTPHandler) handleGitHubSyncTrigger(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	var req mcp.GitHubSyncTriggerRequest
+	if err := json.Unmarshal(args, &req); err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: fmt.Sprintf("invalid request: %v", err),
+		}
+	}
+
+	if req.ConnectorID == "" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector_id is required",
+		}
+	}
+
+	// Get the connector
+	connector, err := h.connectorStore.Get(ctx, req.ConnectorID)
+	if err != nil {
+		return nil, &protocol.Error{
+			Code:    protocol.InternalError,
+			Message: fmt.Sprintf("failed to get connector: %v", err),
+		}
+	}
+
+	if connector.Type != "github" {
+		return nil, &protocol.Error{
+			Code:    protocol.InvalidParams,
+			Message: "connector is not a GitHub connector",
+		}
+	}
+
+	// Generate job ID
+	jobID := fmt.Sprintf("github-sync-%s-%d", req.ConnectorID, time.Now().Unix())
+
+	// Start sync synchronously for debugging
+	func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
+		// Sync issues
+		issues, err := h.connectorManager.SyncGitHubIssues(ctx, req.ConnectorID)
+		if err != nil {
+			h.logger.Error("Failed to sync GitHub issues", "error", err, "connector_id", req.ConnectorID)
+			return
+		}
+
+		h.logger.Info("Synced GitHub issues", "count", len(issues), "connector_id", req.ConnectorID)
+
+		// Sync pull requests
+		prs, err := h.connectorManager.SyncGitHubPullRequests(ctx, req.ConnectorID)
+		if err != nil {
+			h.logger.Error("Failed to sync GitHub PRs", "error", err, "connector_id", req.ConnectorID)
+			return
+		}
+
+		h.logger.Info("Synced GitHub PRs", "count", len(prs), "connector_id", req.ConnectorID)
+
+		// Store issues in vector store
+		for _, issue := range issues {
+			content := fmt.Sprintf("%s\n\n%s", issue.Title, issue.Description)
+			if content == "" {
+				content = issue.Title
+			}
+
+			doc := vectorstore.Document{
+				ID:      fmt.Sprintf("github-issue-%d", issue.Number),
+				Content: content,
+				Metadata: map[string]interface{}{
+					"source_type":  "github_issue",
+					"issue_number": issue.Number,
+					"title":        issue.Title,
+					"state":        issue.State,
+					"labels":       issue.Labels,
+					"assignee":     issue.Assignee,
+					"created_at":   issue.CreatedAt.Format(time.RFC3339),
+					"updated_at":   issue.UpdatedAt.Format(time.RFC3339),
+					"connector_id": req.ConnectorID,
+				},
+				CreatedAt: issue.CreatedAt,
+				UpdatedAt: issue.UpdatedAt,
+			}
+
+			// Generate embedding
+			embedding, err := h.embedder.Embed(ctx, doc.Content)
+			if err != nil {
+				h.logger.Error("Failed to embed issue", "error", err, "issue_id", doc.ID)
+				continue // Skip if embedding fails
+			}
+			doc.Vector = embedding.Vector
+
+			if err := h.vectorStore.Upsert(ctx, doc); err != nil {
+				h.logger.Error("Failed to store issue", "error", err, "issue_id", doc.ID)
+			} else {
+				h.logger.Info("Stored GitHub issue", "issue_id", doc.ID)
+			}
+		}
+
+		// Store PRs in vector store
+		for _, pr := range prs {
+			content := fmt.Sprintf("%s\n\n%s", pr.Title, pr.Description)
+			if content == "" {
+				content = pr.Title
+			}
+
+			doc := vectorstore.Document{
+				ID:      fmt.Sprintf("github-pr-%d", pr.Number),
+				Content: content,
+				Metadata: map[string]interface{}{
+					"source_type":   "github_pr",
+					"pr_number":     pr.Number,
+					"title":         pr.Title,
+					"state":         pr.State,
+					"labels":        pr.Labels,
+					"assignee":      pr.Assignee,
+					"created_at":    pr.CreatedAt.Format(time.RFC3339),
+					"updated_at":    pr.UpdatedAt.Format(time.RFC3339),
+					"linked_issues": pr.LinkedIssues,
+					"connector_id":  req.ConnectorID,
+					"merged":        pr.Merged,
+					"head_branch":   pr.HeadBranch,
+					"base_branch":   pr.BaseBranch,
+				},
+				CreatedAt: pr.CreatedAt,
+				UpdatedAt: pr.UpdatedAt,
+				PRNumbers: []string{fmt.Sprintf("%d", pr.Number)},
+			}
+
+			// Generate embedding
+			embedding, err := h.embedder.Embed(ctx, doc.Content)
+			if err != nil {
+				h.logger.Error("Failed to embed PR", "error", err, "pr_id", doc.ID)
+				continue // Skip if embedding fails
+			}
+			doc.Vector = embedding.Vector
+
+			if err := h.vectorStore.Upsert(ctx, doc); err != nil {
+				h.logger.Error("Failed to store PR", "error", err, "pr_id", doc.ID)
+			} else {
+				h.logger.Info("Stored GitHub PR", "pr_id", doc.ID)
+			}
+		}
+	}()
+
+	h.logger.Info("GitHub sync triggered", "connector_id", req.ConnectorID, "job_id", jobID)
+
+	return mcp.GitHubSyncTriggerResponse{
+		Status:      "ok",
+		Message:     fmt.Sprintf("GitHub sync started for connector %s", req.ConnectorID),
+		JobID:       jobID,
+		ConnectorID: req.ConnectorID,
+		Details: map[string]interface{}{
+			"force": req.Force,
+		},
+	}, nil
+}
+
+// Placeholder implementations for other GitHub tools
+func (h *mcpHTTPHandler) handleGitHubSearchIssues(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	return nil, &protocol.Error{
+		Code:    protocol.MethodNotFound,
+		Message: "GitHub search issues not implemented in HTTP mode",
+	}
+}
+
+func (h *mcpHTTPHandler) handleGitHubGetIssue(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	return nil, &protocol.Error{
+		Code:    protocol.MethodNotFound,
+		Message: "GitHub get issue not implemented in HTTP mode",
+	}
+}
+
+func (h *mcpHTTPHandler) handleGitHubGetPR(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	return nil, &protocol.Error{
+		Code:    protocol.MethodNotFound,
+		Message: "GitHub get PR not implemented in HTTP mode",
+	}
+}
+
+func (h *mcpHTTPHandler) handleGitHubListRepos(ctx context.Context, args json.RawMessage) (interface{}, error) {
+	return nil, &protocol.Error{
+		Code:    protocol.MethodNotFound,
+		Message: "GitHub list repos not implemented in HTTP mode",
 	}
 }

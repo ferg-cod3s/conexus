@@ -12,6 +12,59 @@ import (
 	"github.com/ferg-cod3s/conexus/internal/vectorstore"
 )
 
+// buildVectorFilterQuery constructs WHERE clause and args for metadata filters
+func buildVectorFilterQuery(filters map[string]interface{}) (string, []interface{}) {
+	if len(filters) == 0 {
+		return "", nil
+	}
+
+	var conditions []string
+	var args []interface{}
+
+	for key, value := range filters {
+		// Map filter keys to metadata field names
+		metadataKey := key
+		switch key {
+		case "source_types":
+			metadataKey = "source_type"
+			// Add other mappings as needed
+		}
+
+		switch v := value.(type) {
+		case []string:
+			// Handle array filters with IN clause
+			if len(v) > 0 {
+				placeholders := make([]string, len(v))
+				for i := range v {
+					placeholders[i] = "?"
+					args = append(args, v[i])
+				}
+				conditions = append(conditions, fmt.Sprintf("json_extract(metadata, '$.%s') IN (%s)", metadataKey, strings.Join(placeholders, ",")))
+			}
+		case []interface{}:
+			// Handle array filters with IN clause
+			if len(v) > 0 {
+				placeholders := make([]string, len(v))
+				for i := range v {
+					placeholders[i] = "?"
+					args = append(args, v[i])
+				}
+				conditions = append(conditions, fmt.Sprintf("json_extract(metadata, '$.%s') IN (%s)", metadataKey, strings.Join(placeholders, ",")))
+			}
+		default:
+			// Use JSON extraction for scalar metadata filtering
+			conditions = append(conditions, fmt.Sprintf("json_extract(metadata, '$.%s') = ?", metadataKey))
+			args = append(args, value)
+		}
+	}
+
+	if len(conditions) == 0 {
+		return "", nil
+	}
+
+	return " WHERE " + strings.Join(conditions, " AND "), args
+}
+
 // SearchVector performs optimized dense vector similarity search.
 // Uses HNSW index when available, falls back to optimized brute force with early termination.
 func (s *Store) SearchVector(ctx context.Context, queryVector embedding.Vector, opts vectorstore.SearchOptions) ([]vectorstore.SearchResult, error) {
@@ -133,18 +186,9 @@ func (s *Store) searchVectorBruteForce(ctx context.Context, queryVector embeddin
 	args := []interface{}{}
 
 	// Add metadata filters if provided
-	if len(opts.Filters) > 0 {
-		sqlQuery += " WHERE"
-		first := true
-		for key, value := range opts.Filters {
-			if !first {
-				sqlQuery += " AND"
-			}
-			sqlQuery += fmt.Sprintf(" json_extract(metadata, '$.%s') = ?", key)
-			args = append(args, value)
-			first = false
-		}
-	}
+	filterClause, filterArgs := buildVectorFilterQuery(opts.Filters)
+	sqlQuery += filterClause
+	args = append(args, filterArgs...)
 
 	// Add LIMIT for sampling when needed (ORDER BY RANDOM() is expensive, just take first N)
 	if sampleSize < totalDocs {
@@ -259,12 +303,9 @@ func (s *Store) fetchDocumentsByIDs(ctx context.Context, ids []string, filters m
 		WHERE id IN (%s)`, strings.Join(placeholders, ","))
 
 	// Add metadata filters if provided
-	if len(filters) > 0 {
-		for key, value := range filters {
-			sqlQuery += fmt.Sprintf(" AND json_extract(metadata, '$.%s') = ?", key)
-			args = append(args, value)
-		}
-	}
+	filterClause, filterArgs := buildVectorFilterQuery(filters)
+	sqlQuery += filterClause
+	args = append(args, filterArgs...)
 
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {

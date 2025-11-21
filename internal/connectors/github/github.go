@@ -140,6 +140,8 @@ func NewConnector(config *Config) (*Connector, error) {
 }
 
 func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
+	log.Printf("DEBUG: Starting GitHub issues sync for repo %s", gc.config.Repository)
+
 	// Update sync status
 	gc.statusMu.Lock()
 	gc.status.SyncInProgress = true
@@ -147,11 +149,13 @@ func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
 
 	// Check rate limit before starting
 	if err := gc.WaitForRateLimit(ctx); err != nil {
+		log.Printf("DEBUG: Rate limit error: %v", err)
 		gc.updateSyncStatus(0, 0, 0, err)
 		return nil, err
 	}
 
 	owner, repo := parseRepository(gc.config.Repository)
+	log.Printf("DEBUG: Parsed repo: owner=%s, repo=%s", owner, repo)
 
 	opts := &github.IssueListByRepoOptions{
 		State:       "all",
@@ -163,11 +167,14 @@ func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
 	var allIssues []Issue
 
 	for {
+		log.Printf("DEBUG: Fetching issues page %d", opts.Page)
 		issues, resp, err := gc.client.ListIssuesByRepo(ctx, owner, repo, opts)
 		if err != nil {
+			log.Printf("DEBUG: Failed to fetch issues: %v", err)
 			gc.updateSyncStatus(0, 0, 0, err)
 			return nil, fmt.Errorf("failed to fetch issues: %w", err)
 		}
+		log.Printf("DEBUG: Fetched %d issues", len(issues))
 
 		for _, issue := range issues {
 			if issue.PullRequestLinks == nil { // Skip PRs
@@ -220,6 +227,8 @@ func (gc *Connector) SyncIssues(ctx context.Context) ([]Issue, error) {
 		opts.Page = resp.NextPage
 	}
 
+	gc.updateSyncStatus(len(allIssues), 0, 0, nil)
+	log.Printf("DEBUG: Completed issues sync, total: %d", len(allIssues))
 	return allIssues, nil
 }
 
@@ -320,6 +329,7 @@ func (gc *Connector) SyncPullRequests(ctx context.Context) ([]PullRequest, error
 		opts.Page = resp.NextPage
 	}
 
+	gc.updateSyncStatus(-1, len(allPRs), -1, nil) // -1 means don't update that field
 	return allPRs, nil
 }
 
@@ -524,9 +534,15 @@ func (gc *Connector) updateSyncStatus(totalIssues, totalPRs, totalDiscussions in
 	defer gc.statusMu.Unlock()
 
 	gc.status.LastSync = time.Now()
-	gc.status.TotalIssues = totalIssues
-	gc.status.TotalPRs = totalPRs
-	gc.status.TotalDiscussions = totalDiscussions
+	if totalIssues >= 0 {
+		gc.status.TotalIssues = totalIssues
+	}
+	if totalPRs >= 0 {
+		gc.status.TotalPRs = totalPRs
+	}
+	if totalDiscussions >= 0 {
+		gc.status.TotalDiscussions = totalDiscussions
+	}
 	gc.status.SyncInProgress = false
 
 	if err != nil {

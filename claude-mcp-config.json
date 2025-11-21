@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "coolify": {
+      "command": "npx",
+      "args": ["-y", "@masonator/coolify-mcp"],
+      "env": {
+        "COOLIFY_ACCESS_TOKEN": "1|WoN76CL40WTMQWCM1YHcAGvjQ7LNRpqXQz8G74Jk7cf39acd",
+        "COOLIFY_BASE_URL": "https://coolify.fergify.work"
+      }
+    },
+    "conexus": {
+      "command": "/Users/johnferguson/Github/conexus/conexus",
+      "args": [],
+      "env": {
+        "CONEXUS_PORT": "0",
+        "CONEXUS_DB_PATH": "/Users/johnferguson/Github/conexus/data/conexus.db",
+        "CONEXUS_LOG_LEVEL": "info"
+      }
+    },
+    "opencode": {
+      "command": "/Users/johnferguson/Github/conexus/conexus",
+      "args": [],
+      "env": {
+        "CONEXUS_PORT": "0",
+        "CONEXUS_DB_PATH": "/Users/johnferguson/Github/opencode/data/conexus.db",
+        "CONEXUS_LOG_LEVEL": "info",
+        "CONEXUS_CONNECTORS_CONFIG": "/Users/johnferguson/Github/opencode/config/connectors.json"
+      }
+    },
+    "obsidian": {
+      "command": "npx",
+      "args": ["-y", "obsidian-claude-code-mcp", "/Users/johnferguson/Documents/Obsidian/Ferguson"],
+      "env": {}
+    }
+  }
+}

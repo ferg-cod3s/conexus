@@ -3,6 +3,7 @@ package connectors
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/ferg-cod3s/conexus/internal/connectors/discord"
@@ -156,16 +157,20 @@ func (cm *ConnectorManager) GetConnector(ctx context.Context, id string) (interf
 
 // SyncGitHubIssues syncs issues from a GitHub connector
 func (cm *ConnectorManager) SyncGitHubIssues(ctx context.Context, connectorID string) ([]github.Issue, error) {
+	os.Stderr.WriteString(fmt.Sprintf("DEBUG: ConnectorManager.SyncGitHubIssues called for %s\n", connectorID))
 	conn, err := cm.GetConnector(ctx, connectorID)
 	if err != nil {
+		os.Stderr.WriteString(fmt.Sprintf("DEBUG: Failed to get connector: %v\n", err))
 		return nil, err
 	}
 
 	githubConn, ok := conn.(*github.Connector)
 	if !ok {
+		os.Stderr.WriteString(fmt.Sprintf("DEBUG: Connector %s is not a GitHub connector\n", connectorID))
 		return nil, fmt.Errorf("connector %s is not a GitHub connector", connectorID)
 	}
 
+	os.Stderr.WriteString("DEBUG: Calling githubConn.SyncIssues\n")
 	return githubConn.SyncIssues(ctx)
 }
 

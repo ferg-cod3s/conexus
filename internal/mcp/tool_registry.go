@@ -193,14 +193,31 @@ func getBaseToolDefinitions() []ToolDefinition {
 		},
 		{
 			Name:        ToolContextGrep,
-			Description: "Performs code search with regex patterns across the codebase.",
+			Description: "Performs fast, exact pattern matching across codebase using ripgrep. Use this for finding specific strings, function calls, or code patterns.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
 				"properties": {
-					"pattern": {"type": "string", "description": "Regex pattern to search for"},
-					"file_pattern": {"type": "string", "description": "File glob pattern to filter files"},
-					"case_sensitive": {"type": "boolean", "default": false},
-					"max_results": {"type": "integer", "default": 100}
+					"pattern": {
+						"type": "string",
+						"description": "The pattern to search for (supports regex)"
+					},
+					"path": {
+						"type": "string",
+						"description": "Base directory to search in (defaults to current directory)"
+					},
+					"include": {
+						"type": "string",
+						"description": "File pattern to include (e.g., *.go, *.js)"
+					},
+					"case_insensitive": {
+						"type": "boolean",
+						"default": false
+					},
+					"context": {
+						"type": "integer",
+						"default": 3,
+						"description": "Lines of context to show around matches"
+					}
 				},
 				"required": ["pattern"]
 			}`),

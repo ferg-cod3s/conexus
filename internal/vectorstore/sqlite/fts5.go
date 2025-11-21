@@ -230,10 +230,32 @@ func buildBM25Query(fts5Query string, filters map[string]interface{}, limit int,
 	// Add metadata filters
 	if len(filters) > 0 {
 		for key, value := range filters {
-			// Use JSON extraction for metadata filtering
-			// SQLite JSON functions: json_extract(metadata, '$.key')
-			baseQuery += fmt.Sprintf(" AND json_extract(d.metadata, '$.%s') = ?", key)
-			args = append(args, value)
+			switch v := value.(type) {
+			case []string:
+				// Handle array filters with IN clause
+				if len(v) > 0 {
+					placeholders := make([]string, len(v))
+					for i := range v {
+						placeholders[i] = "?"
+						args = append(args, v[i])
+					}
+					baseQuery += fmt.Sprintf(" AND json_extract(d.metadata, '$.%s') IN (%s)", key, strings.Join(placeholders, ","))
+				}
+			case []interface{}:
+				// Handle array filters with IN clause
+				if len(v) > 0 {
+					placeholders := make([]string, len(v))
+					for i := range v {
+						placeholders[i] = "?"
+						args = append(args, v[i])
+					}
+					baseQuery += fmt.Sprintf(" AND json_extract(d.metadata, '$.%s') IN (%s)", key, strings.Join(placeholders, ","))
+				}
+			default:
+				// Use JSON extraction for scalar metadata filtering
+				baseQuery += fmt.Sprintf(" AND json_extract(d.metadata, '$.%s') = ?", key)
+				args = append(args, value)
+			}
 		}
 	}
 

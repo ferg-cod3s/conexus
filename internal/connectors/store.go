@@ -11,6 +11,7 @@ import (
 	"time"
 
 	_ "github.com/ncruces/go-sqlite3/driver" // Pure Go SQLite driver (WASM-based)
+	_ "github.com/ncruces/go-sqlite3/embed"  // SQLite binary embed
 )
 
 // Connector represents a connector configuration
@@ -50,7 +51,7 @@ func NewStore(path string) (*Store, error) {
 		}
 	}
 
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}

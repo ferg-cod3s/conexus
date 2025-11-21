@@ -33,7 +33,7 @@ func NewStore(path string) (*Store, error) {
 		}
 	}
 
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
